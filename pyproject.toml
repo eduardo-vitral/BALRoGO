@@ -5,12 +5,13 @@ description = "Bayesian Astrometric Likelihood Recover of Galactic Objects"
 authors = ["Eduardo Vitral <vitral@iap.fr>", "Alexandre Macedo <arj.macedo@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.6.9"
+python = "^3.6"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
 black = { version = "*", allow-prereleases = true }
 flake8-black = "^0.2.1"
+pytest-cov = "^2.10.1"
 
 [build-system]
 requires = ["poetry>=0.12"]
