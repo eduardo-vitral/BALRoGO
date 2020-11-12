@@ -373,6 +373,53 @@ def likelihood_prob(params, Ux, Uy, guess):
         return -np.inf
     return lp - likelihood_function(params, Ux, Uy)
 
+def prob (Ux,Uy,params) :
+    """
+    This function gives the probability of a certain star to belong to
+    a galactic object. This is computed with distribution functions in 
+    proper motion space.
+
+    Parameters
+    ----------
+    Ux : array_like
+        Array containting the data in the x-direction.
+    Uy : array_like
+        Array containting the data in the y-direction.
+    params : array_like
+        Array containing the fitted values.
+
+    Returns
+    -------
+    probability : array_like
+        Probability of a each star to belong to the respective
+        a galactic object (considering only proper motions).
+
+    """
+    
+    mu_pmx_go = params[0]  # mean pmra from galactic object
+    mu_pmy_go = params[1]  # mean pmdec from galactic object
+    sig_pm_go = params[2]  # pm dispersion from galactic object
+    
+    mu_pmx_mw = params[3]  # mean pmra from Milky Way stars
+    mu_pmy_mw = params[4]  # mean pmdec from Milky Way stars
+    sr_pmx_mw = params[5]  # scale radius (pmra) from Milky Way stars
+    sr_pmy_mw = params[6]  # scale radius (pmdec) from Milky Way stars
+    rot_pm_mw = params[7]  # rotation angle from Milky Way field stars
+    slp_pm_mw = params[8]  # slope from Milky Way field stars
+    
+    frc_go_mw = params[9]  # fraction of galactic objects by Milky Way stars
+    
+    pdf_go = gauss_2d(Ux,Uy,mu_pmx_go,mu_pmy_go,sig_pm_go)
+    pdf_mw = pdf_field_stars(Ux,Uy,mu_pmx_mw,mu_pmy_mw,
+                                   sr_pmx_mw,sr_pmy_mw,
+                                   rot_pm_mw,slp_pm_mw)
+    
+    f1 = frc_go_mw * pdf_go
+    f2 = (1 - frc_go_mw) * pdf_mw
+
+    probability = f1 / (f1 + f2)
+        
+    return probability
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
@@ -762,7 +809,7 @@ def mcmc(X, Y, nwalkers, steps, ini=None, use_pool=False):
             [ini[0], ini[1], ini[2], ini[3], ini[4], ini[5], ini[5], 0, ini[6], ini[7]]
         )
 
-    ndim = len(ini)  # numbver of dimensions.
+    ndim = len(ini)  # number of dimensions.
 
     gauss_ball = np.asarray(
         [
