@@ -933,7 +933,6 @@ def maximum_likelihood(x=None, y=None, model='plummer', x0=None, y0=None):
         ri        = np.asarray([sky_distance_deg(x,y,x0,y0)])
         hmr, norm = initial_guess_sd(x=x, y=y, x0=x0, y0=y0)
         
-    print(hmr,norm)
     hmr  = np.log10(hmr)
     norm = np.log10(norm)
     if (model == 'sersic') :
@@ -954,7 +953,7 @@ def maximum_likelihood(x=None, y=None, model='plummer', x0=None, y0=None):
     return results
 
 
-def mcmc(x=None, y=None, model='plummer', nwalkers=1, steps=1000, ini=None, use_pool=False,
+def mcmc(x=None, y=None, model='plummer', nwalkers=5, steps=1000, ini=None, use_pool=False,
          x0=None, y0=None):
     """
     MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
@@ -976,7 +975,7 @@ def mcmc(x=None, y=None, model='plummer', nwalkers=1, steps=1000, ini=None, use_
              - 'plummer'
         The default is 'plummer'.
     nwalkers : int, optional
-        Number of Markov chains. The default is 1.
+        Number of Markov chains. The default is 5.
     steps : int, optional
         Number of steps for each chain. The default is 1000.
     ini : array, optional
@@ -1017,7 +1016,7 @@ def mcmc(x=None, y=None, model='plummer', nwalkers=1, steps=1000, ini=None, use_
     if (y is None) :
         ri = x
         if ini is None:
-            ini = maximum_likelihood(x)
+            ini = maximum_likelihood(x=x)
     else :
         
         if (x0 is None or y0 is None) :
@@ -1030,7 +1029,7 @@ def mcmc(x=None, y=None, model='plummer', nwalkers=1, steps=1000, ini=None, use_
         ri     = np.asarray([sky_distance_deg(x,y,x0,y0)])
 
         if ini is None:
-            ini = maximum_likelihood(x,y, x0=x0, y0=y0)
+            ini = maximum_likelihood(x=x,y=y, x0=x0, y0=y0)
         
 
     ndim = len(ini)  # number of dimensions.
@@ -1044,11 +1043,11 @@ def mcmc(x=None, y=None, model='plummer', nwalkers=1, steps=1000, ini=None, use_
         func   = lnprob_s
         
     elif (model == 'kazantzidis') :
-        bounds = [(ini[1]-2,ini[1]+2),(ini[2]-2,ini[2]-2)]
+        bounds = [(ini[0]-2,ini[0]+2),(ini[1]-2,ini[1]-2)]
         func   = lnprob_k
         
     elif (model == 'plummer') :
-        bounds = [(ini[1]-2,ini[1]+2),(ini[2]-2,ini[2]-2)]
+        bounds = [(ini[0]-2,ini[0]+2),(ini[1]-2,ini[1]-2)]
         func   = lnprob_p
 
     if use_pool:
