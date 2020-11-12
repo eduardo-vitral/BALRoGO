@@ -953,7 +953,7 @@ def maximum_likelihood(x=None, y=None, model='plummer', x0=None, y0=None):
     return results
 
 
-def mcmc(x=None, y=None, model='plummer', nwalkers=5, steps=1000, ini=None, use_pool=False,
+def mcmc(x=None, y=None, model='plummer', nwalkers=None, steps=1000, ini=None, use_pool=False,
          x0=None, y0=None):
     """
     MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
@@ -975,7 +975,7 @@ def mcmc(x=None, y=None, model='plummer', nwalkers=5, steps=1000, ini=None, use_
              - 'plummer'
         The default is 'plummer'.
     nwalkers : int, optional
-        Number of Markov chains. The default is 5.
+        Number of Markov chains. The default is None.
     steps : int, optional
         Number of steps for each chain. The default is 1000.
     ini : array, optional
@@ -1016,7 +1016,7 @@ def mcmc(x=None, y=None, model='plummer', nwalkers=5, steps=1000, ini=None, use_
     if (y is None) :
         ri = x
         if ini is None:
-            ini = maximum_likelihood(x=x)
+            ini = maximum_likelihood(x=x,model=model)
     else :
         
         if (x0 is None or y0 is None) :
@@ -1029,10 +1029,12 @@ def mcmc(x=None, y=None, model='plummer', nwalkers=5, steps=1000, ini=None, use_
         ri     = np.asarray([sky_distance_deg(x,y,x0,y0)])
 
         if ini is None:
-            ini = maximum_likelihood(x=x,y=y, x0=x0, y0=y0)
+            ini = maximum_likelihood(x=x,y=y, x0=x0, y0=y0,model=model)
         
 
     ndim = len(ini)  # number of dimensions.
+    if (nwalkers is None or nwalkers < 2*ndim) :
+        nwalkers = int(2 * ndim + 1)
 
     gauss_ball = ini * 0.1
 
