@@ -32,6 +32,7 @@ ncpu = cpu_count()
 "Peak position"
 # ---------------------------------------------------------------------------
 
+
 def gauss_sig(x_axis, gauss, peak):
     """
     This function estimates the dispersion of a Gaussian clump.
@@ -73,7 +74,8 @@ def gauss_sig(x_axis, gauss, peak):
 
     return sigma
 
-def find_center (x,y) :
+
+def find_center(x, y):
     """
     Fit a center (peak) of the [x,y] data through an iterative approach.
 
@@ -92,14 +94,14 @@ def find_center (x,y) :
         Uncertainty in the position.
 
     """
-    
+
     # Takes off NaN values
     x = x[np.logical_not(np.isnan(x))]
     y = y[np.logical_not(np.isnan(y))]
 
     bins_x = good_bin(x)
     bins_y = good_bin(y)
-    
+
     # Gets the histogram in RA
     x_hist, x_axis = np.histogram(x, bins=bins_x, range=(np.amin(x), np.amax(x)))
     x_axis = 0.5 * (x_axis[1:] + x_axis[:-1])
@@ -107,7 +109,7 @@ def find_center (x,y) :
     # Gets the histogram in Dec
     y_hist, y_axis = np.histogram(y, bins=bins_y, range=(np.amin(y), np.amax(y)))
     y_axis = 0.5 * (y_axis[1:] + y_axis[:-1])
-    
+
     # Gets the histogram of the 2d (RA,Dec) data
     hist, xedges, yedges = np.histogram2d(x, y, bins=[bins_x, bins_y])
     hist = hist.T
@@ -117,55 +119,58 @@ def find_center (x,y) :
     peaks = peak_local_max(hist, num_peaks=1)
 
     y_peak, x_peak = peaks.T[0], peaks.T[1]
-    cmx, cmy       = xedges[x_peak], yedges[y_peak]
-    
+    cmx, cmy = xedges[x_peak], yedges[y_peak]
+
     sigma_x = np.asarray([gauss_sig(x_axis, x_hist, cmx)])
     sigma_y = np.asarray([gauss_sig(y_axis, y_hist, cmy)])
-    
-    sigma = np.nanmean(np.asarray([sigma_x,sigma_y]))
-    
-    center = np.asarray([cmx,cmy])
-    unc    = np.nan
-    
+
+    sigma = np.nanmean(np.asarray([sigma_x, sigma_y]))
+
+    center = np.asarray([cmx, cmy])
+    unc = np.nan
+
     many_tracers = True
     shift = list()
     count = 0
-    while (many_tracers ==  True) :
-        
-        idx = np.where(sky_distance_deg(x, y, center[0], center[1]) < (0.9**count) * sigma)
+    while many_tracers is True:
+
+        idx = np.where(
+            sky_distance_deg(x, y, center[0], center[1]) < (0.9 ** count) * sigma
+        )
 
         bins_x = good_bin(x[idx])
         bins_y = good_bin(y[idx])
-        
-        if (len(idx[0]) < bins_x*bins_y and count > 0) :
-            
+
+        if len(idx[0]) < bins_x * bins_y and count > 0:
+
             many_tracers = False
-            return  center, unc
-        
-        hist, xedges, yedges = np.histogram2d(x[idx], y[idx], 
-                                              bins=[bins_x, bins_y])
-        
+            return center, unc
+
+        hist, xedges, yedges = np.histogram2d(x[idx], y[idx], bins=[bins_x, bins_y])
+
         xedges = 0.5 * (xedges[1:] + xedges[:-1])
         yedges = 0.5 * (yedges[1:] + yedges[:-1])
-                
-        cmx = np.nansum(xedges*np.sum(hist,axis=1))/np.nansum(np.sum(hist,axis=1))
-        cmy = np.nansum(yedges*np.sum(hist,axis=0))/np.nansum(np.sum(hist,axis=0))
-        
-        shift.append(sky_distance_deg(cmx,cmy,center[0], center[1]))
-        
-        center = np.asarray([cmx,cmy])
-        unc    = np.median(shift)
-               
+
+        cmx = np.nansum(xedges * np.sum(hist, axis=1)) / np.nansum(np.sum(hist, axis=1))
+        cmy = np.nansum(yedges * np.sum(hist, axis=0)) / np.nansum(np.sum(hist, axis=0))
+
+        shift.append(sky_distance_deg(cmx, cmy, center[0], center[1]))
+
+        center = np.asarray([cmx, cmy])
+        unc = np.median(shift)
+
         count += 1
-        
-    return  center, unc
+
+    return center, unc
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
 "Surface density"
 # ---------------------------------------------------------------------------
 
-def surface_density(x=None, y=None,x0=None,y0=None) :
+
+def surface_density(x=None, y=None, x0=None, y0=None):
     """
     Binned surface density derivation.
 
@@ -179,12 +184,12 @@ def surface_density(x=None, y=None,x0=None,y0=None) :
         Peak of data in x-direction. The default is None.
     y0 : TYPE, optional
         Peak of data in y-direction. The default is None.
-    
+
     Raises
     ------
     ValueError
         No data is provided.
-        
+
     Returns
     -------
     density : array_like
@@ -195,52 +200,53 @@ def surface_density(x=None, y=None,x0=None,y0=None) :
             3 : Size inbetween projected radii.
 
     """
-    
-    if ((x is None and y is None) or (x is None)) :
+
+    if (x is None and y is None) or (x is None):
         raise ValueError("Please provide the data to be fitted.")
-        
-    if (y is None) :
+
+    if y is None:
         r = x
-    else :
-        
-        if (x0 is None or y0 is None) :
-            
-            center, unc = find_center(x,y)
-            if (x0 is None) :
+    else:
+
+        if x0 is None or y0 is None:
+
+            center, unc = find_center(x, y)
+            if x0 is None:
                 x0 = center[0]
-            if (y0 is None) :
+            if y0 is None:
                 y0 = center[1]
-    
-        r = sky_distance_deg(x,y,x0,y0)
-    
+
+        r = sky_distance_deg(x, y, x0, y0)
+
     q_16, q_50, q_84 = quantile(r, [0.16, 0.5, 0.84])
     q_m, q_p = q_50 - q_16, q_84 - q_50
     nbins = int((np.amax(r) - np.amin(r)) / (min(q_m, q_p) / 5))
-    
-    counts,binlim = np.histogram(r,range=(np.amin(r),np.amax(r)),
-                                 bins=np.logspace(np.log10(np.amin(r)),
-                                                  np.log10(np.amax(r)),
-                                                  nbins+1))
-    
-    bincent = 0.5*(binlim[1:]+binlim[:-1])
+
+    counts, binlim = np.histogram(
+        r,
+        range=(np.amin(r), np.amax(r)),
+        bins=np.logspace(np.log10(np.amin(r)), np.log10(np.amax(r)), nbins + 1),
+    )
+
+    bincent = 0.5 * (binlim[1:] + binlim[:-1])
     barsize = binlim[1:] - binlim[:-1]
-    surface = np.pi * (binlim[1:]**2 - binlim[:-1]**2)
-    s_dens  = counts / surface
-    errs    = s_dens / np.sqrt(counts)
-    
-        
+    surface = np.pi * (binlim[1:] ** 2 - binlim[:-1] ** 2)
+    s_dens = counts / surface
+    errs = s_dens / np.sqrt(counts)
+
     s_dens[np.where(counts == 0)] = np.nan
-    errs[np.where(counts == 0)]   = np.nan
-    
-    density    = np.zeros((4,nbins))
+    errs[np.where(counts == 0)] = np.nan
+
+    density = np.zeros((4, nbins))
     density[0] = bincent
     density[1] = s_dens
     density[2] = errs
     density[3] = barsize
-    
+
     return density
 
-def initial_guess_sd(x=None, y=None,x0=None,y0=None) :
+
+def initial_guess_sd(x=None, y=None, x0=None, y0=None):
     """
     Initial guess of projected half mass radius.
 
@@ -254,63 +260,68 @@ def initial_guess_sd(x=None, y=None,x0=None,y0=None) :
         Peak of data in x-direction. The default is None.
     y0 : float, optional
         Peak of data in y-direction. The default is None.
-        
+
     Raises
     ------
     ValueError
         No data is provided.
-        
+
     Returns
     -------
     half_radius : float
         Guess on projected half mass radius.
 
     """
-    if ((x is None and y is None) or (x is None)) :
+    if (x is None and y is None) or (x is None):
         raise ValueError("Please provide the data to be fitted.")
-        
-    if (y is None) :
-        density = surface_density(x=x)
-        size    = len(x[0])
-    else :
-        
-        if (x0 is None or y0 is None) :
-            
-            center, unc = find_center(x,y)
-            if (x0 is None) :
-                x0 = center[0]
-            if (y0 is None) :
-                y0 = center[1]
-            
-        density = surface_density(x=x, y=y, x0=x0, y0=y0)
-        size    = len(x)
-        
-    mw_dens = density[1][len(density[1])-1]
-    density[1] = density[1] - mw_dens
-    nilop = mw_dens * np.pi * \
-            (density[0][len(density[0])-1]**2 - density[0][0]**2)
-    n_local = np.zeros(len(density[0]))
-    for i in range(len(density[0])) :
-        n_local[i] = np.nansum(n_local) \
-                + 2 * np.pi * density[1][i] * density[0][i] * density[3][i]
 
-    idx = np.nanargmin(np.abs(n_local - n_local[len(n_local)-1] * 0.5))
+    if y is None:
+        density = surface_density(x=x)
+        size = len(x[0])
+    else:
+
+        if x0 is None or y0 is None:
+
+            center, unc = find_center(x, y)
+            if x0 is None:
+                x0 = center[0]
+            if y0 is None:
+                y0 = center[1]
+
+        density = surface_density(x=x, y=y, x0=x0, y0=y0)
+        size = len(x)
+
+    mw_dens = density[1][len(density[1]) - 1]
+    density[1] = density[1] - mw_dens
+    nilop = (
+        mw_dens * np.pi * (density[0][len(density[0]) - 1] ** 2 - density[0][0] ** 2)
+    )
+    n_local = np.zeros(len(density[0]))
+    for i in range(len(density[0])):
+        n_local[i] = (
+            np.nansum(n_local)
+            + 2 * np.pi * density[1][i] * density[0][i] * density[3][i]
+        )
+
+    idx = np.nanargmin(np.abs(n_local - n_local[len(n_local) - 1] * 0.5))
 
     half_radius = density[0][idx]
     norm = size / (size - nilop) - 1
 
     return half_radius, norm
 
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-#---------------------------------------------------------------------------
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
 "Sersic profile functions"
-#---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 
 ###############################################################################
 #
 # Functions concerning the Sersic profile (Sersic 1963, 1968).
 #
 ###############################################################################
+
 
 def b(n):
     """
@@ -327,16 +338,23 @@ def b(n):
         Sersic's b_n term.
 
     """
-    
-    b = 2*n - 1/3 + 4/(405*n) + 46/(25515*n**2) + 131/(1148175*n**3) - \
-        2194697/(30690717750*n**4)
+
+    b = (
+        2 * n
+        - 1 / 3
+        + 4 / (405 * n)
+        + 46 / (25515 * n ** 2)
+        + 131 / (1148175 * n ** 3)
+        - 2194697 / (30690717750 * n ** 4)
+    )
     return b
 
-def sd_sersic(n,X) :
+
+def sd_sersic(n, X):
     """
     Sersic surface density, normalized according to the convention:
-    
-    SD(X = R/R_e) = SD_real(R) * pi * R_e^2 / N_infinty 
+
+    SD(X = R/R_e) = SD_real(R) * pi * R_e^2 / N_infinty
 
     Parameters
     ----------
@@ -351,16 +369,17 @@ def sd_sersic(n,X) :
         Normalized surface density profile.
 
     """
-    
+
     bn = b(n)
-    sd = np.exp(- bn * X**(1/n)) * (bn**(2*n) / (2*n*gamma(2*n)))
+    sd = np.exp(-bn * X ** (1 / n)) * (bn ** (2 * n) / (2 * n * gamma(2 * n)))
     return sd
 
-def n_sersic(n,X) :
+
+def n_sersic(n, X):
     """
     Sersic projected number, normalized according to the convention:
-    
-    N(X = R/R_e) = N(R) / N_infinty 
+
+    N(X = R/R_e) = N(R) / N_infinty
 
     Parameters
     ----------
@@ -368,19 +387,20 @@ def n_sersic(n,X) :
         Sersic index.
     X : array_like (same shape as n), float
         Projected radius X = R/R_e.
-        
+
     Returns
     -------
     N : array_like (same shape as n), float
         Sersic projected number.
 
     """
-    
+
     bn = b(n)
-    N  = gammainc(2*n, bn * X**(1/n))
+    N = gammainc(2 * n, bn * X ** (1 / n))
     return N
 
-def likelihood_sersic(params,Ri) :
+
+def likelihood_sersic(params, Ri):
     """
     Likelihood function of the Sersic profile plus a constant contribution
     from fore/background tracers.
@@ -399,33 +419,34 @@ def likelihood_sersic(params,Ri) :
        Likelihood.
 
     """
-    
-    n    = params[0]
-    Re   = 10**params[1]
-    if (params[2] < -10):
-        norm = 0
-    else :
-        norm = 10**params[2]
 
-    Xmax = np.amax(Ri)/Re
-    Xmin = np.amin(Ri)/Re
-    X    = Ri/Re
-    
-    N_sys_tot = n_sersic(n,Xmax) - n_sersic(n,Xmin)
-    
-    SD = sd_sersic(n,X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
-    
+    n = params[0]
+    Re = 10 ** params[1]
+    if params[2] < -10:
+        norm = 0
+    else:
+        norm = 10 ** params[2]
+
+    Xmax = np.amax(Ri) / Re
+    Xmin = np.amin(Ri) / Re
+    X = Ri / Re
+
+    N_sys_tot = n_sersic(n, Xmax) - n_sersic(n, Xmin)
+
+    SD = sd_sersic(n, X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+
     Ntot = N_sys_tot * (1 + norm)
-    
-    fi = 2 * (X/Re) * SD / Ntot 
-    
+
+    fi = 2 * (X / Re) * SD / Ntot
+
     idx_valid = np.logical_not(np.isnan(np.log(fi)))
-    
-    L = - np.sum(np.log(fi[idx_valid]))
-    
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
     return L
 
-def lnprior_s(params,bounds):
+
+def lnprior_s(params, bounds):
     """
     Prior assumptions on the parameters.
 
@@ -444,14 +465,17 @@ def lnprior_s(params,bounds):
         - Infinity otherwise.
 
     """
-    
-    if ((bounds[0][0] <= params[0] <= bounds[0][1]) and \
-        (bounds[1][0] <= params[1] <= bounds[1][1]) and \
-        (bounds[2][0] <= params[2] <= bounds[2][1])) :
+
+    if (
+        (bounds[0][0] <= params[0] <= bounds[0][1])
+        and (bounds[1][0] <= params[1] <= bounds[1][1])
+        and (bounds[2][0] <= params[2] <= bounds[2][1])
+    ):
         return 0.0
     return -np.inf
 
-def lnprob_s(params,Ri,bounds):
+
+def lnprob_s(params, Ri, bounds):
     """
     log-probability of fit parameters.
 
@@ -471,16 +495,17 @@ def lnprob_s(params,Ri,bounds):
         log-probability of fit parameters.
 
     """
-    
-    lp = lnprior_s(params,bounds)
+
+    lp = lnprior_s(params, bounds)
     if not np.isfinite(lp):
         return -np.inf
-    return lp - likelihood_sersic(params,Ri)
-            
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-#---------------------------------------------------------------------------
+    return lp - likelihood_sersic(params, Ri)
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
 "Kazantzidis profile functions"
-#---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 
 ###############################################################################
 #
@@ -488,11 +513,12 @@ def lnprob_s(params,Ri,bounds):
 #
 ###############################################################################
 
-def sd_kazantzidis(X) :
+
+def sd_kazantzidis(X):
     """
     Kazantzidis surface density, normalized according to the convention:
-    
-    SD(X = R/a) = SD_real(R) * pi * a^2 / N_infinty 
+
+    SD(X = R/a) = SD_real(R) * pi * a^2 / N_infinty
 
     Parameters
     ----------
@@ -505,32 +531,34 @@ def sd_kazantzidis(X) :
         Normalized surface density profile.
 
     """
-    
-    sd = kn(0,X) / 2
+
+    sd = kn(0, X) / 2
     return sd
 
-def n_kazantizidis(X) :
+
+def n_kazantizidis(X):
     """
     Sersic projected number, normalized according to the convention:
-    
-    N(X = R/a) = N(R) / N_infinty 
+
+    N(X = R/a) = N(R) / N_infinty
 
     Parameters
     ----------
     X : array_like (same shape as n), float
         Projected radius X = R/a.
-        
+
     Returns
     -------
     N : array_like (same shape as n), float
         Sersic projected number.
 
     """
-    
-    N  = 1 - X * kn(1,X)
+
+    N = 1 - X * kn(1, X)
     return N
 
-def likelihood_kazantzidis(params,Ri) :
+
+def likelihood_kazantzidis(params, Ri):
     """
     Likelihood function of the Sersic profile plus a constant contribution
     from fore/background tracers.
@@ -549,32 +577,33 @@ def likelihood_kazantzidis(params,Ri) :
        Likelihood.
 
     """
-    
-    a    = 10**params[0]
-    if (params[1] < -10):
-        norm = 0
-    else :
-        norm = 10**params[1]
 
-    Xmax = np.amax(Ri)/a
-    Xmin = np.amin(Ri)/a
-    X    = Ri/a
-    
+    a = 10 ** params[0]
+    if params[1] < -10:
+        norm = 0
+    else:
+        norm = 10 ** params[1]
+
+    Xmax = np.amax(Ri) / a
+    Xmin = np.amin(Ri) / a
+    X = Ri / a
+
     N_sys_tot = n_kazantizidis(Xmax) - n_kazantizidis(Xmin)
-    
-    SD = sd_kazantzidis(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
-    
+
+    SD = sd_kazantzidis(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+
     Ntot = N_sys_tot * (1 + norm)
-    
-    fi = 2 * (X/a) * SD / Ntot 
-    
+
+    fi = 2 * (X / a) * SD / Ntot
+
     idx_valid = np.logical_not(np.isnan(np.log(fi)))
-    
-    L = - np.sum(np.log(fi[idx_valid]))
-    
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
     return L
 
-def lnprior_k(params,bounds):
+
+def lnprior_k(params, bounds):
     """
     Prior assumptions on the parameters.
 
@@ -593,13 +622,15 @@ def lnprior_k(params,bounds):
         - Infinity otherwise.
 
     """
-    
-    if ((bounds[0][0] <= params[0] <= bounds[0][1]) and \
-        (bounds[1][0] <= params[1] <= bounds[1][1])) :
+
+    if (bounds[0][0] <= params[0] <= bounds[0][1]) and (
+        bounds[1][0] <= params[1] <= bounds[1][1]
+    ):
         return 0.0
     return -np.inf
 
-def lnprob_k(params,Ri,bounds):
+
+def lnprob_k(params, Ri, bounds):
     """
     log-probability of fit parameters.
 
@@ -619,16 +650,17 @@ def lnprob_k(params,Ri,bounds):
         log-probability of fit parameters.
 
     """
-    
-    lp = lnprior_k(params,bounds)
+
+    lp = lnprior_k(params, bounds)
     if not np.isfinite(lp):
         return -np.inf
-    return lp - likelihood_kazantzidis(params,Ri)
+    return lp - likelihood_kazantzidis(params, Ri)
 
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-#---------------------------------------------------------------------------
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
 "Plummer profile functions"
-#---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 
 ###############################################################################
 #
@@ -636,11 +668,12 @@ def lnprob_k(params,Ri,bounds):
 #
 ###############################################################################
 
-def sd_plummer(X) :
+
+def sd_plummer(X):
     """
     Plummer surface density, normalized according to the convention:
-    
-    SD(X = R/a) = SD_real(R) * pi * a^2 / N_infinty 
+
+    SD(X = R/a) = SD_real(R) * pi * a^2 / N_infinty
 
     Parameters
     ----------
@@ -653,32 +686,34 @@ def sd_plummer(X) :
         Normalized surface density profile.
 
     """
-    
-    sd = 1 / ((1 + X*X)*(1 + X*X))
+
+    sd = 1 / ((1 + X * X) * (1 + X * X))
     return sd
 
-def n_plummer(X) :
+
+def n_plummer(X):
     """
     Plummer projected number, normalized according to the convention:
-    
-    N(X = R/a) = N(R) / N_infinty 
+
+    N(X = R/a) = N(R) / N_infinty
 
     Parameters
     ----------
     X : array_like (same shape as n), float
         Projected radius X = R/a.
-        
+
     Returns
     -------
     N : array_like (same shape as n), float
         Sersic projected number.
 
     """
-    
-    N  = X*X / (1 + X*X)
+
+    N = X * X / (1 + X * X)
     return N
 
-def likelihood_plummer(params,Ri) :
+
+def likelihood_plummer(params, Ri):
     """
     Likelihood function of the Plummer profile plus a constant contribution
     from fore/background tracers.
@@ -698,32 +733,33 @@ def likelihood_plummer(params,Ri) :
        Likelihood.
 
     """
-    
-    a    = 10**params[0]
-    if (params[1] < -10):
-        norm = 0
-    else :
-        norm = 10**params[1]
 
-    Xmax = np.amax(Ri)/a
-    Xmin = np.amin(Ri)/a
-    X    = Ri/a
-    
+    a = 10 ** params[0]
+    if params[1] < -10:
+        norm = 0
+    else:
+        norm = 10 ** params[1]
+
+    Xmax = np.amax(Ri) / a
+    Xmin = np.amin(Ri) / a
+    X = Ri / a
+
     N_sys_tot = n_plummer(Xmax) - n_plummer(Xmin)
-    
-    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
-    
+
+    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+
     Ntot = N_sys_tot * (1 + norm)
-    
-    fi = 2 * (X/a) * SD / Ntot 
-    
+
+    fi = 2 * (X / a) * SD / Ntot
+
     idx_valid = np.logical_not(np.isnan(np.log(fi)))
-    
-    L = - np.sum(np.log(fi[idx_valid]))
-    
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
     return L
 
-def lnprior_p(params,bounds):
+
+def lnprior_p(params, bounds):
     """
     Prior assumptions on the parameters.
 
@@ -743,13 +779,15 @@ def lnprior_p(params,bounds):
         - Infinity otherwise.
 
     """
-    
-    if ((bounds[0][0] <= params[0] <= bounds[0][1]) and \
-        (bounds[1][0] <= params[1] <= bounds[1][1])) :
+
+    if (bounds[0][0] <= params[0] <= bounds[0][1]) and (
+        bounds[1][0] <= params[1] <= bounds[1][1]
+    ):
         return 0.0
     return -np.inf
 
-def lnprob_p(params,Ri,bounds):
+
+def lnprob_p(params, Ri, bounds):
     """
     log-probability of fit parameters.
 
@@ -770,16 +808,18 @@ def lnprob_p(params,Ri,bounds):
         log-probability of fit parameters.
 
     """
-    
-    lp = lnprior_p(params,bounds)
+
+    lp = lnprior_p(params, bounds)
     if not np.isfinite(lp):
         return -np.inf
-    return lp - likelihood_plummer(params,Ri)
+    return lp - likelihood_plummer(params, Ri)
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
 "General functions"
 # ---------------------------------------------------------------------------
+
 
 def sky_distance_deg(RA, Dec, RA0, Dec0):
     """
@@ -816,6 +856,7 @@ def sky_distance_deg(RA, Dec, RA0, Dec0):
 
     return np.asarray(R)
 
+
 def quantile(x, q):
     """
     Compute sample quantiles.
@@ -847,7 +888,8 @@ def quantile(x, q):
 
     return np.percentile(x, 100.0 * q)
 
-def good_bin(x) :
+
+def good_bin(x):
     """
     Computes an adequate number of bins.
 
@@ -862,19 +904,21 @@ def good_bin(x) :
         Number of bins.
 
     """
-    
+
     q_16, q_50, q_84 = quantile(x, [0.16, 0.5, 0.84])
     q_m, q_p = q_50 - q_16, q_84 - q_50
     bins = int((np.amax(x) - np.amin(x)) / (min(q_m, q_p) / 4))
-    
+
     return bins
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
 "Fitting procedure"
 # ---------------------------------------------------------------------------
 
-def maximum_likelihood(x=None, y=None, model='plummer', x0=None, y0=None):
+
+def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None):
     """
     Calls a maximum likelihood fit of the surface density paramters of
     the joint distribution of galactic object plus Milky Way stars.
@@ -895,7 +939,7 @@ def maximum_likelihood(x=None, y=None, model='plummer', x0=None, y0=None):
         Peak of data in x-direction. The default is None.
     y0 : TYPE, optional
         Peak of data in y-direction. The default is None.
-             
+
     Raises
     ------
     ValueError
@@ -912,49 +956,58 @@ def maximum_likelihood(x=None, y=None, model='plummer', x0=None, y0=None):
 
     """
 
-    if (model not in ['sersic','plummer','kazantzidis']):
+    if model not in ["sersic", "plummer", "kazantzidis"]:
         raise ValueError("Does not recognize surface density model.")
-        
-    if ((x is None and y is None) or (x is None)) :
+
+    if (x is None and y is None) or (x is None):
         raise ValueError("Please provide the data to be fitted.")
-        
-    if (y is None) :
+
+    if y is None:
         ri = x
         hmr, norm = initial_guess_sd(x=x)
-    else :
-        
-        if (x0 is None or y0 is None) :
-            
-            center, unc = find_center(x,y)
-            if (x0 is None) :
+    else:
+
+        if x0 is None or y0 is None:
+
+            center, unc = find_center(x, y)
+            if x0 is None:
                 x0 = center[0]
-            if (y0 is None) :
+            if y0 is None:
                 y0 = center[1]
-        ri        = np.asarray([sky_distance_deg(x,y,x0,y0)])
+        ri = np.asarray([sky_distance_deg(x, y, x0, y0)])
         hmr, norm = initial_guess_sd(x=x, y=y, x0=x0, y0=y0)
-        
-    hmr  = np.log10(hmr)
+
+    hmr = np.log10(hmr)
     norm = np.log10(norm)
-    if (model == 'sersic') :
-        bounds = [(0.5,10),(hmr-2,hmr+2),(norm-2,norm+2)]
+    if model == "sersic":
+        bounds = [(0.5, 10), (hmr - 2, hmr + 2), (norm - 2, norm + 2)]
         mle_model = differential_evolution(likelihood_sersic, bounds, args=(ri))
         results = mle_model.x
-        
-    elif (model == 'kazantzidis') :
-        bounds = [(hmr-2,hmr+2),(norm-2,norm+2)]
+
+    elif model == "kazantzidis":
+        bounds = [(hmr - 2, hmr + 2), (norm - 2, norm + 2)]
         mle_model = differential_evolution(likelihood_kazantzidis, bounds, args=(ri))
         results = mle_model.x
-        
-    elif (model == 'plummer') :
-        bounds = [(hmr-2,hmr+2),(norm-2,norm+2)]
+
+    elif model == "plummer":
+        bounds = [(hmr - 2, hmr + 2), (norm - 2, norm + 2)]
         mle_model = differential_evolution(likelihood_plummer, bounds, args=(ri))
-        results = mle_model.x  
+        results = mle_model.x
 
     return results
 
 
-def mcmc(x=None, y=None, model='plummer', nwalkers=None, steps=1000, ini=None, use_pool=False,
-         x0=None, y0=None):
+def mcmc(
+    x=None,
+    y=None,
+    model="plummer",
+    nwalkers=None,
+    steps=1000,
+    ini=None,
+    use_pool=False,
+    x0=None,
+    y0=None,
+):
     """
     MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
 
@@ -990,7 +1043,7 @@ def mcmc(x=None, y=None, model='plummer', nwalkers=None, steps=1000, ini=None, u
         Peak of data in x-direction. The default is None.
     y0 : TYPE, optional
         Peak of data in y-direction. The default is None.
-        
+
     Raises
     ------
     ValueError
@@ -1006,64 +1059,61 @@ def mcmc(x=None, y=None, model='plummer', nwalkers=None, steps=1000, ini=None, u
         Set of chains from the MCMC.
 
     """
-    
-    if (model not in ['sersic','plummer','kazantzidis']):
+
+    if model not in ["sersic", "plummer", "kazantzidis"]:
         raise ValueError("Does not recognize surface density model.")
 
-    if ((x is None and y is None) or (x is None)) :
+    if (x is None and y is None) or (x is None):
         raise ValueError("Please provide the data to be fitted.")
-        
-    if (y is None) :
+
+    if y is None:
         ri = x
         if ini is None:
-            ini = maximum_likelihood(x=x,model=model)
-    else :
-        
-        if (x0 is None or y0 is None) :
-            
-            center, unc = find_center(x,y)
-            if (x0 is None) :
+            ini = maximum_likelihood(x=x, model=model)
+    else:
+
+        if x0 is None or y0 is None:
+
+            center, unc = find_center(x, y)
+            if x0 is None:
                 x0 = center[0]
-            if (y0 is None) :
+            if y0 is None:
                 y0 = center[1]
-        ri     = np.asarray([sky_distance_deg(x,y,x0,y0)])
+        ri = np.asarray([sky_distance_deg(x, y, x0, y0)])
 
         if ini is None:
-            ini = maximum_likelihood(x=x,y=y, x0=x0, y0=y0,model=model)
-        
+            ini = maximum_likelihood(x=x, y=y, x0=x0, y0=y0, model=model)
 
     ndim = len(ini)  # number of dimensions.
-    if (nwalkers is None or nwalkers < 2*ndim) :
+    if nwalkers is None or nwalkers < 2 * ndim:
         nwalkers = int(2 * ndim + 1)
 
     gauss_ball = ini * 0.1
 
     pos = [ini + gauss_ball * np.random.randn(ndim) for i in range(nwalkers)]
-    
-    if (model == 'sersic') :
-        bounds = [(0.5,10),(ini[1]-2,ini[1]+2),(ini[2]-2,ini[2]-2)]
-        func   = lnprob_s
-        
-    elif (model == 'kazantzidis') :
-        bounds = [(ini[0]-2,ini[0]+2),(ini[1]-2,ini[1]-2)]
-        func   = lnprob_k
-        
-    elif (model == 'plummer') :
-        bounds = [(ini[0]-2,ini[0]+2),(ini[1]-2,ini[1]-2)]
-        func   = lnprob_p
+
+    if model == "sersic":
+        bounds = [(0.5, 10), (ini[1] - 2, ini[1] + 2), (ini[2] - 2, ini[2] - 2)]
+        func = lnprob_s
+
+    elif model == "kazantzidis":
+        bounds = [(ini[0] - 2, ini[0] + 2), (ini[1] - 2, ini[1] - 2)]
+        func = lnprob_k
+
+    elif model == "plummer":
+        bounds = [(ini[0] - 2, ini[0] + 2), (ini[1] - 2, ini[1] - 2)]
+        func = lnprob_p
 
     if use_pool:
 
         with Pool() as pool:
             sampler = emcee.EnsembleSampler(
-                nwalkers, ndim, func, args=(ri,bounds), pool=pool
+                nwalkers, ndim, func, args=(ri, bounds), pool=pool
             )
             sampler.run_mcmc(pos, steps)
     else:
 
-        sampler = emcee.EnsembleSampler(
-            nwalkers, ndim, func, args=(ri,bounds)
-        )
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, func, args=(ri, bounds))
         sampler.run_mcmc(pos, steps)
 
     chain = sampler.chain
