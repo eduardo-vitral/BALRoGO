@@ -771,7 +771,7 @@ def maximum_likelihood(X, Y, min_method="dif"):
     return results
 
 
-def mcmc(X, Y, nwalkers, steps, ini=None, use_pool=False):
+def mcmc(X, Y, nwalkers=None, steps=1000, ini=None, use_pool=False):
     """
     MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
 
@@ -785,10 +785,10 @@ def mcmc(X, Y, nwalkers, steps, ini=None, use_pool=False):
         Data in x-direction.
     Y : array_like
         Data in y-direction.
-    nwalkers : int
-        Number of Markov chains.
-    steps : int
-        Number of steps for each chain.
+    nwalkers : int, optional
+        Number of Markov chains. The default is None.
+    steps : int, optional
+        Number of steps for each chain. The default is 1000.
     ini : 10D-array, optional
         Array containing the initial guess of the parameters. The order
         of parameters should be the same returned by the method
@@ -812,6 +812,8 @@ def mcmc(X, Y, nwalkers, steps, ini=None, use_pool=False):
         )
 
     ndim = len(ini)  # number of dimensions.
+    if nwalkers is None or nwalkers < 2 * ndim:
+        nwalkers = int(2 * ndim + 1)
 
     gauss_ball = np.asarray(
         [
