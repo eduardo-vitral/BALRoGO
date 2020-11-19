@@ -1,0 +1,800 @@
+"""
+Created on 2020
+
+@author: Eduardo Vitral
+"""
+
+###############################################################################
+#
+# November 2020, Paris
+#
+# This file contains the main functions concerning proper motion data.
+# It provides MCMC and maximum likelihood fits of proper motions data,
+# as well as robust initial guesses for those fits.
+#
+# Documentation is provided on Vitral & Macedo, 2021.
+# If you have any further questions please email vitral@iap.fr
+#
+###############################################################################
+
+import numpy as np
+from scipy.optimize import minimize
+from scipy.optimize import differential_evolution
+from scipy import integrate
+from scipy.special import gamma
+from skimage.feature import peak_local_max
+import emcee
+from multiprocessing import Pool
+from multiprocessing import cpu_count
+
+ncpu = cpu_count()
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"Probability distribution functions and likelihoods"
+# ---------------------------------------------------------------------------
+
+
+def proj_mw_pdf(Ux, sr_pm, slp_pm):
+    """
+    Projection of the Milky Way field stars, with respect to the
+    field stars ellipse's main directions.
+
+    Parameters
+    ----------
+    Ux : array_like
+        Array containting the data to be fitted.
+    sr_pmx : float
+        Scale radius.
+    slp_pm : float
+        Slope of the PDF.
+
+    Returns
+    -------
+    proj : array_like
+        Array containing the projection of the PDF's from
+        the Milky Way field stars.
+
+    """
+
+    f = (1 + (Ux / sr_pm) * (Ux / sr_pm)) ** (0.5 + slp_pm / 2) / sr_pm
+    fac = gamma(-0.5 - slp_pm / 2) / gamma(-1 - slp_pm / 2)
+
+    proj = fac * f / np.sqrt(np.pi)
+
+    return proj
+
+
+def proj_global_pdf(Ux, mu_pmx, sig_pm, sr_pmx, slp_pm, frc_go_mw):
+    """
+    Projection of the sum of the PDF's from the galactic object
+    (2D Gaussian) and Milky Way field stars, with respect to the
+    field stars ellipse's main directions.
+
+    It considers the origin (0,0) to be centered in the Milky Way field
+    stars mean proper motion.
+
+    Parameters
+    ----------
+    Ux : array_like
+        Array containting the data to be fitted.
+    mu_pmx : float
+        Mean proper motion.
+    sig_pm : float
+        Gaussian standard deviation.
+    sr_pmx : float
+        Scale radius.
+    slp_pm : float
+        Slope of the PDF.
+    frc_go_mw : float
+        Fraction of galactic objects by Milky Way stars.
+
+    Returns
+    -------
+    array_like
+        Array containing the projection of the PDF's from the galactic object
+        (2D Gaussian) and Milky Way field stars.
+
+    """
+
+    dx = (Ux - mu_pmx) / sig_pm
+    f1 = frc_go_mw * np.exp(-0.5 * dx * dx) / np.sqrt(2 * np.pi * sig_pm * sig_pm)
+
+    f2 = (1 - frc_go_mw) * proj_mw_pdf(Ux, sr_pmx, slp_pm)
+
+    return f1 + f2
+
+
+def pdf_field_stars(Ux, Uy, mu_pmx, mu_pmy, sr_pmx, sr_pmy, rot_pm, slp_pm):
+    """
+    PDF of Milky Way field stars according to Vitral & Macedo (2021).
+
+    Parameters
+    ----------
+    Ux : array_like
+        Array containting the data to be fitted, in x-direction.
+    Uy : array_like
+        Array containting the data to be fitted, in y-direction.
+    mu_pmx : float
+        Mean proper motion in x-direction.
+    mu_pmy :  float
+        Mean proper motion in y-direction.
+    sr_pmx : float
+        Scale radius in x-direction.
+    sr_pmy : float
+        Scale radius in y-direction.
+    rot_pm : float
+        Angle of rotation of the major axis' ellipse,
+        with respect to the x-direction.
+    slp_pm : float
+        Slope of the PDF.
+
+    Returns
+    -------
+    pdf : array_like
+        Array containing the PDF the Milky Way field stars.
+
+    """
+
+    x = (Ux - mu_pmx) * np.cos(rot_pm) + (Uy - mu_pmy) * np.sin(rot_pm)
+    y = -(Ux - mu_pmx) * np.sin(rot_pm) + (Uy - mu_pmy) * np.cos(rot_pm)
+
+    f1 = 1 + (x / sr_pmx) * (x / sr_pmx)
+    f2 = 1 + (y / sr_pmy) * (y / sr_pmy)
+
+    f = (f1 * f2) ** (0.5 + slp_pm / 2) / (sr_pmx * sr_pmy)
+
+    fac = gamma(-0.5 - slp_pm / 2) ** 2 / gamma(-1 - slp_pm / 2) ** 2
+
+    pdf = fac * f / np.pi
+
+    return pdf
+
+
+def gauss_2d(Ux, Uy, mu_pmx, mu_pmy, sig_pm):
+    """
+    2D Gaussian PDF in cartesian coordinates.
+
+    Parameters
+    ----------
+    Ux : array_like
+        Array containting the data to be fitted, in x-direction.
+    Uy : array_like
+        Array containting the data to be fitted, in y-direction.
+    mu_pmx : float
+        Mean proper motion in x-direction.
+    mu_pmy : float
+        Mean proper motion in y-direction.
+    sig_pm : float
+        Gaussian standard deviation.
+
+    Returns
+    -------
+    pdf : array_like
+        Array containing the PDF the galactic object (2D Gaussian).
+
+    """
+
+    dx = Ux - mu_pmx
+    dy = Uy - mu_pmy
+
+    f1 = -0.5 * (dx / sig_pm) * (dx / sig_pm)
+    f2 = -0.5 * (dy / sig_pm) * (dy / sig_pm)
+    den = 2 * np.pi * sig_pm * sig_pm
+
+    pdf = np.exp(f1 + f2) / den
+
+    return pdf
+
+
+def global_pdf(
+    Ux,
+    Uy,
+    mu_pmx_go,
+    mu_pmy_go,
+    sig_pm_go,
+    mu_pmx_mw,
+    mu_pmy_mw,
+    sr_pmx_mw,
+    sr_pmy_mw,
+    rot_pm_mw,
+    slp_pm_mw,
+    frc_go_mw,
+):
+    """
+    This function gives the sum of the PDF's from the galactic object
+    (2D Gaussian) and Milky Way field stars.
+
+    Parameters
+    ----------
+    Ux : array_like
+        Array containting the data to be fitted, in x-direction.
+    Uy : array_like
+        Array containting the data to be fitted, in y-direction.
+    mu_pmx_go : float
+        Mean proper motion of galactic object in x-direction.
+    mu_pmy_go : float
+        Mean proper motion of galactic object in y-direction.
+    sig_pm_go : float
+        Gaussian standard deviation of galactic object.
+    mu_pmx_mw : float
+        Mean proper motion of Milky Way field stars in x-direction.
+    mu_pmy_mw :  float
+        Mean proper motion of Milky Way field stars in y-direction.
+    sr_pmx_mw : float
+        Scale radius of Milky Way field stars in x-direction.
+    sr_pmy_mw : float
+        Scale radius of Milky Way field stars in y-direction.
+    rot_pm_mw : float
+        Angle of rotation of the Milky Way field stars' major axis' ellipse,
+        with respect to the x-direction.
+    slp_pm_mw : float
+        Slope of the Milky Way field stars PDF.
+    frc_go_mw : float
+        Fraction of galactic objects by Milky Way stars.
+
+    Returns
+    -------
+    array_like
+        Sum of the PDF's from the galactic object
+        (2D Gaussian) and Milky Way field stars.
+
+    """
+
+    # PDF from galactic object
+    pdf_go = frc_go_mw * gauss_2d(Ux, Uy, mu_pmx_go, mu_pmy_go, sig_pm_go)
+
+    # PDF from Milky Way stars
+    pdf_mw = (1 - frc_go_mw) * pdf_field_stars(
+        Ux, Uy, mu_pmx_mw, mu_pmy_mw, sr_pmx_mw, sr_pmy_mw, rot_pm_mw, slp_pm_mw
+    )
+
+    return pdf_go + pdf_mw
+
+
+def likelihood_function(params, Ux, Uy):
+    """
+    Computes minus the likelihood of the PM model from Vitral & Macedo (2021).
+
+    Parameters
+    ----------
+    params : array_like
+        Array of parameters from the model.
+    Ux : array_like
+        Array containting the data to be fitted, in x-direction.
+    Uy : array_like
+        Array containting the data to be fitted, in y-direction.
+
+    Returns
+    -------
+    L : float
+        minus the logarithm of the likelihood function.
+
+    """
+
+    mu_pmx_go = params[0]  # mean pmra from galactic object
+    mu_pmy_go = params[1]  # mean pmdec from galactic object
+    sig_pm_go = params[2]  # pm dispersion from galactic object
+
+    mu_pmx_mw = params[3]  # mean pmra from Milky Way stars
+    mu_pmy_mw = params[4]  # mean pmdec from Milky Way stars
+    sr_pmx_mw = params[5]  # scale radius (pmra) from Milky Way stars
+    sr_pmy_mw = params[6]  # scale radius (pmdec) from Milky Way stars
+    rot_pm_mw = params[7]  # rotation angle from Milky Way field stars
+    slp_pm_mw = params[8]  # slope from Milky Way field stars
+
+    frc_go_mw = params[9]  # fraction of galactic objects by Milky Way stars
+
+    # Gets the PDF
+    f_i = global_pdf(
+        Ux,
+        Uy,
+        mu_pmx_go,
+        mu_pmy_go,
+        sig_pm_go,
+        mu_pmx_mw,
+        mu_pmy_mw,
+        sr_pmx_mw,
+        sr_pmy_mw,
+        rot_pm_mw,
+        slp_pm_mw,
+        frc_go_mw,
+    )
+
+    # Transforms zero's in NaN
+    f_i[f_i == 0] = np.nan
+
+    # Calculates the likelihood, taking out NaN's
+    f_i = f_i[np.logical_not(np.isnan(f_i))]
+    L = -np.sum(np.log(f_i))
+
+    return L
+
+
+def likelihood_prior(params, guess):
+    """
+    This function sets the prior probabilities for the MCMC.
+
+    Parameters
+    ----------
+    params : array_like
+        Array containing the fitted values.
+    guess : array_like
+        Array containing the initial guess of the parameters.
+
+    Returns
+    -------
+    log-prior probability: float
+        0, if the values are inside the prior limits
+        - Infinity, if one of the values are outside the prior limits.
+
+    """
+
+    if (
+        (guess[0] - guess[2] < params[0] < guess[0] + guess[2])
+        and (guess[1] - guess[2] < params[1] < guess[1] + guess[2])
+        and (0.5 * guess[2] < params[2] < 2 * guess[2])
+        and (guess[3] - guess[5] < params[3] < guess[3] + guess[5])
+        and (guess[4] - guess[6] < params[4] < guess[4] - guess[6])
+        and (0.5 * guess[5] < params[5] < 2 * guess[5])
+        and (0.5 * guess[6] < params[6] < 2 * guess[6])
+        and (-np.pi / 2 < params[7] < np.pi / 2)
+        and (-20 < params[8] < -3)
+        and (0 < params[9] < 1)
+    ):
+        return 0.0
+    else:
+        return -np.inf
+
+
+def likelihood_prob(params, Ux, Uy, guess):
+    """
+    This function gets the prior probability for MCMC.
+
+    Parameters
+    ----------
+    params : array_like
+        Array containing the fitted values.
+    Ux : array_like
+        Array containting the data to be fitted, in x-direction.
+    Uy : array_like
+        Array containting the data to be fitted, in y-direction.
+    guess : array_like
+        Array containing the initial guess of the parameters.
+
+    Returns
+    -------
+    log probability: float
+        log-probability for the respective params.
+    """
+
+    lp = likelihood_prior(params, guess)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp - likelihood_function(params, Ux, Uy)
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"General functions"
+# ---------------------------------------------------------------------------
+
+
+def sky_distance_deg(RA, Dec, RA0, Dec0):
+    """
+    Computes the sky distance (in degrees) between two sets of
+    sky coordinates, given also in degrees.
+
+    Parameters
+    ----------
+    RA : array_like, float
+        Right ascension (in degrees) of object 1.
+    Dec : array_like (same shape as RA), float
+        Declination (in degrees) of object 1.
+    RA0 : array_like (same shape as RA), float
+        Right ascension (in degrees) of object 2.
+    Dec0 : array_like (same shape as RA), float
+        Declination (in degrees) of object 2.
+
+    Returns
+    -------
+    R : array_like, float
+        Sky distance (in degrees) between object 1 and object 2.
+
+    """
+
+    RA = RA * np.pi / 180
+    Dec = Dec * np.pi / 180
+
+    RA0 = RA0 * np.pi / 180
+    Dec0 = Dec0 * np.pi / 180
+
+    R = (180 / np.pi) * np.arccos(
+        np.sin(Dec) * np.sin(Dec0) + np.cos(Dec) * np.cos(Dec0) * np.cos((RA - RA0))
+    )
+
+    return np.asarray(R)
+
+
+def quantile(x, q):
+    """
+    Compute sample quantiles.
+
+    Parameters
+    ----------
+    x : array_like
+        Array containing set of values.
+    q : array_like, float
+        Quantile values to be derived (must be between 0 and 1).
+
+    Raises
+    ------
+    ValueError
+        Quantiles must be between 0 and 1.
+
+    Returns
+    -------
+    percentile: array_like (same shape as q), float
+        Percentile value(s).
+
+    """
+
+    x = np.atleast_1d(x)
+    q = np.atleast_1d(q)
+
+    if np.any(q < 0.0) or np.any(q > 1.0):
+        raise ValueError("Quantiles must be between 0 and 1")
+
+    return np.percentile(x, 100.0 * q)
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"Guess initial parameters"
+# ---------------------------------------------------------------------------
+
+
+def gauss_sig(x_axis, gauss, peak):
+    """
+    This function estimates the dispersion of the GC Gaussian in PM space.
+
+    Parameters
+    ----------
+    x_axis : array_like
+        Array containing values from one particular direction.
+    gauss : array_like
+        Array containing the PDF at the repective values
+        from one particular direction.
+    peak : float
+        Peak of the PDF, locally.
+
+    Returns
+    -------
+    sigma : float
+        Guess of the Gaussian dispersion.
+
+    """
+
+    # Gets the array's index where the peak is located
+    i, j = np.argmin(np.abs(x_axis - peak)), np.argmin(np.abs(x_axis - peak))
+
+    # Gets the histogram max value times e^(-1/2): (histogram value at 1 sigma)
+    threshold = gauss[i] * np.exp(-1 / 2)
+
+    # Search where the histogram is less than the threshold
+    while gauss[i] >= threshold:
+        i -= 1
+    index_left = i
+    while gauss[j] >= threshold:
+        j += 1
+    index_right = j
+
+    # Assigns sigma as the minimum between the distance took to depass the
+    # threshold in the left and in the right of the peak
+    sigma = min(x_axis[index_right] - peak, peak - x_axis[index_left])
+
+    return sigma
+
+
+def clump_fraction(mean, sigma, x_axis, y_axis):
+    """
+    This function esitmates the fraction of stars belonging to each PM clump.
+
+    Indexes: 0 --> clump 0 / 1 --> clump 1
+
+    Parameters
+    ----------
+    mean : 2D-array
+        Proper motion means (galactic object + Milky Way stars) in one
+        particular direction.
+    sigma : 2D-array
+        Gaussian dispersion values (galactic object + Milky Way stars) in one
+        particular direction.
+    x_axis : array_like
+        Array containing values from one particular direction.
+    y_axis : array_like
+        Array containing the PDF at the repective values
+        from one particular direction.
+
+    Returns
+    -------
+    fluxes : 2D-array
+        Flux fraction from clump 0 and clump 1.
+
+    """
+
+    index_left = np.argmin(np.abs(-x_axis + mean[0] - 3 * sigma[0]))
+    index_right = np.argmin(np.abs(-x_axis + mean[0] + 3 * sigma[0]))
+
+    # Flux of stars belonging to the clump 0
+    flux1 = integrate.simps(
+        y_axis[index_left:index_right], x_axis[index_left:index_right]
+    )
+
+    index_left = np.argmin(np.abs(-x_axis + mean[1] - 3 * sigma[1]))
+    index_right = np.argmin(np.abs(-x_axis + mean[1] + 3 * sigma[1]))
+
+    # Flux of stars belonging to the clump 1
+    flux2 = integrate.simps(
+        y_axis[index_left:index_right], x_axis[index_left:index_right]
+    )
+
+    return np.asarray([flux1 / (flux1 + flux2), flux2 / (flux1 + flux2)])
+
+
+def initial_guess(x_data, y_data):
+    """
+    This function estimates the initial parameters of the global PDF.
+
+    Parameters
+    ----------
+    x_data : array_like
+        Data in x-direction.
+    y_data : array_like
+        Data in y-direction.
+
+    Returns
+    -------
+    8D-array
+        Initial guesses for some of the proper motion model parameters.
+
+    """
+
+    # Takes off NaN values
+    x_data = x_data[np.logical_not(np.isnan(x_data))]
+    y_data = y_data[np.logical_not(np.isnan(y_data))]
+
+    q_16, q_50, q_84 = quantile(x_data, [0.16, 0.5, 0.84])
+    q_m, q_p = q_50 - q_16, q_84 - q_50
+    bins_x = int((np.amax(x_data) - np.amin(x_data)) / (min(q_m, q_p) / 4))
+
+    q_16, q_50, q_84 = quantile(y_data, [0.16, 0.5, 0.84])
+    q_m, q_p = q_50 - q_16, q_84 - q_50
+    bins_y = int((np.amax(y_data) - np.amin(y_data)) / (min(q_m, q_p) / 4))
+
+    # Gets the histogram in PMRA
+    x_hist, x_axis = np.histogram(
+        x_data, bins=bins_x, range=(np.amin(x_data), np.amax(x_data))
+    )
+    x_axis = 0.5 * (x_axis[1:] + x_axis[:-1])
+
+    # Gets the histogram in PMDec
+    y_hist, y_axis = np.histogram(
+        y_data, bins=bins_y, range=(np.amin(y_data), np.amax(y_data))
+    )
+    y_axis = 0.5 * (y_axis[1:] + y_axis[:-1])
+
+    # Gets the histogram of the 2d (PMRA,PMDec) data
+    hist, xedges, yedges = np.histogram2d(x_data, y_data, bins=[bins_x, bins_y])
+    hist = hist.T
+
+    # Estimates the PMRA and PMDec means from the two clumps by taking the
+    # two main local maxima of the 2d histogram. With that, it estimates the
+    # other clump parameters
+    peaks = peak_local_max(hist, num_peaks=2)
+    y_peak, x_peak = peaks.T[0], peaks.T[1]
+    mean_x, mean_y = xedges[x_peak], yedges[y_peak]
+    sigma_x = np.asarray(
+        [gauss_sig(x_axis, x_hist, mean_x[0]), gauss_sig(x_axis, x_hist, mean_x[1])]
+    )
+    sigma_y = np.asarray(
+        [gauss_sig(y_axis, y_hist, mean_y[0]), gauss_sig(y_axis, y_hist, mean_y[1])]
+    )
+    frac_x = clump_fraction(mean_x, sigma_x, x_axis, x_hist)
+    frac_y = clump_fraction(mean_y, sigma_y, y_axis, y_hist)
+
+    # Tries to find the GC assuming it is the clump with the smaller dispersion
+    if min(sigma_x[0], sigma_y[0]) < min(sigma_x[1], sigma_y[1]):
+        mu_pmx_go = mean_x[0]
+        mu_pmy_go = mean_y[0]
+        sig_pm_go = min(sigma_x[0], sigma_y[0])
+
+        mu_pmx_mw = mean_x[1]
+        mu_pmy_mw = mean_y[1]
+        sr_pm_mw = max(sigma_x[1], sigma_y[1])
+    else:
+        mu_pmx_go = mean_x[1]
+        mu_pmy_go = mean_y[1]
+        sig_pm_go = min(sigma_x[1], sigma_y[1])
+
+        mu_pmx_mw = mean_x[0]
+        mu_pmy_mw = mean_y[0]
+        sr_pm_mw = max(sigma_x[0], sigma_y[0])
+
+    # Assigns the GC fraction of stars as the minimum one between al the clumps
+    frc_go_mw = min(min(frac_x[0], frac_y[0]), min(frac_x[1], frac_y[1]))
+
+    # Returns the initial values for the MLE, assuming the field stars PM slope
+    # to begin as -6
+    return np.asarray(
+        [
+            mu_pmx_go,
+            mu_pmy_go,
+            sig_pm_go,
+            mu_pmx_mw,
+            mu_pmy_mw,
+            2 * sr_pm_mw,
+            -6,
+            frc_go_mw,
+        ]
+    )
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"Fitting procedure"
+# ---------------------------------------------------------------------------
+
+
+def maximum_likelihood(X, Y, min_method="dif"):
+    """
+    Calls a maximum likelihood fit of the proper motion paramters of
+    the joint distribution of galactic object plus Milky Way stars.
+
+    Parameters
+    ----------
+    X : array_like
+        Data in x-direction.
+    Y : array_like
+        Data in y-direction.
+    min_method : string, optional
+        Minimization method to be used by the maximum likelihood fit.
+        The default is 'dif'.
+
+    Returns
+    -------
+    results : 10D-array
+        Best fit parameters of the proper motion model.
+
+    """
+
+    # Gets the initial guess of the parameters
+    ini = initial_guess(X, Y)
+
+    bounds = [
+        (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
+        (ini[1] - 3 * ini[2], ini[1] + 3 * ini[2]),
+        (0.1 * ini[2], 10 * ini[2]),
+        (ini[3] - 5 * ini[5], ini[3] + 5 * ini[5]),
+        (ini[4] - 5 * ini[5], ini[4] + 5 * ini[5]),
+        (0.1 * ini[5], 10 * ini[5]),
+        (0.1 * ini[5], 10 * ini[5]),
+        (-np.pi / 2, np.pi / 2),
+        (-20, -3),
+        (0.01, 1),
+    ]
+
+    ranges = [
+        [
+            min(ini[0], ini[3]) - 3 * max(ini[2], ini[5]),
+            max(ini[0], ini[3]) + 3 * max(ini[2], ini[5]),
+        ],
+        [
+            min(ini[1], ini[4]) - 3 * max(ini[2], ini[5]),
+            max(ini[1], ini[4]) + 3 * max(ini[2], ini[5]),
+        ],
+    ]
+
+    idx_x = np.intersect1d(np.where(X < ranges[0][1]), np.where(X > ranges[0][0]))
+    idx_y = np.intersect1d(np.where(Y < ranges[1][1]), np.where(Y > ranges[1][0]))
+
+    idxpm = np.intersect1d(idx_x, idx_y)
+
+    X = X[idxpm]
+    Y = Y[idxpm]
+
+    if min_method == "dif":
+
+        mle_model = differential_evolution(likelihood_function, bounds, args=(X, Y))
+        results = mle_model.x
+
+    else:
+
+        ini = np.asarray(
+            [ini[0], ini[1], ini[2], ini[3], ini[4], ini[5], ini[5], 0, ini[6], ini[7]]
+        )
+        mle_model = minimize(
+            likelihood_function, ini, args=(X, Y), method=min_method, bounds=bounds
+        )
+
+        results = mle_model["x"]
+
+    return results
+
+
+def mcmc(X, Y, nwalkers, steps, ini=None, use_pool=False):
+    """
+    MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
+
+    The user is strongly encouraged to provide initial guesses,
+    which can be derived with the "maximum_likelihood" method,
+    previously checked to provide reasonable fits.
+
+    Parameters
+    ----------
+    X : array_like
+        Data in x-direction.
+    Y : array_like
+        Data in y-direction.
+    nwalkers : int
+        Number of Markov chains.
+    steps : int
+        Number of steps for each chain.
+    ini : 10D-array, optional
+        Array containing the initial guess of the parameters. The order
+        of parameters should be the same returned by the method
+        "maximum_likelihood".
+        The default is None.
+    use_pool : boolean, optional
+        "True", if the user whises to use full CPU power of the machine.
+        The default is False.
+
+    Returns
+    -------
+    chain : array_like
+        Set of chains from the MCMC.
+
+    """
+
+    if ini is None:
+        ini = initial_guess(X, Y)
+        ini = np.asarray(
+            [ini[0], ini[1], ini[2], ini[3], ini[4], ini[5], ini[5], 0, ini[6], ini[7]]
+        )
+
+    ndim = len(ini)  # numbver of dimensions.
+
+    gauss_ball = np.asarray(
+        [
+            ini[2] * 0.1,
+            ini[2] * 0.1,
+            ini[2] * 0.1,
+            ini[5] * 0.1,
+            ini[6] * 0.1,
+            ini[5] * 0.1,
+            ini[6] * 0.1,
+            ini[7] * 0.1,
+            ini[8] * 0.1,
+            ini[9] * 0.1,
+        ]
+    )
+
+    pos = [ini + gauss_ball * np.random.randn(ndim) for i in range(nwalkers)]
+
+    if use_pool:
+
+        with Pool() as pool:
+            sampler = emcee.EnsembleSampler(
+                nwalkers, ndim, likelihood_prob, args=(X, Y, ini), pool=pool
+            )
+            sampler.run_mcmc(pos, steps)
+    else:
+
+        sampler = emcee.EnsembleSampler(
+            nwalkers, ndim, likelihood_prob, args=(X, Y, ini)
+        )
+        sampler.run_mcmc(pos, steps)
+
+    chain = sampler.chain
+
+    return chain
