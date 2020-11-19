@@ -8,7 +8,7 @@ Created on 2020
 #
 # November 2020, Paris
 #
-# This file contains the main functions concerning the color magnitude 
+# This file contains the main functions concerning the color magnitude
 # diagram (CMD).
 # It provides a Kernel Density Estimation (KDE) of the CMD distribution.
 #
@@ -20,12 +20,13 @@ Created on 2020
 from scipy.stats import gaussian_kde
 import numpy as np
 
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-#------------------------------------------------------------------------------
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ------------------------------------------------------------------------------
 "KDE approach"
-#------------------------------------------------------------------------------
- 
-def kde (x,y,ww=None,bw='silverman') :
+# ------------------------------------------------------------------------------
+
+
+def kde(x, y, ww=None, bw="silverman"):
     """
     This function computes the KDE estimative of the PDF of the color
     magnitude diagram (CMD).
@@ -48,19 +49,18 @@ def kde (x,y,ww=None,bw='silverman') :
         KDE estimative of the PDF.
 
     """
-    
-    ranges = [[np.nanmin(x),np.nanmax(x)],
-              [np.nanmin(y),np.nanmax(y)]]
-    
+
+    ranges = [[np.nanmin(x), np.nanmax(x)], [np.nanmin(y), np.nanmax(y)]]
+
     # fit an array of size [Ndim, Nsamples]
-    data   = np.vstack([x, y])
-    kernel = gaussian_kde(data,bw_method=bw,weights=ww)
-    
+    data = np.vstack([x, y])
+    kernel = gaussian_kde(data, bw_method=bw, weights=ww)
+
     # evaluate on a regular grid
-    xgrid        = np.linspace(ranges[0][0], ranges[0][1], 200)
-    ygrid        = np.linspace(ranges[1][0], ranges[1][1], 200)
+    xgrid = np.linspace(ranges[0][0], ranges[0][1], 200)
+    ygrid = np.linspace(ranges[1][0], ranges[1][1], 200)
     Xgrid, Ygrid = np.meshgrid(xgrid, ygrid)
-    Zhist        = kernel.evaluate(np.vstack([Xgrid.ravel(), Ygrid.ravel()]))
-    Z            = Zhist.reshape(Xgrid.shape)
-    
+    Zhist = kernel.evaluate(np.vstack([Xgrid.ravel(), Ygrid.ravel()]))
+    Z = Zhist.reshape(Xgrid.shape)
+
     return Z
