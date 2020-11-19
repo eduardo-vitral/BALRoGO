@@ -311,6 +311,79 @@ def initial_guess_sd(x=None, y=None, x0=None, y0=None):
     return half_radius, norm
 
 
+def prob(r, params, model="plummer"):
+    """
+    Computes the membership probability of the stars based
+    on the surface density fits alone.
+
+    Parameters
+    ----------
+    r : array_like, optional
+        Projected radii (in same units as the scale radius).
+    params : array_like
+        Parameters to be fitted: Output of the maximum_likelihood method.
+    model : string, optional
+        Surface density model to be considered. Available options are:
+             - 'sersic'
+             - 'kazantzidis'
+             - 'plummer'
+        The default is 'plummer'.
+
+    Raises
+    ------
+    ValueError
+        Surface density model is not one of the following:
+            - 'sersic'
+            - 'kazantzidis'
+            - 'plummer'
+
+    Returns
+    -------
+    probability : array_like
+        Probability of a each star to belong to the respective
+        a galactic object (considering only proper motions).
+
+    """
+
+    if model not in ["sersic", "plummer", "kazantzidis"]:
+        raise ValueError("Does not recognize surface density model.")
+
+    if model == "plummer" or model == "kazantzidis":
+        n = 0
+        a = 10 ** params[0]
+        if params[1] < -10:
+            norm = 0
+        else:
+            norm = 10 ** params[1]
+    elif model == "sersic":
+        n = params[0]
+        a = 10 ** params[1]
+        if params[2] < -10:
+            norm = 0
+        else:
+            norm = 10 ** params[2]
+
+    nsys = len(r) / (1 + norm)
+    nilop = len(r) - nsys
+
+    Xmax = np.amax(r) / a
+    Xmin = np.amin(r) / a
+    X = r / a
+
+    if model == "plummer":
+        sd = sd_plummer(X) * nsys / (np.pi * a ** 2)
+    elif model == "kazantzidis":
+        sd = sd_kazantzidis(X) * nsys / (np.pi * a ** 2)
+    elif model == "sersic":
+        sd = sd_sersic(n, X) * nsys / (np.pi * a ** 2)
+
+    sd_fs = nilop / (np.pi * (Xmax ** 2 - Xmin ** 2))
+
+    probability = sd / (sd + sd_fs)
+
+    return probability
+
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
 "Sersic profile functions"
@@ -325,7 +398,8 @@ def initial_guess_sd(x=None, y=None, x0=None, y0=None):
 
 def b(n):
     """
-    Gets the Sersic's b_n term.
+    Gets the Sersic's b_n term, using the approximation
+    from Ciotti & Bertin (1999).
 
     Parameters
     ----------
@@ -918,7 +992,7 @@ def good_bin(x):
 # ---------------------------------------------------------------------------
 
 
-def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None):
+def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid=True):
     """
     Calls a maximum likelihood fit of the surface density paramters of
     the joint distribution of galactic object plus Milky Way stars.
@@ -939,6 +1013,9 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None):
         Peak of data in x-direction. The default is None.
     y0 : TYPE, optional
         Peak of data in y-direction. The default is None.
+    hydrid :  boolean, optional
+        "True", if the user whises to consider field stars in the fit.
+        The default is True.
 
     Raises
     ------
@@ -979,6 +1056,8 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None):
 
     hmr = np.log10(hmr)
     norm = np.log10(norm)
+    if hybrid is False:
+        norm = -50
     if model == "sersic":
         bounds = [(0.5, 10), (hmr - 2, hmr + 2), (norm - 2, norm + 2)]
         mle_model = differential_evolution(likelihood_sersic, bounds, args=(ri))
@@ -1007,6 +1086,7 @@ def mcmc(
     use_pool=False,
     x0=None,
     y0=None,
+    hybrid=True,
 ):
     """
     MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
@@ -1041,8 +1121,11 @@ def mcmc(
         The default is False.
     x0 : float, optional
         Peak of data in x-direction. The default is None.
-    y0 : TYPE, optional
+    y0 : float, optional
         Peak of data in y-direction. The default is None.
+    hydrid :  boolean, optional
+        "True", if the user whises to consider field stars in the fit.
+        The default is True.
 
     Raises
     ------
@@ -1083,12 +1166,20 @@ def mcmc(
 
         if ini is None:
             ini = maximum_likelihood(x=x, y=y, x0=x0, y0=y0, model=model)
+            if model == "sersic":
+                ini = np.asarray([2, ini[0], ini[1]])
 
     ndim = len(ini)  # number of dimensions.
     if nwalkers is None or nwalkers < 2 * ndim:
         nwalkers = int(2 * ndim + 1)
 
     gauss_ball = ini * 0.1
+
+    if hybrid is False:
+        if model == "sersic":
+            ini[2] = -50
+        else:
+            ini[1] = -50
 
     pos = [ini + gauss_ball * np.random.randn(ndim) for i in range(nwalkers)]
 
