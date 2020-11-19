@@ -310,9 +310,10 @@ def initial_guess_sd(x=None, y=None, x0=None, y0=None):
 
     return half_radius, norm
 
-def prob(r,params,model='plummer') :
+
+def prob(r, params, model="plummer"):
     """
-    Computes the membership probability of the stars based 
+    Computes the membership probability of the stars based
     on the surface density fits alone.
 
     Parameters
@@ -343,44 +344,45 @@ def prob(r,params,model='plummer') :
         a galactic object (considering only proper motions).
 
     """
-    
+
     if model not in ["sersic", "plummer", "kazantzidis"]:
         raise ValueError("Does not recognize surface density model.")
-        
-    if (model == 'plummer' or model == 'kazantzidis') :
+
+    if model == "plummer" or model == "kazantzidis":
         n = 0
         a = 10 ** params[0]
         if params[1] < -10:
             norm = 0
         else:
             norm = 10 ** params[1]
-    elif (model == 'sersic') :
+    elif model == "sersic":
         n = params[0]
         a = 10 ** params[1]
         if params[2] < -10:
             norm = 0
         else:
             norm = 10 ** params[2]
-            
-    nsys  = len(r) / (1 + norm)
+
+    nsys = len(r) / (1 + norm)
     nilop = len(r) - nsys
-    
+
     Xmax = np.amax(r) / a
     Xmin = np.amin(r) / a
     X = r / a
-    
-    if (model == 'plummer') :
-        sd = sd_plummer(X) * nsys / (np.pi * a**2)
-    elif (model == 'kazantzidis') :
-        sd = sd_kazantzidis(X) * nsys / (np.pi * a**2)
-    elif (model == 'sersic') :
-        sd = sd_sersic(n,X) * nsys / (np.pi * a**2)
-        
-    sd_fs = nilop / (np.pi * (Xmax**2 - Xmin**2))
-    
+
+    if model == "plummer":
+        sd = sd_plummer(X) * nsys / (np.pi * a ** 2)
+    elif model == "kazantzidis":
+        sd = sd_kazantzidis(X) * nsys / (np.pi * a ** 2)
+    elif model == "sersic":
+        sd = sd_sersic(n, X) * nsys / (np.pi * a ** 2)
+
+    sd_fs = nilop / (np.pi * (Xmax ** 2 - Xmin ** 2))
+
     probability = sd / (sd + sd_fs)
-    
+
     return probability
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
@@ -396,7 +398,7 @@ def prob(r,params,model='plummer') :
 
 def b(n):
     """
-    Gets the Sersic's b_n term, using the approximation 
+    Gets the Sersic's b_n term, using the approximation
     from Ciotti & Bertin (1999).
 
     Parameters
@@ -1164,19 +1166,19 @@ def mcmc(
 
         if ini is None:
             ini = maximum_likelihood(x=x, y=y, x0=x0, y0=y0, model=model)
-            if model == 'sersic':
-                ini = np.asarray([2,ini[0],ini[1]])
-                
+            if model == "sersic":
+                ini = np.asarray([2, ini[0], ini[1]])
+
     ndim = len(ini)  # number of dimensions.
     if nwalkers is None or nwalkers < 2 * ndim:
         nwalkers = int(2 * ndim + 1)
 
     gauss_ball = ini * 0.1
-    
+
     if hybrid is False:
-        if model == 'sersic':
+        if model == "sersic":
             ini[2] = -50
-        else :
+        else:
             ini[1] = -50
 
     pos = [ini + gauss_ball * np.random.randn(ndim) for i in range(nwalkers)]
