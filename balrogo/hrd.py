@@ -50,6 +50,9 @@ def kde(x, y, ww=None, bw="silverman"):
 
     """
 
+    if ww is None:
+        ww = np.ones(len(x))
+
     ranges = [[np.nanmin(x), np.nanmax(x)], [np.nanmin(y), np.nanmax(y)]]
 
     # fit an array of size [Ndim, Nsamples]
