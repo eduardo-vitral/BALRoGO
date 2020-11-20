@@ -270,7 +270,7 @@ def rodrigues_formula(k, v, theta, debug=False):
     return v_rot
 
 
-def getCoords(v_i, v0_i, v0_f, debug=False):
+def sky_coord_rotate(v_i, v0_i, v0_f, debug=False):
     """
     Gets new angles (RA,Dec) in degrees of a rotated vector.
 
