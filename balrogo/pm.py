@@ -429,42 +429,6 @@ def prob(Ux, Uy, params):
 # ---------------------------------------------------------------------------
 
 
-def sky_distance_deg(RA, Dec, RA0, Dec0):
-    """
-    Computes the sky distance (in degrees) between two sets of
-    sky coordinates, given also in degrees.
-
-    Parameters
-    ----------
-    RA : array_like, float
-        Right ascension (in degrees) of object 1.
-    Dec : array_like (same shape as RA), float
-        Declination (in degrees) of object 1.
-    RA0 : array_like (same shape as RA), float
-        Right ascension (in degrees) of object 2.
-    Dec0 : array_like (same shape as RA), float
-        Declination (in degrees) of object 2.
-
-    Returns
-    -------
-    R : array_like, float
-        Sky distance (in degrees) between object 1 and object 2.
-
-    """
-
-    RA = RA * np.pi / 180
-    Dec = Dec * np.pi / 180
-
-    RA0 = RA0 * np.pi / 180
-    Dec0 = Dec0 * np.pi / 180
-
-    R = (180 / np.pi) * np.arccos(
-        np.sin(Dec) * np.sin(Dec0) + np.cos(Dec) * np.cos(Dec0) * np.cos((RA - RA0))
-    )
-
-    return np.asarray(R)
-
-
 def quantile(x, q):
     """
     Compute sample quantiles.

@@ -17,6 +17,7 @@ Created on 2020
 #
 ###############################################################################
 
+import angle
 import numpy as np
 from skimage.feature import peak_local_max
 from scipy.optimize import differential_evolution
@@ -135,7 +136,7 @@ def find_center(x, y):
     while many_tracers is True:
 
         idx = np.where(
-            sky_distance_deg(x, y, center[0], center[1]) < (0.9 ** count) * sigma
+            angle.sky_distance_deg(x, y, center[0], center[1]) < (0.9 ** count) * sigma
         )
 
         bins_x = good_bin(x[idx])
@@ -154,7 +155,7 @@ def find_center(x, y):
         cmx = np.nansum(xedges * np.sum(hist, axis=1)) / np.nansum(np.sum(hist, axis=1))
         cmy = np.nansum(yedges * np.sum(hist, axis=0)) / np.nansum(np.sum(hist, axis=0))
 
-        shift.append(sky_distance_deg(cmx, cmy, center[0], center[1]))
+        shift.append(angle.sky_distance_deg(cmx, cmy, center[0], center[1]))
 
         center = np.asarray([cmx, cmy])
         unc = np.median(shift)
@@ -216,7 +217,7 @@ def surface_density(x=None, y=None, x0=None, y0=None):
             if y0 is None:
                 y0 = center[1]
 
-        r = sky_distance_deg(x, y, x0, y0)
+        r = angle.sky_distance_deg(x, y, x0, y0)
 
     q_16, q_50, q_84 = quantile(r, [0.16, 0.5, 0.84])
     q_m, q_p = q_50 - q_16, q_84 - q_50
@@ -895,42 +896,6 @@ def lnprob_p(params, Ri, bounds):
 # ---------------------------------------------------------------------------
 
 
-def sky_distance_deg(RA, Dec, RA0, Dec0):
-    """
-    Computes the sky distance (in degrees) between two sets of
-    sky coordinates, given also in degrees.
-
-    Parameters
-    ----------
-    RA : array_like, float
-        Right ascension (in degrees) of object 1.
-    Dec : array_like (same shape as RA), float
-        Declination (in degrees) of object 1.
-    RA0 : array_like (same shape as RA), float
-        Right ascension (in degrees) of object 2.
-    Dec0 : array_like (same shape as RA), float
-        Declination (in degrees) of object 2.
-
-    Returns
-    -------
-    R : array_like, float
-        Sky distance (in degrees) between object 1 and object 2.
-
-    """
-
-    RA = RA * np.pi / 180
-    Dec = Dec * np.pi / 180
-
-    RA0 = RA0 * np.pi / 180
-    Dec0 = Dec0 * np.pi / 180
-
-    R = (180 / np.pi) * np.arccos(
-        np.sin(Dec) * np.sin(Dec0) + np.cos(Dec) * np.cos(Dec0) * np.cos((RA - RA0))
-    )
-
-    return np.asarray(R)
-
-
 def quantile(x, q):
     """
     Compute sample quantiles.
@@ -1051,7 +1016,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
                 x0 = center[0]
             if y0 is None:
                 y0 = center[1]
-        ri = np.asarray([sky_distance_deg(x, y, x0, y0)])
+        ri = np.asarray([angle.sky_distance_deg(x, y, x0, y0)])
         hmr, norm = initial_guess_sd(x=x, y=y, x0=x0, y0=y0)
 
     hmr = np.log10(hmr)
@@ -1162,7 +1127,7 @@ def mcmc(
                 x0 = center[0]
             if y0 is None:
                 y0 = center[1]
-        ri = np.asarray([sky_distance_deg(x, y, x0, y0)])
+        ri = np.asarray([angle.sky_distance_deg(x, y, x0, y0)])
 
         if ini is None:
             ini = maximum_likelihood(x=x, y=y, x0=x0, y0=y0, model=model)
