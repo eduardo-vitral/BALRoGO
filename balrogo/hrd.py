@@ -18,6 +18,8 @@ Created on 2020
 ###############################################################################
 
 from scipy.stats import gaussian_kde
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 import numpy as np
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -150,3 +152,56 @@ def quantile(x, q):
         raise ValueError("Quantiles must be between 0 and 1")
 
     return np.percentile(x, 100.0 * q)
+
+def inside_contour(x,y,contours,idx=None,idx_level=0) :
+    """
+    Returns indexes from a subset of previous indexes corresponding 
+    to the points in (x,y) inside a given contour.
+
+    Parameters
+    ----------
+    x : array_like
+        Data in x-direction.
+    y : array_like
+        Data in y-direction.
+    contours : QuadContourSet
+        Contour object from pyplot.
+    idx : array of integers, optional
+        Array containing the indexes in (x,y) from which to search points
+        inside a given contour. The default is None.
+    idx_level : int, optional
+        Which contour lines to consider from contour object.
+        The default is 0 (wider contour).
+
+    Returns
+    -------
+    idx_inside : array of integers
+        Array of indexes inside the contour.
+
+    """
+    
+    lcontours = list()
+    inside    = list()
+    
+    p     = contours.collections[0].get_paths()
+    npoly = len(p)
+    for i in range(0,npoly) :
+        v = p[i].vertices
+        contourx = v[:,0]
+        contoury = v[:,1]
+        
+        contour_array = np.array([contourx,contoury])
+    
+        lcontours.append(contour_array)
+        inside.append(Polygon([(contourx[i],contoury[i]) \
+                          for i in range(0,len(contourx))]))
+    
+    idx_inside = list()
+    for i in idx :
+        for j in range(0,npoly) :
+            if (inside[j].contains(Point(x[i],y[i]))) :
+                idx_inside.append(i)
+                
+    idx_inside = np.asarray(idx_inside).astype(int)  
+    
+    return idx_inside
