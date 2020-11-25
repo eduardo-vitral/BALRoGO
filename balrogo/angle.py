@@ -361,12 +361,14 @@ def sky_coord_rotate(v_i, v0_i, v0_f, debug=False):
 
     return A * (180 / np.pi), B * (180 / np.pi)
 
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
 "Axis rotation"
 # ------------------------------------------------------------------------------
 
-def rotate_axis(x,y,theta,mu_x=0,mu_y=0) :
+
+def rotate_axis(x, y, theta, mu_x=0, mu_y=0):
     """
     Rotates and translates the two main cartesian axis.
 
@@ -394,10 +396,11 @@ def rotate_axis(x,y,theta,mu_x=0,mu_y=0) :
 
     x_new = (x - mu_x) * np.cos(theta) + (y - mu_y) * np.sin(theta)
     y_new = -(x - mu_x) * np.sin(theta) + (y - mu_y) * np.cos(theta)
-    
+
     return x_new, y_new
 
-def get_ellipse(a,b,theta,nbins) :
+
+def get_ellipse(a, b, theta, nbins):
     """
     Provides an array describing a rotated ellipse.
 
@@ -418,13 +421,12 @@ def get_ellipse(a,b,theta,nbins) :
         Rotated ellipse array.
 
     """
-    
-    t = np.linspace(0, 2*np.pi, nbins)
-    ellipse = np.array([a*np.cos(t) , b*np.sin(t)])
-    m_rot = np.array([[np.cos(theta) , -np.sin(theta)],
-                  [np.sin(theta) , np.cos(theta)]])  
-    ellipse_rot = np.zeros((2,ellipse.shape[1]))
+
+    t = np.linspace(0, 2 * np.pi, nbins)
+    ellipse = np.array([a * np.cos(t), b * np.sin(t)])
+    m_rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+    ellipse_rot = np.zeros((2, ellipse.shape[1]))
     for i in range(ellipse.shape[1]):
-        ellipse_rot[:,i] = np.dot(m_rot,ellipse[:,i])
-        
+        ellipse_rot[:, i] = np.dot(m_rot, ellipse[:, i])
+
     return ellipse_rot

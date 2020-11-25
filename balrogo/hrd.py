@@ -153,9 +153,10 @@ def quantile(x, q):
 
     return np.percentile(x, 100.0 * q)
 
-def inside_contour(x,y,contours,idx=None,idx_level=0) :
+
+def inside_contour(x, y, contours, idx=None, idx_level=0):
     """
-    Returns indexes from a subset of previous indexes corresponding 
+    Returns indexes from a subset of previous indexes corresponding
     to the points in (x,y) inside a given contour.
 
     Parameters
@@ -179,29 +180,30 @@ def inside_contour(x,y,contours,idx=None,idx_level=0) :
         Array of indexes inside the contour.
 
     """
-    
+
     lcontours = list()
-    inside    = list()
-    
-    p     = contours.collections[0].get_paths()
+    inside = list()
+
+    p = contours.collections[0].get_paths()
     npoly = len(p)
-    for i in range(0,npoly) :
+    for i in range(0, npoly):
         v = p[i].vertices
-        contourx = v[:,0]
-        contoury = v[:,1]
-        
-        contour_array = np.array([contourx,contoury])
-    
+        contourx = v[:, 0]
+        contoury = v[:, 1]
+
+        contour_array = np.array([contourx, contoury])
+
         lcontours.append(contour_array)
-        inside.append(Polygon([(contourx[i],contoury[i]) \
-                          for i in range(0,len(contourx))]))
-    
+        inside.append(
+            Polygon([(contourx[i], contoury[i]) for i in range(0, len(contourx))])
+        )
+
     idx_inside = list()
-    for i in idx :
-        for j in range(0,npoly) :
-            if (inside[j].contains(Point(x[i],y[i]))) :
+    for i in idx:
+        for j in range(0, npoly):
+            if inside[j].contains(Point(x[i], y[i])):
                 idx_inside.append(i)
-                
-    idx_inside = np.asarray(idx_inside).astype(int)  
-    
+
+    idx_inside = np.asarray(idx_inside).astype(int)
+
     return idx_inside
