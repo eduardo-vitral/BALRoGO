@@ -360,3 +360,73 @@ def sky_coord_rotate(v_i, v0_i, v0_f, debug=False):
         return
 
     return A * (180 / np.pi), B * (180 / np.pi)
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ------------------------------------------------------------------------------
+"Axis rotation"
+# ------------------------------------------------------------------------------
+
+
+def rotate_axis(x, y, theta, mu_x=0, mu_y=0):
+    """
+    Rotates and translates the two main cartesian axis.
+
+    Parameters
+    ----------
+    x : float or array_like
+        Data in x-direction.
+    y : float or array_like
+        Data in y-direction.
+    theta : float
+        Rotation angle in radians.
+    mu_x : float, optional
+        Center of new x axis in the old frame. The default is 0.
+    mu_y : float, optional
+        Center of new y axis in the old frame. The default is 0.
+
+    Returns
+    -------
+    x_new : float or array_like
+        Data in new x-direction.
+    y_new : float or array_like
+        Data in new y-direction.
+
+    """
+
+    x_new = (x - mu_x) * np.cos(theta) + (y - mu_y) * np.sin(theta)
+    y_new = -(x - mu_x) * np.sin(theta) + (y - mu_y) * np.cos(theta)
+
+    return x_new, y_new
+
+
+def get_ellipse(a, b, theta, nbins):
+    """
+    Provides an array describing a rotated ellipse.
+
+    Parameters
+    ----------
+    a : float
+        Ellipse semi-major axis.
+    b : float
+        Ellipse semi-minor axis.
+    theta : float
+        Rotation angle in radians.
+    nbins : int
+        Number of points in the final array.
+
+    Returns
+    -------
+    ellipse_rot : array_like
+        Rotated ellipse array.
+
+    """
+
+    t = np.linspace(0, 2 * np.pi, nbins)
+    ellipse = np.array([a * np.cos(t), b * np.sin(t)])
+    m_rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+    ellipse_rot = np.zeros((2, ellipse.shape[1]))
+    for i in range(ellipse.shape[1]):
+        ellipse_rot[:, i] = np.dot(m_rot, ellipse[:, i])
+
+    return ellipse_rot
