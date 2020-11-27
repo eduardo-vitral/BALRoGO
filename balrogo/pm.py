@@ -26,8 +26,6 @@ from skimage.feature import peak_local_max
 import emcee
 from multiprocessing import Pool
 from multiprocessing import cpu_count
-import angle
-import position
 
 ncpu = cpu_count()
 
@@ -653,114 +651,6 @@ def initial_guess(x_data, y_data):
             frc_go_mw,
         ]
     )
-
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# ---------------------------------------------------------------------------
-"Cleans data set"
-# ---------------------------------------------------------------------------
-
-
-def clean_gaia(
-    pmra,
-    pmdec,
-    epmra,
-    epmdec,
-    corrpm,
-    ast_err,
-    chi2,
-    nu,
-    g_mag,
-    br_mag,
-    br_excess,
-    ra,
-    dec,
-    err_lim=None,
-    r_cut=None,
-    c=None,
-):
-    """
-    Cleans the Gaia data based on astrometric flags.
-
-    Parameters
-    ----------
-    pmra : array_like
-        Gaia designation: pmra.
-    pmdec : array_like
-        Gaia designation: pmdec.
-    epmra : array_like
-        Gaia designation: pmra_error.
-    epmdec : array_like
-        Gaia designation: pmdec_error.
-    corrpm : array_like
-        Gaia designation: pmra_pmdec_corr.
-    ast_err : array_like
-        Gaia designation: astrometric_excess_noise.
-    chi2 : array_like
-        Gaia designation: astrometric_chi2_al.
-    nu : array_like
-        Gaia designation: astrometric_n_good_obs_al.
-    g_mag : array_like
-        Gaia designation: phot_g_mean_mag.
-    br_mag : array_like
-        Gaia designation: bp_rp.
-    br_excess : array_like
-        Gaia designation: phot_bp_rp_excess_factor.
-    ra : array_like
-        Gaia designation: ra.
-    dec : array_like
-        Gaia designation: dec.
-    err_lim : float, optional
-        Error threshold for proper motions. The default is None.
-    r_cut : float, optional
-        Projected radius limit. The default is None.
-    c : 2D array, optional
-        (ra,dec) of the center. The default is None.
-
-    Returns
-    -------
-    idx : array_like
-        Array containing the indexes of the original provided arrays
-        which correspond to stars with clean astrometry.
-
-    """
-
-    if c is None:
-        c, unc = position.find_center(ra, dec)
-
-    if r_cut is None:
-        ri = angle.sky_distance_deg(ra, dec, c[0], c[1])
-        results = position.maximum_likelihood(x=np.asarray([ri]), model="plummer")
-        r_cut = 10 * 10 ** results[0]
-
-    idx = np.where(angle.sky_distance_deg(ra, dec, c[0], c[1]) < r_cut)
-
-    if err_lim is None:
-        ini = initial_guess(pmra[idx], pmdec[idx])
-        err_lim = 0.5 * ini[2]
-
-    u = np.sqrt(chi2 / (nu - 5))
-
-    c33 = epmra * epmra
-    c34 = epmra * epmdec * corrpm
-    c44 = epmdec * epmdec
-    err = np.sqrt(0.5 * (c33 + c44) + 0.5 * np.sqrt((c44 - c33) ** 2 + 4 * c34 ** 2))
-
-    idx_err = np.where(err < err_lim)
-    idx = np.intersect1d(idx, idx_err)
-
-    idx_noise = np.where(ast_err < 1)
-
-    idx_noiseE1 = np.where(1.0 + 0.015 * br_mag ** 2 < br_excess)
-    idx_noiseE2 = np.where(br_excess < 1.3 + 0.06 * br_mag ** 2)
-    idx_noise1 = np.intersect1d(idx_noiseE1, idx_noiseE2)
-    idx_noise2 = np.where(u < 1.2 * np.maximum(1, np.exp(-0.2 * (g_mag - 19.5))))
-
-    idx_noise = np.intersect1d(idx_noise1, idx_noise2)
-
-    idx = np.intersect1d(idx, idx_noise)
-
-    return idx
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
