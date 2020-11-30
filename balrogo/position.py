@@ -279,7 +279,7 @@ def surface_density(x=None, y=None, x0=None, y0=None):
         if counts[i] == 0:
             errs[i] = np.nan
         else:
-            errs = s_dens[i] / np.sqrt(counts[i])
+            errs[i] = s_dens[i] / np.sqrt(counts[i])
 
     s_dens[np.where(counts == 0)] = np.nan
 
