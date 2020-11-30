@@ -22,6 +22,7 @@ import numpy as np
 from skimage.feature import peak_local_max
 from scipy.optimize import differential_evolution
 from scipy.special import gamma, gammainc, kn
+import numdifftools as ndt
 import emcee
 from multiprocessing import Pool
 from multiprocessing import cpu_count
@@ -76,7 +77,51 @@ def gauss_sig(x_axis, gauss, peak):
     return sigma
 
 
-def find_center(x, y):
+def find_center(x, y, method="iterative"):
+    """
+    Fit a center (peak) of the [x,y] data.
+
+    Parameters
+    ----------
+    x : array_like
+        Data in x-direction
+    y : array_like
+        Data in y-direction
+    method : string, optional
+        Method to find the peak of RA, Dec. Available options are:
+            - 'iterative'.
+        Default is 'iterative'.
+
+    Raises
+    ------
+    ValueError
+        Method argument is not one of the following:
+            - 'kde'
+            - 'iterative'
+
+    Returns
+    -------
+    center : 2D-array of floats
+        Position of the peak: [x_coordinate,y_coordinate]
+    unc : float
+        Uncertainty in the position.
+
+    """
+
+    if method not in ["iterative"]:
+        raise ValueError("Does not recognize method argument.")
+
+    # Takes off NaN values
+    x = x[np.logical_not(np.isnan(x))]
+    y = y[np.logical_not(np.isnan(y))]
+
+    if method == "iterative":
+        center, unc = center_iterative(x, y)
+
+    return center, unc
+
+
+def center_iterative(x, y):
     """
     Fit a center (peak) of the [x,y] data through an iterative approach.
 
@@ -95,10 +140,6 @@ def find_center(x, y):
         Uncertainty in the position.
 
     """
-
-    # Takes off NaN values
-    x = x[np.logical_not(np.isnan(x))]
-    y = y[np.logical_not(np.isnan(y))]
 
     bins_x = good_bin(x)
     bins_y = good_bin(y)
@@ -233,10 +274,14 @@ def surface_density(x=None, y=None, x0=None, y0=None):
     barsize = binlim[1:] - binlim[:-1]
     surface = np.pi * (binlim[1:] ** 2 - binlim[:-1] ** 2)
     s_dens = counts / surface
-    errs = s_dens / np.sqrt(counts)
+    errs = np.zeros(len(counts))
+    for i in range(len(counts)):
+        if counts[i] == 0:
+            errs[i] = np.nan
+        else:
+            errs = s_dens[i] / np.sqrt(counts[i])
 
     s_dens[np.where(counts == 0)] = np.nan
-    errs[np.where(counts == 0)] = np.nan
 
     density = np.zeros((4, nbins))
     density[0] = bincent
@@ -995,6 +1040,8 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
     -------
     results : array
         Best fit parameters of the surface density model.
+    var : array
+        Uncertainty of the fits.
 
     """
 
@@ -1025,20 +1072,28 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
         norm = -50
     if model == "sersic":
         bounds = [(0.5, 10), (hmr - 2, hmr + 2), (norm - 2, norm + 2)]
-        mle_model = differential_evolution(likelihood_sersic, bounds, args=(ri))
+        mle_model = differential_evolution(lambda c: likelihood_sersic(c, ri), bounds)
         results = mle_model.x
+        hfun = ndt.Hessian(lambda c: likelihood_sersic(c, ri), full_output=True)
 
     elif model == "kazantzidis":
         bounds = [(hmr - 2, hmr + 2), (norm - 2, norm + 2)]
-        mle_model = differential_evolution(likelihood_kazantzidis, bounds, args=(ri))
+        mle_model = differential_evolution(
+            lambda c: likelihood_kazantzidis(c, ri), bounds
+        )
         results = mle_model.x
+        hfun = ndt.Hessian(lambda c: likelihood_kazantzidis(c, ri), full_output=True)
 
     elif model == "plummer":
         bounds = [(hmr - 2, hmr + 2), (norm - 2, norm + 2)]
-        mle_model = differential_evolution(likelihood_plummer, bounds, args=(ri))
+        mle_model = differential_evolution(lambda c: likelihood_plummer(c, ri), bounds)
         results = mle_model.x
+        hfun = ndt.Hessian(lambda c: likelihood_plummer(c, ri), full_output=True)
 
-    return results
+    hessian_ndt, info = hfun(results)
+    var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+    return results, var
 
 
 def mcmc(

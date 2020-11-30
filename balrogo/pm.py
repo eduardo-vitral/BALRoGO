@@ -24,6 +24,7 @@ from scipy import integrate
 from scipy.special import gamma
 from skimage.feature import peak_local_max
 import emcee
+import numdifftools as ndt
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 
@@ -678,6 +679,8 @@ def maximum_likelihood(X, Y, min_method="dif"):
     -------
     results : 10D-array
         Best fit parameters of the proper motion model.
+    var : 10D-array
+        Uncertainty of the fits.
 
     """
 
@@ -717,8 +720,9 @@ def maximum_likelihood(X, Y, min_method="dif"):
     Y = Y[idxpm]
 
     if min_method == "dif":
-
-        mle_model = differential_evolution(likelihood_function, bounds, args=(X, Y))
+        mle_model = differential_evolution(
+            lambda c: likelihood_function(c, X, Y), bounds
+        )
         results = mle_model.x
 
     else:
@@ -727,12 +731,18 @@ def maximum_likelihood(X, Y, min_method="dif"):
             [ini[0], ini[1], ini[2], ini[3], ini[4], ini[5], ini[5], 0, ini[6], ini[7]]
         )
         mle_model = minimize(
-            likelihood_function, ini, args=(X, Y), method=min_method, bounds=bounds
+            lambda c: likelihood_function(c, X, Y),
+            ini,
+            method=min_method,
+            bounds=bounds,
         )
-
         results = mle_model["x"]
 
-    return results
+    hfun = ndt.Hessian(lambda c: likelihood_function(c, X, Y), full_output=True)
+    hessian_ndt, info = hfun(results)
+    var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+    return results, var
 
 
 def mcmc(X, Y, nwalkers=None, steps=1000, ini=None, use_pool=False):

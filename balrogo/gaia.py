@@ -152,7 +152,7 @@ def find_object(
     prob_method="complete",
     prob_limit=0.9,
     use_hrd=True,
-    nsig=3.3,
+    nsig=3,
     bw_hrd=None,
     check_fit=False,
 ):
@@ -243,8 +243,12 @@ def find_object(
         passed the probability cuts.
     results_sd : array_like
         Results of the surface density fit.
+    var_sd : array_like
+        Uncertainties of the surface density fit
     results_pm : array_like
         Results of the proper motion fit.
+    var_pm : array_like
+        Uncertainties of the proper motion fit.
 
     """
 
@@ -265,7 +269,9 @@ def find_object(
     ri = angle.sky_distance_deg(ra, dec, c[0], c[1])
 
     if sd_model == "sersic":
-        results_sd = position.maximum_likelihood(x=np.asarray([ri]), model="sersic")
+        results_sd, var_sd = position.maximum_likelihood(
+            x=np.asarray([ri]), model="sersic"
+        )
         r_cut = 10 * 10 ** results_sd[1]
         nsys = len(ri) / (1 + 10 ** results_sd[2])
         nilop = len(ri) - nsys
@@ -276,7 +282,9 @@ def find_object(
         )
         prob_sd = position.prob(ri, results_sd, model="sersic")
     elif sd_model == "plummer":
-        results_sd = position.maximum_likelihood(x=np.asarray([ri]), model="plummer")
+        results_sd, var_sd = position.maximum_likelihood(
+            x=np.asarray([ri]), model="plummer"
+        )
         r_cut = 10 * 10 ** results_sd[0]
         nsys = len(ri) / (1 + 10 ** results_sd[1])
         nilop = len(ri) - nsys
@@ -287,7 +295,7 @@ def find_object(
         )
         prob_sd = position.prob(ri, results_sd, model="plummer")
     elif sd_model == "kazantzidis":
-        results_sd = position.maximum_likelihood(
+        results_sd, var_sd = position.maximum_likelihood(
             x=np.asarray([ri]), model="kazantzidis"
         )
         r_cut = 10 * 10 ** results_sd[0]
@@ -353,7 +361,7 @@ def find_object(
     pmra = pmra[idx]
     pmdec = pmdec[idx]
 
-    results_pm = pm.maximum_likelihood(pmra, pmdec, min_method=min_method)
+    results_pm, var_pm = pm.maximum_likelihood(pmra, pmdec, min_method=min_method)
 
     prob_pm = pm.prob(pmra, pmdec, results_pm)
 
@@ -512,7 +520,7 @@ def find_object(
 
         idx_final = idx_p
 
-    return idx_final, results_sd, results_pm
+    return idx_final, results_sd, var_sd, results_pm, var_pm
 
 
 def extract_object(
@@ -587,8 +595,12 @@ def extract_object(
         probability cuts.
     results_sd : array_like
         Results of the surface density fit.
+    var_sd : array_like
+        Uncertainties of the surface density fit
     results_pm : array_like
         Results of the proper motion fit.
+    var_pm : array_like
+        Uncertainties of the proper motion fit.
 
     """
 
@@ -624,7 +636,7 @@ def extract_object(
 
     hdu.close()
 
-    idx_final, results_sd, results_pm = find_object(
+    idx_final, results_sd, var_sd, results_pm, var_pm = find_object(
         ra,
         dec,
         pmra,
@@ -650,4 +662,4 @@ def extract_object(
 
     full_data = full_data[idx_final]
 
-    return full_data, results_sd, results_pm
+    return full_data, results_sd, var_sd, results_pm, var_pm
