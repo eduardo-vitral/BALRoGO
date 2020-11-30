@@ -303,7 +303,7 @@ def likelihood_function(params, Ux, Uy):
     )
 
     # Transforms zero's in NaN
-    f_i[f_i == 0] = np.nan
+    f_i[f_i <= 0] = np.nan
 
     # Calculates the likelihood, taking out NaN's
     f_i = f_i[np.logical_not(np.isnan(f_i))]
