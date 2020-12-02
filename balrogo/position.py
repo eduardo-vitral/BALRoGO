@@ -566,7 +566,7 @@ def likelihood_sersic(params, Ri):
     return L
 
 
-def lnprior_s(params, bounds):
+def lnprior_s(params, guess, bounds):
     """
     Prior assumptions on the parameters.
 
@@ -575,8 +575,11 @@ def lnprior_s(params, bounds):
     Parameters to be fitted: Sersic index, Sersic characteristic radius R_e and
                              log-ratio of galactic objects and Milky
                              Way stars.
+    guess : array_like
+        Array containing the initial guess of the parameters.
     bounds : array_like
-        Prior bounds of the fit parameters.
+        Array containing the interval of variation of the parameters.
+
 
     Returns
     -------
@@ -587,15 +590,15 @@ def lnprior_s(params, bounds):
     """
 
     if (
-        (bounds[0][0] <= params[0] <= bounds[0][1])
-        and (bounds[1][0] <= params[1] <= bounds[1][1])
-        and (bounds[2][0] <= params[2] <= bounds[2][1])
+        (guess[0] - bounds[0] <= params[0] <= guess[0] + bounds[0])
+        and (guess[1] - bounds[1] <= params[1] <= guess[1] + bounds[1])
+        and (guess[2] - bounds[2] <= params[2] <= guess[2] + bounds[2])
     ):
         return 0.0
     return -np.inf
 
 
-def lnprob_s(params, Ri, bounds):
+def lnprob_s(params, Ri, guess, bounds):
     """
     log-probability of fit parameters.
 
@@ -606,8 +609,11 @@ def lnprob_s(params, Ri, bounds):
                              Way stars.
     Ri : array_like
         Array containing the ensemble of projected radii.
+    guess : array_like
+        Array containing the initial guess of the parameters.
     bounds : array_like
-        Prior bounds of the fit parameters.
+        Array containing the interval of variation of the parameters.
+
 
     Returns
     -------
@@ -616,7 +622,7 @@ def lnprob_s(params, Ri, bounds):
 
     """
 
-    lp = lnprior_s(params, bounds)
+    lp = lnprior_s(params, guess, bounds)
     if not np.isfinite(lp):
         return -np.inf
     return lp - likelihood_sersic(params, Ri)
@@ -723,7 +729,7 @@ def likelihood_kazantzidis(params, Ri):
     return L
 
 
-def lnprior_k(params, bounds):
+def lnprior_k(params, guess, bounds):
     """
     Prior assumptions on the parameters.
 
@@ -732,8 +738,10 @@ def lnprior_k(params, bounds):
     Parameters to be fitted: Kazantzidis characteristic radius a and
                              log-ratio of galactic objects and Milky
                              Way stars.
+    guess : array_like
+        Array containing the initial guess of the parameters.
     bounds : array_like
-        Prior bounds of the fit parameters.
+        Array containing the interval of variation of the parameters.
 
     Returns
     -------
@@ -743,14 +751,14 @@ def lnprior_k(params, bounds):
 
     """
 
-    if (bounds[0][0] <= params[0] <= bounds[0][1]) and (
-        bounds[1][0] <= params[1] <= bounds[1][1]
+    if (guess[0] - bounds[0] <= params[0] <= guess[0] + bounds[0]) and (
+        guess[1] - bounds[1] <= params[1] <= guess[1] + bounds[1]
     ):
         return 0.0
     return -np.inf
 
 
-def lnprob_k(params, Ri, bounds):
+def lnprob_k(params, Ri, guess, bounds):
     """
     log-probability of fit parameters.
 
@@ -761,8 +769,10 @@ def lnprob_k(params, Ri, bounds):
                                  Way stars.
     Ri : array_like
         Array containing the ensemble of projected radii.
+    guess : array_like
+        Array containing the initial guess of the parameters.
     bounds : array_like
-        Prior bounds of the fit parameters.
+        Array containing the interval of variation of the parameters.
 
     Returns
     -------
@@ -771,7 +781,7 @@ def lnprob_k(params, Ri, bounds):
 
     """
 
-    lp = lnprior_k(params, bounds)
+    lp = lnprior_k(params, guess, bounds)
     if not np.isfinite(lp):
         return -np.inf
     return lp - likelihood_kazantzidis(params, Ri)
@@ -879,7 +889,7 @@ def likelihood_plummer(params, Ri):
     return L
 
 
-def lnprior_p(params, bounds):
+def lnprior_p(params, guess, bounds):
     """
     Prior assumptions on the parameters.
 
@@ -889,8 +899,10 @@ def lnprior_p(params, bounds):
         Parameters to be fitted: Plummer characteristic radius a and
                                  log-ratio of galactic objects and Milky
                                  Way stars.
+    guess : array_like
+        Array containing the initial guess of the parameters.
     bounds : array_like
-        Prior bounds of the fit parameters.
+        Array containing the interval of variation of the parameters.
 
     Returns
     -------
@@ -900,14 +912,14 @@ def lnprior_p(params, bounds):
 
     """
 
-    if (bounds[0][0] <= params[0] <= bounds[0][1]) and (
-        bounds[1][0] <= params[1] <= bounds[1][1]
+    if (guess[0] - bounds[0] <= params[0] <= guess[0] + bounds[0]) and (
+        guess[1] - bounds[1] <= params[1] <= guess[1] + bounds[1]
     ):
         return 0.0
     return -np.inf
 
 
-def lnprob_p(params, Ri, bounds):
+def lnprob_p(params, Ri, guess, bounds):
     """
     log-probability of fit parameters.
 
@@ -919,8 +931,11 @@ def lnprob_p(params, Ri, bounds):
                              Way stars.
     Ri : array_like
         Array containing the ensemble of projected radii.
+    guess : array_like
+        Array containing the initial guess of the parameters.
     bounds : array_like
-        Prior bounds of the fit parameters.
+        Array containing the interval of variation of the parameters.
+
 
     Returns
     -------
@@ -929,7 +944,7 @@ def lnprob_p(params, Ri, bounds):
 
     """
 
-    lp = lnprior_p(params, bounds)
+    lp = lnprior_p(params, guess, bounds)
     if not np.isfinite(lp):
         return -np.inf
     return lp - likelihood_plummer(params, Ri)
@@ -1103,6 +1118,7 @@ def mcmc(
     nwalkers=None,
     steps=1000,
     ini=None,
+    bounds=None,
     use_pool=False,
     x0=None,
     y0=None,
@@ -1131,9 +1147,15 @@ def mcmc(
         Number of Markov chains. The default is None.
     steps : int, optional
         Number of steps for each chain. The default is 1000.
-    ini : array, optional
-        Array containing the initial guess of the parameters. The order
-        of parameters should be the same returned by the method
+    ini : array_like, optional
+        Array containing the initial guess of the parameters.
+        The order of parameters should be the same returned by the method
+        "maximum_likelihood".
+        The default is None.
+    bounds : array_like, optional
+        Array containing the allowed variation of the parameters, with
+        respect to the initial guesses.
+        The order of parameters should be the same returned by the method
         "maximum_likelihood".
         The default is None.
     use_pool : boolean, optional
@@ -1172,7 +1194,7 @@ def mcmc(
     if y is None:
         ri = x
         if ini is None:
-            ini = maximum_likelihood(x=x, model=model)
+            ini, var = maximum_likelihood(x=x, model=model)
     else:
 
         if x0 is None or y0 is None:
@@ -1185,7 +1207,7 @@ def mcmc(
         ri = np.asarray([angle.sky_distance_deg(x, y, x0, y0)])
 
         if ini is None:
-            ini = maximum_likelihood(x=x, y=y, x0=x0, y0=y0, model=model)
+            ini, var = maximum_likelihood(x=x, y=y, x0=x0, y0=y0, model=model)
             if model == "sersic":
                 ini = np.asarray([2, ini[0], ini[1]])
 
@@ -1193,7 +1215,8 @@ def mcmc(
     if nwalkers is None or nwalkers < 2 * ndim:
         nwalkers = int(2 * ndim + 1)
 
-    gauss_ball = ini * 0.1
+    if bounds is None:
+        bounds = 3 * var
 
     if hybrid is False:
         if model == "sersic":
@@ -1201,30 +1224,27 @@ def mcmc(
         else:
             ini[1] = -50
 
-    pos = [ini + gauss_ball * np.random.randn(ndim) for i in range(nwalkers)]
+    pos = [ini + bounds * np.random.randn(ndim) for i in range(nwalkers)]
 
     if model == "sersic":
-        bounds = [(0.5, 10), (ini[1] - 2, ini[1] + 2), (ini[2] - 2, ini[2] - 2)]
         func = lnprob_s
 
     elif model == "kazantzidis":
-        bounds = [(ini[0] - 2, ini[0] + 2), (ini[1] - 2, ini[1] - 2)]
         func = lnprob_k
 
     elif model == "plummer":
-        bounds = [(ini[0] - 2, ini[0] + 2), (ini[1] - 2, ini[1] - 2)]
         func = lnprob_p
 
     if use_pool:
 
         with Pool() as pool:
             sampler = emcee.EnsembleSampler(
-                nwalkers, ndim, func, args=(ri, bounds), pool=pool
+                nwalkers, ndim, func, args=(ri, ini, bounds), pool=pool
             )
             sampler.run_mcmc(pos, steps)
     else:
 
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, func, args=(ri, bounds))
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, func, args=(ri, ini, bounds))
         sampler.run_mcmc(pos, steps)
 
     chain = sampler.chain

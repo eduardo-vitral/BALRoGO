@@ -312,7 +312,7 @@ def likelihood_function(params, Ux, Uy):
     return L
 
 
-def likelihood_prior(params, guess):
+def likelihood_prior(params, guess, bounds):
     """
     This function sets the prior probabilities for the MCMC.
 
@@ -322,6 +322,8 @@ def likelihood_prior(params, guess):
         Array containing the fitted values.
     guess : array_like
         Array containing the initial guess of the parameters.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
 
     Returns
     -------
@@ -332,23 +334,23 @@ def likelihood_prior(params, guess):
     """
 
     if (
-        (guess[0] - guess[2] < params[0] < guess[0] + guess[2])
-        and (guess[1] - guess[2] < params[1] < guess[1] + guess[2])
-        and (0.5 * guess[2] < params[2] < 2 * guess[2])
-        and (guess[3] - guess[5] < params[3] < guess[3] + guess[5])
-        and (guess[4] - guess[6] < params[4] < guess[4] - guess[6])
-        and (0.5 * guess[5] < params[5] < 2 * guess[5])
-        and (0.5 * guess[6] < params[6] < 2 * guess[6])
-        and (-np.pi / 2 < params[7] < np.pi / 2)
-        and (-20 < params[8] < -3)
-        and (0 < params[9] < 1)
+        (guess[0] - bounds[0] < params[0] < guess[0] + bounds[0])
+        and (guess[1] - bounds[1] < params[1] < guess[1] + bounds[1])
+        and (guess[2] - bounds[2] < params[2] < guess[2] + bounds[2])
+        and (guess[3] - bounds[3] < params[3] < guess[3] + bounds[3])
+        and (guess[4] - bounds[4] < params[4] < guess[4] + bounds[4])
+        and (guess[5] - bounds[5] < params[5] < guess[5] + bounds[5])
+        and (guess[6] - bounds[6] < params[6] < guess[6] + bounds[6])
+        and (guess[7] - bounds[7] < params[7] < guess[7] + bounds[7])
+        and (guess[8] - bounds[8] < params[8] < guess[8] + bounds[8])
+        and (guess[9] - bounds[9] < params[9] < guess[9] + bounds[9])
     ):
         return 0.0
     else:
         return -np.inf
 
 
-def likelihood_prob(params, Ux, Uy, guess):
+def likelihood_prob(params, Ux, Uy, guess, bounds):
     """
     This function gets the prior probability for MCMC.
 
@@ -362,6 +364,8 @@ def likelihood_prob(params, Ux, Uy, guess):
         Array containting the data to be fitted, in y-direction.
     guess : array_like
         Array containing the initial guess of the parameters.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
 
     Returns
     -------
@@ -369,7 +373,7 @@ def likelihood_prob(params, Ux, Uy, guess):
         log-probability for the respective params.
     """
 
-    lp = likelihood_prior(params, guess)
+    lp = likelihood_prior(params, guess, bounds)
     if not np.isfinite(lp):
         return -np.inf
     return lp - likelihood_function(params, Ux, Uy)
@@ -745,7 +749,7 @@ def maximum_likelihood(X, Y, min_method="dif"):
     return results, var
 
 
-def mcmc(X, Y, nwalkers=None, steps=1000, ini=None, use_pool=False):
+def mcmc(X, Y, nwalkers=None, steps=1000, ini=None, bounds=None, use_pool=False):
     """
     MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
 
@@ -763,9 +767,15 @@ def mcmc(X, Y, nwalkers=None, steps=1000, ini=None, use_pool=False):
         Number of Markov chains. The default is None.
     steps : int, optional
         Number of steps for each chain. The default is 1000.
-    ini : 10D-array, optional
-        Array containing the initial guess of the parameters. The order
-        of parameters should be the same returned by the method
+    ini : array_like, optional
+        Array containing the initial guess of the parameters.
+        The order of parameters should be the same returned by the method
+        "maximum_likelihood".
+        The default is None.
+    bounds : array_like, optional
+        Array containing the allowed variation of the parameters, with
+        respect to the initial guesses.
+        The order of parameters should be the same returned by the method
         "maximum_likelihood".
         The default is None.
     use_pool : boolean, optional
@@ -785,38 +795,40 @@ def mcmc(X, Y, nwalkers=None, steps=1000, ini=None, use_pool=False):
             [ini[0], ini[1], ini[2], ini[3], ini[4], ini[5], ini[5], 0, ini[6], ini[7]]
         )
 
+    if bounds is None:
+
+        bounds = np.asarray(
+            [
+                ini[2],
+                ini[2],
+                ini[2] * 0.5,
+                ini[5],
+                ini[6],
+                ini[5] * 0.5,
+                ini[6] * 0.5,
+                np.pi / 2,
+                1,
+                ini[9] * 0.1,
+            ]
+        )
+
     ndim = len(ini)  # number of dimensions.
     if nwalkers is None or nwalkers < 2 * ndim:
         nwalkers = int(2 * ndim + 1)
 
-    gauss_ball = np.asarray(
-        [
-            ini[2] * 0.1,
-            ini[2] * 0.1,
-            ini[2] * 0.1,
-            ini[5] * 0.1,
-            ini[6] * 0.1,
-            ini[5] * 0.1,
-            ini[6] * 0.1,
-            ini[7] * 0.1,
-            ini[8] * 0.1,
-            ini[9] * 0.1,
-        ]
-    )
-
-    pos = [ini + gauss_ball * np.random.randn(ndim) for i in range(nwalkers)]
+    pos = [ini + bounds * np.random.randn(ndim) for i in range(nwalkers)]
 
     if use_pool:
 
         with Pool() as pool:
             sampler = emcee.EnsembleSampler(
-                nwalkers, ndim, likelihood_prob, args=(X, Y, ini), pool=pool
+                nwalkers, ndim, likelihood_prob, args=(X, Y, ini, bounds), pool=pool
             )
             sampler.run_mcmc(pos, steps)
     else:
 
         sampler = emcee.EnsembleSampler(
-            nwalkers, ndim, likelihood_prob, args=(X, Y, ini)
+            nwalkers, ndim, likelihood_prob, args=(X, Y, ini, bounds)
         )
         sampler.run_mcmc(pos, steps)
 

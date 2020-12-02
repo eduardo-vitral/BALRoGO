@@ -154,6 +154,7 @@ def find_object(
     use_hrd=True,
     nsig=3,
     bw_hrd=None,
+    r_max=None,
     check_fit=False,
 ):
 
@@ -217,6 +218,9 @@ def find_object(
         The default is 3.3.
     bw_hrd : float or string, optional
         Bandwidth method of KDE's scipy method. The default is None.
+    r_max : float, optional
+        Maximum projected radius up to where consider the data.
+        The default is None
     check_fit : boolean, optional
         True is the user wants to plot validity checks throughout the fitting
         procedure.
@@ -339,6 +343,9 @@ def find_object(
         plt.plot(sorted(ri), sd + fs, lw=3, color="red")
         plt.show()
 
+    if r_max is None:
+        r_max = r_cut
+
     idx = clean_gaia(
         pmra,
         pmdec,
@@ -354,7 +361,7 @@ def find_object(
         ra,
         dec,
         c=c,
-        r_cut=r_cut,
+        r_cut=r_max,
     )
 
     prob_sd = prob_sd[idx]
@@ -532,6 +539,7 @@ def extract_object(
     use_hrd=True,
     nsig=3.3,
     bw_hrd=None,
+    r_max=None,
     check_fit=False,
 ):
     """
@@ -569,6 +577,9 @@ def extract_object(
         The default is 3.3.
     bw_hrd : float or string, optional
         Bandwidth method of KDE's scipy method. The default is None.
+    r_max : float, optional
+        Maximum projected radius up to where consider the data.
+        The default is None
     check_fit : boolean, optional
         True is the user wants to plot validity checks throughout the fitting
         procedure.
@@ -657,6 +668,7 @@ def extract_object(
         use_hrd=use_hrd,
         nsig=nsig,
         bw_hrd=bw_hrd,
+        r_max=r_max,
         check_fit=check_fit,
     )
 

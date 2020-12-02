@@ -176,7 +176,7 @@ def corner(
     # Try filling in labels from pandas.DataFrame columns.
     if labels is None:
         try:
-            labels = xs.columns
+            labels = np.shape(xs)[1] * [""]
         except AttributeError:
             pass
 
