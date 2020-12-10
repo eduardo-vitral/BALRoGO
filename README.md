@@ -5,8 +5,13 @@
 BALRoGO: Bayesian Astrometric Likelihood Recover of Galactic Objects. 
 
 - Specially developed to handle data from the Gaia space mission.
-- Extracts galactic objects such as globular clusters and dwarf galaxies through a combination of Bayesian and non-Bayesian approaches.
-- Provides fits of proper motion space, surface density, object center, as well as confidence regions for the color-magnitude diagram and parallaxes.
+- Extracts galactic objects such as globular clusters and dwarf galaxies.
+- Uses a combination of Bayesian and non-Bayesian approaches.
+- Provides:
+  - Fits of proper motion space
+  - Fits of surface density
+  - Fits of object center
+  - Confidence regions for the color-magnitude diagram and parallaxes.
 
 If something does not work, please [file an issue](https://gitlab.com/eduardo-vitral/balrogo/-/issues).<br>
 
