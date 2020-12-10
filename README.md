@@ -15,7 +15,7 @@ BALRoGO: Bayesian Astrometric Likelihood Recover of Galactic Objects.
 
 If something does not work, please [file an issue](https://gitlab.com/eduardo-vitral/balrogo/-/issues).<br>
 
-### Attribution
+## Attribution
 
 Please cite [us](https://arxiv.org/abs/2010.05532) if you find this code useful in your research and add your paper to the testimonials list. The BibTeX entry for the paper is:
 
@@ -37,7 +37,7 @@ archivePrefix = {arXiv},
 }
 ```
 
-### Quick overview
+## Quick overview
 
 To be written.
 
@@ -45,7 +45,7 @@ To be written.
 
 To be written.
 
-### License
+## License
 
 Copyright (c) 2020 Eduardo Vitral & Alexandre Macedo.
 
