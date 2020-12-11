@@ -77,7 +77,7 @@ def gauss_sig(x_axis, gauss, peak):
     return sigma
 
 
-def find_center(x, y, method="iterative"):
+def find_center(x, y, method="mle"):
     """
     Fit a center (peak) of the [x,y] data.
 
@@ -90,7 +90,8 @@ def find_center(x, y, method="iterative"):
     method : string, optional
         Method to find the peak of RA, Dec. Available options are:
             - 'iterative'.
-        Default is 'iterative'.
+            - 'mle'.
+        Default is 'mle'.
 
     Raises
     ------
@@ -108,7 +109,7 @@ def find_center(x, y, method="iterative"):
 
     """
 
-    if method not in ["iterative"]:
+    if method not in ["iterative", "mle"]:
         raise ValueError("Does not recognize method argument.")
 
     # Takes off NaN values
@@ -117,6 +118,8 @@ def find_center(x, y, method="iterative"):
 
     if method == "iterative":
         center, unc = center_iterative(x, y)
+    elif method == "mle":
+        center, unc = center_mle(x, y)
 
     return center, unc
 
@@ -202,6 +205,51 @@ def center_iterative(x, y):
         unc = np.median(shift)
 
         count += 1
+
+    return center, unc
+
+
+def center_mle(x, y):
+    """
+    Fit a center (peak) of the [x,y] data through an iterative approach.
+
+    Parameters
+    ----------
+    x : array_like
+        Data in x-direction
+    y : array_like
+        Data in y-direction
+
+    Returns
+    -------
+    center : 2D-array of floats
+        Position of the peak: [x_coordinate,y_coordinate]
+    unc : float
+        Uncertainty in the position.
+
+    """
+
+    cmx, cmy = quantile(x, 0.5), quantile(y, 0.5)
+    hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
+
+    bounds = [
+        (hmr - 2, hmr + 2),
+        (norm - 2, norm + 2),
+        (quantile(x, 0.16), quantile(x, 0.84)),
+        (quantile(y, 0.16), quantile(y, 0.84)),
+    ]
+
+    mle_model = differential_evolution(
+        lambda c: likelihood_plummer_freec(c, x, y), bounds
+    )
+    results = mle_model.x
+    hfun = ndt.Hessian(lambda c: likelihood_plummer_freec(c, x, y), full_output=True)
+
+    hessian_ndt, info = hfun(results)
+    var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+    center = np.asarray([results[2], results[3]])
+    unc = np.asarray([var[2], var[3]])
 
     return center, unc
 
@@ -337,7 +385,7 @@ def initial_guess_sd(x=None, y=None, x0=None, y0=None):
         density = surface_density(x=x, y=y, x0=x0, y0=y0)
         size = len(x)
 
-    mw_dens = density[1][len(density[1]) - 1]
+    mw_dens = np.nanmin(density[1])
     density[1] = density[1] - mw_dens
     nilop = (
         mw_dens * np.pi * (density[0][len(density[0]) - 1] ** 2 - density[0][0] ** 2)
@@ -353,6 +401,8 @@ def initial_guess_sd(x=None, y=None, x0=None, y0=None):
 
     half_radius = density[0][idx]
     norm = size / (size - nilop) - 1
+    if norm <= 0:
+        norm = 1
 
     return half_radius, norm
 
@@ -869,6 +919,60 @@ def likelihood_plummer(params, Ri):
         norm = 0
     else:
         norm = 10 ** params[1]
+
+    Xmax = np.amax(Ri) / a
+    Xmin = np.amin(Ri) / a
+    X = Ri / a
+
+    N_sys_tot = n_plummer(Xmax) - n_plummer(Xmin)
+
+    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+
+    Ntot = N_sys_tot * (1 + norm)
+
+    fi = 2 * (X / a) * SD / Ntot
+
+    idx_valid = np.logical_not(np.isnan(np.log(fi)))
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
+    return L
+
+
+def likelihood_plummer_freec(params, x, y):
+    """
+    Likelihood function of the Plummer profile plus a constant contribution
+    from fore/background tracers. Differently from the previous method,
+    it also fits the center of the distribution.
+
+    Parameters
+    ----------
+    params : array_like
+        Parameters to be fitted: Plummer characteristic radius a and
+                                 log-ratio of galactic objects and Milky
+                                 Way stars.
+    x : array_like
+        Array containing the ensemble of ra data.
+    y : array_like
+        Array containing the ensemble of dec data.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+    """
+
+    a = 10 ** params[0]
+    if params[1] < -10:
+        norm = 0
+    else:
+        norm = 10 ** params[1]
+
+    cmx = params[2]
+    cmy = params[3]
+
+    Ri = angle.sky_distance_deg(cmx, cmy, x, y)
 
     Xmax = np.amax(Ri) / a
     Xmin = np.amin(Ri) / a
