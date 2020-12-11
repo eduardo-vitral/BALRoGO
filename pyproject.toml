@@ -5,7 +5,15 @@ description = "Bayesian Astrometric Likelihood Recover of Galactic Objects"
 authors = ["Eduardo Vitral <vitral@iap.fr>", "Alexandre Macedo <arj.macedo@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.6"
+python = ">=3.7, <3.9"
+numpy = "^1.19.4"
+matplotlib = "^3.3.3"
+astropy = "^4.2"
+scipy = "^1.5.4"
+shapely = "^1.7.1"
+emcee = "^3.0.2"
+numdifftools = "^0.9.39"
+scikit-image = "^0.17.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
