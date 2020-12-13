@@ -155,6 +155,7 @@ def find_object(
     nsig=3,
     bw_hrd=None,
     r_max=None,
+    err_lim=None,
     check_fit=False,
 ):
 
@@ -221,6 +222,8 @@ def find_object(
     r_max : float, optional
         Maximum projected radius up to where consider the data.
         The default is None
+    err_lim : float, optional
+        Error threshold for proper motions. The default is None.
     check_fit : boolean, optional
         True is the user wants to plot validity checks throughout the fitting
         procedure.
@@ -362,6 +365,7 @@ def find_object(
         dec,
         c=c,
         r_cut=r_max,
+        err_lim=err_lim,
     )
 
     prob_sd = prob_sd[idx]
@@ -540,6 +544,7 @@ def extract_object(
     nsig=3.3,
     bw_hrd=None,
     r_max=None,
+    err_lim=None,
     check_fit=False,
 ):
     """
@@ -580,6 +585,8 @@ def extract_object(
     r_max : float, optional
         Maximum projected radius up to where consider the data.
         The default is None
+    err_lim : float, optional
+        Error threshold for proper motions. The default is None.
     check_fit : boolean, optional
         True is the user wants to plot validity checks throughout the fitting
         procedure.
@@ -669,6 +676,7 @@ def extract_object(
         nsig=nsig,
         bw_hrd=bw_hrd,
         r_max=r_max,
+        err_lim=err_lim,
         check_fit=check_fit,
     )
 
