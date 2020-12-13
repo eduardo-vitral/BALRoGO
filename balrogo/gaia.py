@@ -365,7 +365,7 @@ def find_object(
         dec,
         c=c,
         r_cut=r_max,
-        err_lim=err_lim
+        err_lim=err_lim,
     )
 
     prob_sd = prob_sd[idx]
