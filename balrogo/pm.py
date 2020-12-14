@@ -500,10 +500,10 @@ def gauss_sig(x_axis, gauss, peak):
     threshold = gauss[i] * np.exp(-1 / 2)
 
     # Search where the histogram is less than the threshold
-    while gauss[i] >= threshold:
+    while gauss[i] >= threshold and i > 0:
         i -= 1
     index_left = i
-    while gauss[j] >= threshold:
+    while gauss[j] >= threshold and j < (len(gauss) - 1):
         j += 1
     index_right = j
 
