@@ -22,6 +22,9 @@ lint:
 build: clean
 	@./scripts/poetry-wrapper.sh build
 
+publish: build
+	@./scripts/poetry-wrapper.sh publish
+
 # https://raw.githubusercontent.com/python-poetry/poetry/master/Makefile
 clean:
 	@rm -rf build dist .eggs *.egg-info
