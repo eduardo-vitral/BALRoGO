@@ -60,6 +60,45 @@ def sky_distance_deg(RA, Dec, RA0, Dec0):
     return np.asarray(R)
 
 
+def get_circle_sph_trig(r, a0, d0, nbins=500):
+    """
+    Generates a circle in spherical coordinates.
+
+    Parameters
+    ----------
+    r : float
+        Distance from the center, in degrees.
+    a0 : float
+        Right ascention from origin, in degrees.
+    d0 : float
+        Declination from origin in, in degrees.
+    nbins : int, optional
+        Number of circle points. The default is 500.
+
+    Returns
+    -------
+    ra : array_like
+        Right ascention in degrees.
+    dec : array_like
+        Declination in degrees.
+
+    """
+
+    # Converts angles to radians
+    r = r * np.pi / 180
+    a0 = a0 * np.pi / 180
+    d0 = d0 * np.pi / 180
+
+    phi = np.linspace(0, 2 * np.pi, nbins)
+
+    a = np.zeros(nbins)
+    d = np.zeros(nbins)
+    for i in range(0, nbins):
+        a[i], d[i] = polar_to_sky(r, phi[i], a0, d0)
+
+    return a, d
+
+
 def polar_to_sky(r, phi, a0, d0):
     """
     Transforms spherical polar coordinates (r,phi) into sky coordinates,
@@ -73,9 +112,9 @@ def polar_to_sky(r, phi, a0, d0):
         Angle between increasing declination and the projected radius
         (pointing towards the source).
     a0 : float
-        Right ascention from origin.
+        Right ascention from origin in radians.
     d0 : float
-        Declination from origin.
+        Declination from origin in radians.
 
     Returns
     -------
