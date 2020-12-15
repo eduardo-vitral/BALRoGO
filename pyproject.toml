@@ -1,8 +1,11 @@
 [tool.poetry]
 name = "balrogo"
-version = "0.1.0"
+version = "0.1.1"
 description = "Bayesian Astrometric Likelihood Recover of Galactic Objects"
 authors = ["Eduardo Vitral <vitral@iap.fr>", "Alexandre Macedo <arj.macedo@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://gitlab.com/eduardo-vitral/balrogo"
 
 [tool.poetry.dependencies]
 python = ">=3.7, <3.9"
