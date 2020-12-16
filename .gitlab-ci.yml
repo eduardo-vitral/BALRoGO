@@ -16,11 +16,11 @@ stages:
 .on_merge_tag_or_manual: &on_merge_tag_or_manual
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: always
+      when: on_success
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      when: always
+      when: on_success
     - if: $CI_COMMIT_TAG
-      when: always
+      when: on_success
     - when: manual
 
 .install-deps: &install-deps
