@@ -26,9 +26,8 @@ stages:
 .install-deps: &install-deps
   before_script:
     - pip install poetry
-    - poetry --version
     - poetry config virtualenvs.in-project true
-    - poetry install -vv
+    - make setup
 
 .test-template: &test
   <<: *on_merge_tag_or_manual
