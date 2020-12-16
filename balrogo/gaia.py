@@ -266,51 +266,55 @@ def find_object(
     c, unc = position.find_center(ra, dec)
 
     ri = angle.sky_distance_deg(ra, dec, c[0], c[1])
+    if r_max is None:
+        ri_sd = ri
+    else:
+        ri_sd = ri[np.where(ri <= r_max)]
 
     if sd_model == "sersic":
         results_sd, var_sd = position.maximum_likelihood(
-            x=np.asarray([ri]), model="sersic"
+            x=np.asarray([ri_sd]), model="sersic"
         )
         r_cut = 10 * 10 ** results_sd[1]
-        nsys = len(ri) / (1 + 10 ** results_sd[2])
-        nilop = len(ri) - nsys
+        nsys = len(ri_sd) / (1 + 10 ** results_sd[2])
+        nilop = len(ri_sd) - nsys
         sd = (
-            position.sd_sersic(results_sd[0], sorted(ri) / 10 ** results_sd[1])
+            position.sd_sersic(results_sd[0], sorted(ri_sd) / 10 ** results_sd[1])
             * nsys
             / (np.pi * (10 ** results_sd[1]) ** 2)
         )
         prob_sd = position.prob(ri, results_sd, model="sersic")
     elif sd_model == "plummer":
         results_sd, var_sd = position.maximum_likelihood(
-            x=np.asarray([ri]), model="plummer"
+            x=np.asarray([ri_sd]), model="plummer"
         )
         r_cut = 10 * 10 ** results_sd[0]
-        nsys = len(ri) / (1 + 10 ** results_sd[1])
-        nilop = len(ri) - nsys
+        nsys = len(ri_sd) / (1 + 10 ** results_sd[1])
+        nilop = len(ri_sd) - nsys
         sd = (
-            position.sd_plummer(sorted(ri) / 10 ** results_sd[0])
+            position.sd_plummer(sorted(ri_sd) / 10 ** results_sd[0])
             * nsys
             / (np.pi * (10 ** results_sd[0]) ** 2)
         )
         prob_sd = position.prob(ri, results_sd, model="plummer")
     elif sd_model == "kazantzidis":
         results_sd, var_sd = position.maximum_likelihood(
-            x=np.asarray([ri]), model="kazantzidis"
+            x=np.asarray([ri_sd]), model="kazantzidis"
         )
         r_cut = 10 * 10 ** results_sd[0]
-        nsys = len(ri) / (1 + 10 ** results_sd[1])
-        nilop = len(ri) - nsys
+        nsys = len(ri_sd) / (1 + 10 ** results_sd[1])
+        nilop = len(ri_sd) - nsys
         sd = (
-            position.sd_kazantzidis(sorted(ri) / 10 ** results_sd[0])
+            position.sd_kazantzidis(sorted(ri_sd) / 10 ** results_sd[0])
             * nsys
             / (np.pi * (10 ** results_sd[0]) ** 2)
         )
         prob_sd = position.prob(ri, results_sd, model="kazantzidis")
 
     if check_fit is True:
-        surf_dens = position.surface_density(x=ri)
+        surf_dens = position.surface_density(x=ri_sd)
 
-        fs = nilop / (np.pi * np.amax(ri) ** 2)
+        fs = nilop / (np.pi * np.amax(ri_sd) ** 2)
 
         plt.title(sd_model)
         plt.bar(
@@ -335,7 +339,7 @@ def find_object(
             barsabove=True,
             zorder=11,
         )
-        plt.plot(sorted(ri), sd + fs, lw=3, color="red")
+        plt.plot(sorted(ri_sd), sd + fs, lw=3, color="red")
         plt.show()
 
     if r_max is None:
