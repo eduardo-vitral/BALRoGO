@@ -37,7 +37,6 @@ def clean_gaia(
     epmra,
     epmdec,
     corrpm,
-    ast_err,
     chi2,
     nu,
     g_mag,
@@ -64,8 +63,6 @@ def clean_gaia(
         Gaia designation: pmdec_error.
     corrpm : array_like
         Gaia designation: pmra_pmdec_corr.
-    ast_err : array_like
-        Gaia designation: astrometric_excess_noise.
     chi2 : array_like
         Gaia designation: astrometric_chi2_al.
     nu : array_like
@@ -119,8 +116,6 @@ def clean_gaia(
     idx_err = np.where(err < err_lim)
     idx = np.intersect1d(idx, idx_err)
 
-    idx_noise = np.where(ast_err < 1)
-
     idx_noiseE1 = np.where(1.0 + 0.015 * br_mag ** 2 < br_excess)
     idx_noiseE2 = np.where(br_excess < 1.3 + 0.06 * br_mag ** 2)
     idx_noise1 = np.intersect1d(idx_noiseE1, idx_noiseE2)
@@ -141,7 +136,6 @@ def find_object(
     epmra,
     epmdec,
     corrpm,
-    ast_err,
     chi2,
     nu,
     g_mag,
@@ -179,8 +173,6 @@ def find_object(
         Gaia designation: pmdec_error.
     corrpm : array_like
         Gaia designation: pmra_pmdec_corr.
-    ast_err : array_like
-        Gaia designation: astrometric_excess_noise.
     chi2 : array_like
         Gaia designation: astrometric_chi2_al.
     nu : array_like
@@ -355,7 +347,6 @@ def find_object(
         epmra,
         epmdec,
         corrpm,
-        ast_err,
         chi2,
         nu,
         g_mag,
@@ -645,7 +636,6 @@ def extract_object(
     corrpm = np.asarray(hdu[1].data[:]["pmra_pmdec_corr"])  # mas/yr
     g_mag = np.asarray(hdu[1].data[:]["phot_g_mean_mag"])  # in mag
     br_mag = np.asarray(hdu[1].data[:]["bp_rp   "])  # in mag
-    ast_err = np.asarray(hdu[1].data[:]["astrometric_excess_noise"])  # no units
     chi2 = np.asarray(hdu[1].data[:]["astrometric_chi2_al"])  # no units
     nu = np.asarray(hdu[1].data[:]["astrometric_n_good_obs_al"])  # no units
     br_excess = np.asarray(hdu[1].data[:]["phot_bp_rp_excess_factor"])  # no units
@@ -662,7 +652,6 @@ def extract_object(
         epmra,
         epmdec,
         corrpm,
-        ast_err,
         chi2,
         nu,
         g_mag,
