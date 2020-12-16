@@ -46,6 +46,10 @@ lint:
   image: python:3.8
 
 # Tests
+python3.6:
+  <<: *test
+  image: python:3.6
+
 python3.7:
   <<: *test
   image: python:3.7
