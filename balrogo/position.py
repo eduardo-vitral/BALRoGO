@@ -17,7 +17,7 @@ Created on 2020
 #
 ###############################################################################
 
-import angle
+from . import angle
 import numpy as np
 from skimage.feature import peak_local_max
 from scipy.optimize import differential_evolution

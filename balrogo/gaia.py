@@ -20,10 +20,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mc
 from astropy.io import fits
-import pm
-import angle
-import position
-import hrd
+from . import pm
+from . import angle
+from . import position
+from . import hrd
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
