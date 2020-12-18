@@ -188,6 +188,8 @@ def find_object(
              - 'sersic'
              - 'kazantzidis'
              - 'plummer'
+             - 'test', for testing which among Plummer and Sersic should be
+             used, based on AICc.
         The default is 'plummer'.
     min_method : string, optional
         Minimization method to be used by the pm maximum likelihood fit.
@@ -228,6 +230,7 @@ def find_object(
             - 'sersic'
             - 'kazantzidis'
             - 'plummer'
+            - 'test'
         Probability method is not one of the following:
             - 'complete'
             - 'pm'
@@ -251,7 +254,7 @@ def find_object(
 
     """
 
-    if sd_model not in ["sersic", "plummer", "kazantzidis"]:
+    if sd_model not in ["sersic", "plummer", "kazantzidis", "test"]:
         raise ValueError("Does not recognize surface density model.")
 
     if prob_method not in ["complete", "pm", "position"]:
@@ -310,6 +313,42 @@ def find_object(
             / (np.pi * (10 ** results_sd[0]) ** 2)
         )
         prob_sd = position.prob(ri, results_sd, model="kazantzidis")
+    elif sd_model == "test":
+        results_sd_s, var_sd_s = position.maximum_likelihood(
+            x=np.asarray([ri_sd]), model="sersic"
+        )
+        results_sd_p, var_sd_p = position.maximum_likelihood(
+            x=np.asarray([ri_sd]), model="plummer"
+        )
+        aicc_s = get_aicc(position.likelihood_sersic(results_sd_s, ri_sd),3,len(ri_sd))
+        aicc_p = get_aicc(position.likelihood_plummer(results_sd_p, ri_sd),2,len(ri_sd))
+        
+        delta_aicc = aicc_p - aicc_s
+        
+        if delta_aicc < 2 :
+            sd_model = 'plummer'
+            results_sd, var_sd = results_sd_p, var_sd_p
+            r_cut = 10 * 10 ** results_sd[0]
+            nsys = len(ri_sd) / (1 + 10 ** results_sd[1])
+            nilop = len(ri_sd) - nsys
+            sd = (
+                position.sd_plummer(sorted(ri_sd) / 10 ** results_sd[0])
+                * nsys
+                / (np.pi * (10 ** results_sd[0]) ** 2)
+            )
+            prob_sd = position.prob(ri, results_sd, model="plummer")
+        else :
+            sd_model = 'sersic'
+            results_sd, var_sd = results_sd_s, var_sd_s
+            r_cut = 10 * 10 ** results_sd[1]
+            nsys = len(ri_sd) / (1 + 10 ** results_sd[2])
+            nilop = len(ri_sd) - nsys
+            sd = (
+                position.sd_sersic(results_sd[0], sorted(ri_sd) / 10 ** results_sd[1])
+                * nsys
+                / (np.pi * (10 ** results_sd[1]) ** 2)
+            )
+            prob_sd = position.prob(ri, results_sd, model="sersic")
 
     if check_fit is True:
         surf_dens = position.surface_density(x=ri_sd)
@@ -536,7 +575,7 @@ def extract_object(
     prob_method="complete",
     prob_limit=0.9,
     use_hrd=True,
-    nsig=3.3,
+    nsig=3,
     bw_hrd=None,
     r_max=None,
     err_lim=None,
@@ -554,6 +593,8 @@ def extract_object(
              - 'sersic'
              - 'kazantzidis'
              - 'plummer'
+             - 'test', for testing which among Plummer and Sersic should be
+             used, based on AICc.
         The default is 'plummer'.
     min_method : string, optional
         Minimization method to be used by the pm maximum likelihood fit.
@@ -594,6 +635,7 @@ def extract_object(
             - 'sersic'
             - 'kazantzidis'
             - 'plummer'
+            - 'test'
         Probability method is not one of the following:
             - 'complete'
             - 'pm'
@@ -617,7 +659,7 @@ def extract_object(
 
     """
 
-    if sd_model not in ["sersic", "plummer", "kazantzidis"]:
+    if sd_model not in ["sersic", "plummer", "kazantzidis", "test"]:
         raise ValueError("Does not recognize surface density model.")
 
     if prob_method not in ["complete", "pm", "position"]:
@@ -676,3 +718,76 @@ def extract_object(
     full_data = full_data[idx_final]
 
     return full_data, results_sd, var_sd, results_pm, var_pm
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"Statistical handling"
+# ---------------------------------------------------------------------------
+
+def get_aic(lnL,Nf) :
+    """
+    Provides the Akaike Information Criterion (Akaike, 1973), i.e. AIC.
+
+    Parameters
+    ----------
+    lnL : float
+        Minus the log-likelihood.
+    Nf : int
+        Number of free parameters.
+
+    Returns
+    -------
+    AIC : float
+        AIC indicator.
+
+    """
+    
+    AIC = 2 * (lnL + Nf)
+    return AIC
+
+def get_bic(lnL,Nf,Nd) :
+    """
+    Provides the Bayes Information Criterion (Schwarz, 1978), i.e. BIC.
+
+    Parameters
+    ----------
+    lnL : float
+        Minus the log-likelihood.
+    Nf : int
+        Number of free parameters.
+    Nd : int
+        Size of data sample.
+
+    Returns
+    -------
+    BIC : float
+        BIC indicator.
+
+    """
+    
+    BIC = 2 * lnL + Nf * np.log(Nd)
+    return BIC
+
+def get_aicc(lnL,Nf,Nd) :
+    """
+    Provides the corrected Akaike Information Criterion (Sugiyara, 1978),
+    i.e. AICc.
+
+    Parameters
+    ----------
+    lnL : float
+        Minus the log-likelihood.
+    Nf : int
+        Number of free parameters.
+    Nd : int
+        Size of data sample.
+
+    Returns
+    -------
+    AICc : float
+        AICc indicator.
+
+    """
+    
+    AICc = get_aic(lnL,Nf) + 2 * Nf * (1 + Nf) / (Nd - Nf - 1)
+    return AICc
