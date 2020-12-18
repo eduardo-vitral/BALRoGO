@@ -320,13 +320,17 @@ def find_object(
         results_sd_p, var_sd_p = position.maximum_likelihood(
             x=np.asarray([ri_sd]), model="plummer"
         )
-        aicc_s = get_aicc(position.likelihood_sersic(results_sd_s, ri_sd),3,len(ri_sd))
-        aicc_p = get_aicc(position.likelihood_plummer(results_sd_p, ri_sd),2,len(ri_sd))
-        
+        aicc_s = get_aicc(
+            position.likelihood_sersic(results_sd_s, ri_sd), 3, len(ri_sd)
+        )
+        aicc_p = get_aicc(
+            position.likelihood_plummer(results_sd_p, ri_sd), 2, len(ri_sd)
+        )
+
         delta_aicc = aicc_p - aicc_s
-        
-        if delta_aicc < 2 :
-            sd_model = 'plummer'
+
+        if delta_aicc < 2:
+            sd_model = "plummer"
             results_sd, var_sd = results_sd_p, var_sd_p
             r_cut = 10 * 10 ** results_sd[0]
             nsys = len(ri_sd) / (1 + 10 ** results_sd[1])
@@ -337,8 +341,8 @@ def find_object(
                 / (np.pi * (10 ** results_sd[0]) ** 2)
             )
             prob_sd = position.prob(ri, results_sd, model="plummer")
-        else :
-            sd_model = 'sersic'
+        else:
+            sd_model = "sersic"
             results_sd, var_sd = results_sd_s, var_sd_s
             r_cut = 10 * 10 ** results_sd[1]
             nsys = len(ri_sd) / (1 + 10 ** results_sd[2])
@@ -719,12 +723,14 @@ def extract_object(
 
     return full_data, results_sd, var_sd, results_pm, var_pm
 
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
 "Statistical handling"
 # ---------------------------------------------------------------------------
 
-def get_aic(lnL,Nf) :
+
+def get_aic(lnL, Nf):
     """
     Provides the Akaike Information Criterion (Akaike, 1973), i.e. AIC.
 
@@ -741,11 +747,12 @@ def get_aic(lnL,Nf) :
         AIC indicator.
 
     """
-    
+
     AIC = 2 * (lnL + Nf)
     return AIC
 
-def get_bic(lnL,Nf,Nd) :
+
+def get_bic(lnL, Nf, Nd):
     """
     Provides the Bayes Information Criterion (Schwarz, 1978), i.e. BIC.
 
@@ -764,11 +771,12 @@ def get_bic(lnL,Nf,Nd) :
         BIC indicator.
 
     """
-    
+
     BIC = 2 * lnL + Nf * np.log(Nd)
     return BIC
 
-def get_aicc(lnL,Nf,Nd) :
+
+def get_aicc(lnL, Nf, Nd):
     """
     Provides the corrected Akaike Information Criterion (Sugiyara, 1978),
     i.e. AICc.
@@ -788,6 +796,6 @@ def get_aicc(lnL,Nf,Nd) :
         AICc indicator.
 
     """
-    
-    AICc = get_aic(lnL,Nf) + 2 * Nf * (1 + Nf) / (Nd - Nf - 1)
+
+    AICc = get_aic(lnL, Nf) + 2 * Nf * (1 + Nf) / (Nd - Nf - 1)
     return AICc
