@@ -113,8 +113,11 @@ def find_center(x, y, method="mle"):
         raise ValueError("Does not recognize method argument.")
 
     # Takes off NaN values
-    x = x[np.logical_not(np.isnan(x))]
-    y = y[np.logical_not(np.isnan(y))]
+    x_nan = np.logical_not(np.isnan(x))
+    y_nan = np.logical_not(np.isnan(y))
+    idx_nan = x_nan * y_nan
+    x = x[idx_nan]
+    y = y[idx_nan]
 
     if method == "iterative":
         center, unc = center_iterative(x, y)

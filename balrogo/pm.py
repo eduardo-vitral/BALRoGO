@@ -579,8 +579,11 @@ def initial_guess(x_data, y_data):
     """
 
     # Takes off NaN values
-    x_data = x_data[np.logical_not(np.isnan(x_data))]
-    y_data = y_data[np.logical_not(np.isnan(y_data))]
+    x_nan = np.logical_not(np.isnan(x_data))
+    y_nan = np.logical_not(np.isnan(y_data))
+    idx_nan = x_nan * y_nan
+    x_data = x_data[idx_nan]
+    y_data = y_data[idx_nan]
 
     q_16, q_50, q_84 = quantile(x_data, [0.16, 0.5, 0.84])
     q_m, q_p = q_50 - q_16, q_84 - q_50
