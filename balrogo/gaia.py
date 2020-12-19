@@ -45,6 +45,8 @@ def clean_gaia(
     ra,
     dec,
     err_lim=None,
+    err_handle="relative",
+    object_type="gc",
     r_cut=None,
     c=None,
 ):
@@ -79,10 +81,33 @@ def clean_gaia(
         Gaia designation: dec.
     err_lim : float, optional
         Error threshold for proper motions. The default is None.
+    err_handle : string, optional
+        Way in which the error limit is handled:
+            - 'relative', if the err_lim argument is the number of times
+            the initial guess on the galactic object proper motion dispersion.
+            - 'absolute', if the err_lim argument is the absolute error
+            limit in mas/yr.
+        The default is 'relative'.
+    object_type : string, optional
+        Galactic object type, to be considered when defining the default
+        value of err_lim:
+            - 'gc', for globular cluster.
+            - 'dsph', for dwarf spheroidal galaxy.
+        The default is 'gc'.
     r_cut : float, optional
         Projected radius limit. The default is None.
     c : 2D array, optional
         (ra,dec) of the center. The default is None.
+
+    Raises
+    ------
+    ValueError
+        err_handle is not one of the following:
+            - 'relative'
+            - 'absolute'
+        object_type is not one of the following:
+            - 'gc'
+            - 'dsph'
 
     Returns
     -------
@@ -91,6 +116,12 @@ def clean_gaia(
         which correspond to stars with clean astrometry.
 
     """
+
+    if err_handle not in ["relative", "absolute"]:
+        raise ValueError("Does not recognize method to handle errors.")
+
+    if object_type not in ["gc", "dsph"]:
+        raise ValueError("Does not recognize object type.")
 
     if c is None:
         c, unc = position.find_center(ra, dec)
@@ -104,7 +135,14 @@ def clean_gaia(
 
     if err_lim is None:
         ini = pm.initial_guess(pmra[idx], pmdec[idx])
-        err_lim = 0.5 * ini[2]
+        if object_type == "gc":
+            err_lim = 0.5 * ini[2]
+        elif object_type == "dsph":
+            err_lim = 5 * ini[2]
+    else:
+        if err_handle == "relative":
+            ini = pm.initial_guess(pmra[idx], pmdec[idx])
+            err_lim = err_lim * ini[2]
 
     u = np.sqrt(chi2 / (nu - 5))
 
@@ -150,6 +188,9 @@ def find_object(
     bw_hrd=None,
     r_max=None,
     err_lim=None,
+    err_handle="relative",
+    object_type="gc",
+    return_center=False,
     check_fit=False,
 ):
 
@@ -218,6 +259,22 @@ def find_object(
         The default is None
     err_lim : float, optional
         Error threshold for proper motions. The default is None.
+    err_handle : string, optional
+        Way in which the error limit is handled:
+            - 'relative', if the err_lim argument is the number of times
+            the initial guess on the galactic object proper motion dispersion.
+            - 'absolute', if the err_lim argument is the absolute error
+            limit in mas/yr.
+        The default is 'relative'.
+    object_type : string, optional
+        Galactic object type, to be considered when defining the default
+        value of err_lim:
+            - 'gc', for globular cluster.
+            - 'dsph', for dwarf spheroidal galaxy.
+        The default is 'gc'.
+    return_center : boolean, optional
+        True if the user wants an estimate of the center as output.
+        The default is False.
     check_fit : boolean, optional
         True is the user wants to plot validity checks throughout the fitting
         procedure.
@@ -237,6 +294,12 @@ def find_object(
             - 'position'
         Probability threshold is not inbetween 0 and 1.
         nsig is not positive.
+        err_handle is not one of the following:
+            - 'relative'
+            - 'absolute'
+        object_type is not one of the following:
+            - 'gc'
+            - 'dsph'
 
     Returns
     -------
@@ -265,6 +328,12 @@ def find_object(
 
     if nsig <= 0:
         raise ValueError("nsig must be positive.")
+
+    if err_handle not in ["relative", "absolute"]:
+        raise ValueError("Does not recognize method to handle errors.")
+
+    if object_type not in ["gc", "dsph"]:
+        raise ValueError("Does not recognize object type.")
 
     c, unc = position.find_center(ra, dec)
 
@@ -404,6 +473,8 @@ def find_object(
         c=c,
         r_cut=r_max,
         err_lim=err_lim,
+        err_handle=err_handle,
+        object_type=object_type,
     )
 
     prob_sd = prob_sd[idx]
@@ -569,7 +640,10 @@ def find_object(
 
         idx_final = idx_p
 
-    return idx_final, results_sd, var_sd, results_pm, var_pm
+    if return_center is False:
+        return idx_final, results_sd, var_sd, results_pm, var_pm
+    else:
+        return idx_final, results_sd, var_sd, results_pm, var_pm, c
 
 
 def extract_object(
@@ -583,6 +657,9 @@ def extract_object(
     bw_hrd=None,
     r_max=None,
     err_lim=None,
+    err_handle="relative",
+    object_type="gc",
+    return_center=False,
     check_fit=False,
 ):
     """
@@ -627,6 +704,22 @@ def extract_object(
         The default is None
     err_lim : float, optional
         Error threshold for proper motions. The default is None.
+    err_handle : string, optional
+        Way in which the error limit is handled:
+            - 'relative', if the err_lim argument is the number of times
+            the initial guess on the galactic object proper motion dispersion.
+            - 'absolute', if the err_lim argument is the absolute error
+            limit in mas/yr.
+        The default is 'relative'.
+    object_type : string, optional
+        Galactic object type, to be considered when defining the default
+        value of err_lim:
+            - 'gc', for globular cluster.
+            - 'dsph', for dwarf spheroidal galaxy.
+        The default is 'gc'.
+    return_center : boolean, optional
+        True if the user wants an estimate of the center as output.
+        The default is False.
     check_fit : boolean, optional
         True is the user wants to plot validity checks throughout the fitting
         procedure.
@@ -646,6 +739,12 @@ def extract_object(
             - 'position'
         Probability threshold is not inbetween 0 and 1.
         nsig is not positive.
+        err_handle is not one of the following:
+            - 'relative'
+            - 'absolute'
+        object_type is not one of the following:
+            - 'gc'
+            - 'dsph'
 
     Returns
     -------
@@ -675,6 +774,12 @@ def extract_object(
     if nsig <= 0:
         raise ValueError("nsig must be positive.")
 
+    if err_handle not in ["relative", "absolute"]:
+        raise ValueError("Does not recognize method to handle errors.")
+
+    if object_type not in ["gc", "dsph"]:
+        raise ValueError("Does not recognize object type.")
+
     hdu = fits.open(path)
 
     ra = np.asarray(hdu[1].data[:]["ra      "])  # degrees
@@ -694,34 +799,68 @@ def extract_object(
 
     hdu.close()
 
-    idx_final, results_sd, var_sd, results_pm, var_pm = find_object(
-        ra,
-        dec,
-        pmra,
-        pmdec,
-        epmra,
-        epmdec,
-        corrpm,
-        chi2,
-        nu,
-        g_mag,
-        br_mag,
-        br_excess,
-        sd_model=sd_model,
-        min_method=min_method,
-        prob_method=prob_method,
-        prob_limit=prob_limit,
-        use_hrd=use_hrd,
-        nsig=nsig,
-        bw_hrd=bw_hrd,
-        r_max=r_max,
-        err_lim=err_lim,
-        check_fit=check_fit,
-    )
+    if return_center is False:
+        idx_final, results_sd, var_sd, results_pm, var_pm = find_object(
+            ra,
+            dec,
+            pmra,
+            pmdec,
+            epmra,
+            epmdec,
+            corrpm,
+            chi2,
+            nu,
+            g_mag,
+            br_mag,
+            br_excess,
+            sd_model=sd_model,
+            min_method=min_method,
+            prob_method=prob_method,
+            prob_limit=prob_limit,
+            use_hrd=use_hrd,
+            nsig=nsig,
+            bw_hrd=bw_hrd,
+            r_max=r_max,
+            err_lim=err_lim,
+            err_handle=err_handle,
+            object_type=object_type,
+            check_fit=check_fit,
+        )
+    else:
+        idx_final, results_sd, var_sd, results_pm, var_pm, center = find_object(
+            ra,
+            dec,
+            pmra,
+            pmdec,
+            epmra,
+            epmdec,
+            corrpm,
+            chi2,
+            nu,
+            g_mag,
+            br_mag,
+            br_excess,
+            sd_model=sd_model,
+            min_method=min_method,
+            prob_method=prob_method,
+            prob_limit=prob_limit,
+            use_hrd=use_hrd,
+            nsig=nsig,
+            bw_hrd=bw_hrd,
+            r_max=r_max,
+            err_lim=err_lim,
+            err_handle=err_handle,
+            object_type=object_type,
+            return_center=return_center,
+            check_fit=check_fit,
+        )
 
     full_data = full_data[idx_final]
 
-    return full_data, results_sd, var_sd, results_pm, var_pm
+    if return_center is False:
+        return full_data, results_sd, var_sd, results_pm, var_pm
+    else:
+        return full_data, results_sd, var_sd, results_pm, var_pm, center
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
