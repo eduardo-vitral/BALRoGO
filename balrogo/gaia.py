@@ -190,6 +190,7 @@ def find_object(
     err_lim=None,
     err_handle="relative",
     object_type="gc",
+    return_center=False,
     check_fit=False,
 ):
 
@@ -271,6 +272,9 @@ def find_object(
             - 'gc', for globular cluster.
             - 'dsph', for dwarf spheroidal galaxy.
         The default is 'gc'.
+    return_center : boolean, optional
+        True if the user wants an estimate of the center as output.
+        The default is False.
     check_fit : boolean, optional
         True is the user wants to plot validity checks throughout the fitting
         procedure.
@@ -636,7 +640,10 @@ def find_object(
 
         idx_final = idx_p
 
-    return idx_final, results_sd, var_sd, results_pm, var_pm
+    if return_center is False:
+        return idx_final, results_sd, var_sd, results_pm, var_pm
+    else:
+        return idx_final, results_sd, var_sd, results_pm, var_pm, c
 
 
 def extract_object(
@@ -652,6 +659,7 @@ def extract_object(
     err_lim=None,
     err_handle="relative",
     object_type="gc",
+    return_center=False,
     check_fit=False,
 ):
     """
@@ -709,6 +717,9 @@ def extract_object(
             - 'gc', for globular cluster.
             - 'dsph', for dwarf spheroidal galaxy.
         The default is 'gc'.
+    return_center : boolean, optional
+        True if the user wants an estimate of the center as output.
+        The default is False.
     check_fit : boolean, optional
         True is the user wants to plot validity checks throughout the fitting
         procedure.
@@ -788,36 +799,68 @@ def extract_object(
 
     hdu.close()
 
-    idx_final, results_sd, var_sd, results_pm, var_pm = find_object(
-        ra,
-        dec,
-        pmra,
-        pmdec,
-        epmra,
-        epmdec,
-        corrpm,
-        chi2,
-        nu,
-        g_mag,
-        br_mag,
-        br_excess,
-        sd_model=sd_model,
-        min_method=min_method,
-        prob_method=prob_method,
-        prob_limit=prob_limit,
-        use_hrd=use_hrd,
-        nsig=nsig,
-        bw_hrd=bw_hrd,
-        r_max=r_max,
-        err_lim=err_lim,
-        err_handle=err_handle,
-        object_type=object_type,
-        check_fit=check_fit,
-    )
+    if return_center is False:
+        idx_final, results_sd, var_sd, results_pm, var_pm = find_object(
+            ra,
+            dec,
+            pmra,
+            pmdec,
+            epmra,
+            epmdec,
+            corrpm,
+            chi2,
+            nu,
+            g_mag,
+            br_mag,
+            br_excess,
+            sd_model=sd_model,
+            min_method=min_method,
+            prob_method=prob_method,
+            prob_limit=prob_limit,
+            use_hrd=use_hrd,
+            nsig=nsig,
+            bw_hrd=bw_hrd,
+            r_max=r_max,
+            err_lim=err_lim,
+            err_handle=err_handle,
+            object_type=object_type,
+            check_fit=check_fit,
+        )
+    else:
+        idx_final, results_sd, var_sd, results_pm, var_pm, center = find_object(
+            ra,
+            dec,
+            pmra,
+            pmdec,
+            epmra,
+            epmdec,
+            corrpm,
+            chi2,
+            nu,
+            g_mag,
+            br_mag,
+            br_excess,
+            sd_model=sd_model,
+            min_method=min_method,
+            prob_method=prob_method,
+            prob_limit=prob_limit,
+            use_hrd=use_hrd,
+            nsig=nsig,
+            bw_hrd=bw_hrd,
+            r_max=r_max,
+            err_lim=err_lim,
+            err_handle=err_handle,
+            object_type=object_type,
+            return_center=return_center,
+            check_fit=check_fit,
+        )
 
     full_data = full_data[idx_final]
 
-    return full_data, results_sd, var_sd, results_pm, var_pm
+    if return_center is False:
+        return full_data, results_sd, var_sd, results_pm, var_pm
+    else:
+        return full_data, results_sd, var_sd, results_pm, var_pm, center
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
