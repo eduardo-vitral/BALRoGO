@@ -10,20 +10,23 @@ no_targets__:
 setup:
 	@./scripts/poetry-wrapper.sh install
 
-test:
+test: setup
 	@./scripts/poetry-wrapper.sh run pytest --cov=balrogo tests/ -s
 
 format:
-	@./scripts/poetry-wrapper.sh run black balrogo/ tests/
+	@./scripts/poetry-wrapper.sh run black balrogo/ tests/ samples/
 
 lint:
-	@./scripts/poetry-wrapper.sh run flake8 --count --statistics balrogo/ tests/
+	@./scripts/poetry-wrapper.sh run flake8 --count --statistics balrogo/ tests/ samples/
 
 build: clean
 	@./scripts/poetry-wrapper.sh build
 
 publish: build
 	@./scripts/poetry-wrapper.sh publish
+
+sample:
+	@./scripts/poetry-wrapper.sh run python samples/sample.py
 
 # https://raw.githubusercontent.com/python-poetry/poetry/master/Makefile
 clean:
