@@ -28,7 +28,7 @@ publish: build
 sample:
 	@./scripts/poetry-wrapper.sh run python samples/sample.py
 
-docs:
+docs: setup
 	@./scripts/poetry-wrapper.sh run $(MAKE) -C docs html
 
 # https://raw.githubusercontent.com/python-poetry/poetry/master/Makefile
@@ -39,5 +39,6 @@ clean:
 	@find . -type d -name '__pycache__' -exec rm -rf {} +
 	@find . -type d -name '*pytest_cache*' -exec rm -rf {} +
 	@find . -type f -name "*.py[co]" -exec rm -rf {} +
+	$(MAKE) -C docs clean
 
 .PHONY: setup test format lint clean sample docs
