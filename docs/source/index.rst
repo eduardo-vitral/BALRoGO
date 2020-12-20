@@ -10,7 +10,7 @@ Welcome to BALRoGO's documentation!
    :maxdepth: 3
    :caption: Contents:
 
-   readme-link
+   readme
    code/gaia
 
 
