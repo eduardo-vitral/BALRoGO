@@ -14,10 +14,10 @@ test: setup
 	@./scripts/poetry-wrapper.sh run pytest --cov=balrogo tests/ -s
 
 format:
-	@./scripts/poetry-wrapper.sh run black balrogo/ tests/ samples/
+	@./scripts/poetry-wrapper.sh run black balrogo/ tests/ samples/ docs/
 
 lint:
-	@./scripts/poetry-wrapper.sh run flake8 --count --statistics balrogo/ tests/ samples/
+	@./scripts/poetry-wrapper.sh run flake8 --count --statistics balrogo/ tests/ samples/ docs/
 
 build: clean
 	@./scripts/poetry-wrapper.sh build
@@ -28,6 +28,9 @@ publish: build
 sample:
 	@./scripts/poetry-wrapper.sh run python samples/sample.py
 
+docs: setup
+	@./scripts/poetry-wrapper.sh run $(MAKE) -C docs html
+
 # https://raw.githubusercontent.com/python-poetry/poetry/master/Makefile
 clean:
 	@rm -rf build dist .eggs *.egg-info
@@ -36,5 +39,6 @@ clean:
 	@find . -type d -name '__pycache__' -exec rm -rf {} +
 	@find . -type d -name '*pytest_cache*' -exec rm -rf {} +
 	@find . -type f -name "*.py[co]" -exec rm -rf {} +
+	$(MAKE) -C docs clean
 
-.PHONY: setup test format lint build clean
+.PHONY: setup test format lint clean sample docs
