@@ -67,10 +67,9 @@ pages:
   <<: *install-deps
   image: python:3.8
   stage: docs
-  when: manual
-  # rules:
-  #   - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-  #       when: on_success
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+        when: on_success
   script: 
     - make docs
     - mv docs/build/html public/
