@@ -63,7 +63,7 @@ python3.9:
   image: python:3.9
 
 # Docs
-docs:
+pages:
   <<: *install-deps
   image: python:3.8
   stage: docs
