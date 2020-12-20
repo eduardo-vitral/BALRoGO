@@ -56,4 +56,4 @@ To be written.
 
 Copyright (c) 2020 Eduardo Vitral & Alexandre Macedo.
 
-BALRoGO is free software made available under the [MIT License](LICENSE).
+BALRoGO is free software made available under the [MIT License](LICENSE). The BALRoGO logo is licensed under a [Creative Commons Attribution 4.0 International license](https://creativecommons.org/licenses/by/4.0/).
