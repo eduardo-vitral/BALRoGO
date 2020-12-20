@@ -229,8 +229,8 @@ def find_object(
              - 'sersic'
              - 'kazantzidis'
              - 'plummer'
-             - 'test', for testing which among Plummer and Sersic should be
-             used, based on AICc.
+             - 'test', for testing which among Plummer, Kazantzidis
+	     and Sersic should be used, based on AICc.
         The default is 'plummer'.
     min_method : string, optional
         Minimization method to be used by the pm maximum likelihood fit.
@@ -711,8 +711,8 @@ def extract_object(
              - 'sersic'
              - 'kazantzidis'
              - 'plummer'
-             - 'test', for testing which among Plummer and Sersic should be
-             used, based on AICc.
+             - 'test', for testing which among Plummer, Kazantzidis
+	     and Sersic should be used, based on AICc.
         The default is 'plummer'.
     min_method : string, optional
         Minimization method to be used by the pm maximum likelihood fit.
