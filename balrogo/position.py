@@ -77,7 +77,7 @@ def gauss_sig(x_axis, gauss, peak):
     return sigma
 
 
-def find_center(x, y, method="mle"):
+def find_center(x, y, method="mle_robust"):
     """
     Fit a center (peak) of the [x,y] data.
 
@@ -91,7 +91,8 @@ def find_center(x, y, method="mle"):
         Method to find the peak of RA, Dec. Available options are:
             - 'iterative'.
             - 'mle'.
-        Default is 'mle'.
+            - 'mle_robust'.
+        Default is 'mle_robust'.
 
     Raises
     ------
@@ -109,7 +110,7 @@ def find_center(x, y, method="mle"):
 
     """
 
-    if method not in ["iterative", "mle"]:
+    if method not in ["iterative", "mle", "mle_robust"]:
         raise ValueError("Does not recognize method argument.")
 
     # Takes off NaN values
@@ -123,6 +124,8 @@ def find_center(x, y, method="mle"):
         center, unc = center_iterative(x, y)
     elif method == "mle":
         center, unc = center_mle(x, y)
+    elif method == "mle_robust":
+        center, unc = center_mle_rob(x, y)
 
     return center, unc
 
@@ -214,7 +217,7 @@ def center_iterative(x, y):
 
 def center_mle(x, y):
     """
-    Fit a center (peak) of the [x,y] data through an iterative approach.
+    Fit a center (peak) of the [x,y] data through a simple mle approach.
 
     Parameters
     ----------
@@ -247,6 +250,58 @@ def center_mle(x, y):
     )
     results = mle_model.x
     hfun = ndt.Hessian(lambda c: likelihood_plummer_freec(c, x, y), full_output=True)
+
+    hessian_ndt, info = hfun(results)
+    var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+    center = np.asarray([results[2], results[3]])
+    unc = np.asarray([var[2], var[3]])
+
+    return center, unc
+
+
+def center_mle_rob(x, y):
+    """
+    Fit a center (peak) of the [x,y] data through an mle robust approach.
+    It considers the circular section where the data is complete.
+
+    Parameters
+    ----------
+    x : array_like
+        Data in x-direction
+    y : array_like
+        Data in y-direction
+
+    Returns
+    -------
+    center : 2D-array of floats
+        Position of the peak: [x_coordinate,y_coordinate]
+    unc : float
+        Uncertainty in the position.
+
+    """
+
+    ra0 = 0.5 * (max(x) + min(x))
+    dec0 = 0.5 * (max(y) + min(y))
+    rmax = np.nanmax(angle.sky_distance_deg(x, y, ra0, dec0))
+
+    cmx, cmy = ra0, dec0
+    hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
+
+    bounds = [
+        (hmr - 2, hmr + 2),
+        (norm - 2, norm + 2),
+        (quantile(x, 0.16), quantile(x, 0.84)),
+        (quantile(y, 0.16), quantile(y, 0.84)),
+    ]
+
+    mle_model = differential_evolution(
+        lambda c: likelihood_plummer_center(c, x, y, ra0, dec0, rmax), bounds
+    )
+    results = mle_model.x
+    hfun = ndt.Hessian(
+        lambda c: likelihood_plummer_center(c, x, y, ra0, dec0, rmax), full_output=True
+    )
 
     hessian_ndt, info = hfun(results)
     var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
@@ -717,7 +772,7 @@ def sd_kazantzidis(X):
 
 def n_kazantizidis(X):
     """
-    Sersic projected number, normalized according to the convention:
+    Kazantzidis projected number, normalized according to the convention:
 
     N(X = R/a) = N(R) / N_infinty
 
@@ -729,7 +784,7 @@ def n_kazantizidis(X):
     Returns
     -------
     N : array_like (same shape as n), float
-        Sersic projected number.
+        Kazantzidis projected number.
 
     """
 
@@ -887,13 +942,112 @@ def n_plummer(X):
 
     Returns
     -------
-    N : array_like (same shape as n), float
-        Sersic projected number.
+    N : array_like (same shape as a), float
+        Plummer projected number.
 
     """
 
     N = X * X / (1 + X * X)
     return N
+
+
+def n_plummer_angle(R, Rmax, d, a):
+    """
+    Returns the angle analyzed in the surface density fit, for each value of R.
+
+    Parameters
+    ----------
+    R : array_like
+        Distance from center in degrees.
+    Rmax : float
+        Maximum radius of original data set.
+    d : float
+        Distance from original center.
+    a : float
+        Plummer scale radius.
+
+    Returns
+    -------
+    N : array_like (same shape as n), float
+        Plummer projected number.
+
+    """
+
+    if R <= Rmax - d:
+        return n_plummer(R / a)
+    else:
+        if R >= d + Rmax:
+            return 1
+        arg1 = (R * R + d * d - Rmax * Rmax) / (2 * R * d)
+        term1 = -a * a * np.arccos(arg1) / (np.pi * (a * a + R * R))
+
+        arg2 = np.sqrt(
+            -(d ** 4) - (R * R - Rmax * Rmax) ** 2 + 2 * d * d * (R * R + Rmax * Rmax)
+        )
+
+        arg3 = -np.sqrt(
+            a ** 4 + (d * d - Rmax * Rmax) ** 2 + 2 * a * a * (d * d + Rmax * Rmax)
+        )
+
+        arg4 = (d * d - Rmax * Rmax) ** 2 - R * R * (d * d + Rmax * Rmax)
+
+        arg5 = np.arctan(arg4 / (arg2 * (d * d - Rmax * Rmax)))
+
+        term2 = arg3 * arg5
+
+        arg6 = a * a + d * d - Rmax * Rmax
+
+        arg7 = (
+            (d * d - Rmax * Rmax) ** 2
+            + a * a * (d * d + Rmax * Rmax)
+            - R * R * (a * a + d * d + Rmax * Rmax)
+        )
+
+        arg8 = arg6 * np.arctan(arg7 / (-arg3 * arg2))
+
+        term3 = (term2 + arg8) * arg2
+
+        arg9 = -2 * np.pi * arg3 * arg2
+
+        term4 = term3 / arg9
+
+        n = 1 + (term1 + term4)
+
+        return n
+
+
+def angle_section(R, Rmax, d):
+    """
+    Returns the angle of the circular section analyzed in the
+    surface density fit, for each value of R.
+
+    Parameters
+    ----------
+    R : array_like
+        Distance from center in degrees.
+    Rmax : float
+        Maximum radius of original data set.
+    d : float
+        Distance from original center.
+
+    Returns
+    -------
+    phi : array_like
+        angle analyzed in the surface density fit, for each value of R.
+
+    """
+
+    phi = np.zeros(len(R))
+
+    idx_phi = np.where(R > Rmax - d)
+    idx_2pi = np.where(R <= Rmax - d)
+
+    argphi = (R[idx_phi] * R[idx_phi] + d * d - Rmax * Rmax) / (2 * R[idx_phi] * d)
+
+    phi[idx_phi] = 2 * np.arccos(argphi)
+    phi[idx_2pi] = 2 * np.pi * np.ones(len(R[idx_2pi]))
+
+    return phi
 
 
 def likelihood_plummer(params, Ri):
@@ -988,6 +1142,73 @@ def likelihood_plummer_freec(params, x, y):
     Ntot = N_sys_tot * (1 + norm)
 
     fi = 2 * (X / a) * SD / Ntot
+
+    idx_valid = np.logical_not(np.isnan(np.log(fi)))
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
+    return L
+
+
+def likelihood_plummer_center(params, x, y, ra0, dec0, rmax):
+    """
+    Likelihood function of the Plummer profile plus a constant contribution
+    from fore/background tracers. Differently from the previous method,
+    it also fits the center of the distribution, but considering the circular
+    section where the data is complete.
+
+    Parameters
+    ----------
+    params : array_like
+        Parameters to be fitted: Plummer characteristic radius a and
+                                 log-ratio of galactic objects and Milky
+                                 Way stars.
+    x : array_like
+        Array containing the ensemble of ra data.
+    y : array_like
+        Array containing the ensemble of dec data.
+    ra0 : float
+        RA center from SIMBAD
+    dec0 : float
+        Dec center from SIMBAD
+    rmax : float
+        Original maximum projected radius in the data.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+    """
+
+    a = 10 ** params[0]
+    if params[1] < -10:
+        norm = 0
+    else:
+        norm = 10 ** params[1]
+
+    cmx = params[2]
+    cmy = params[3]
+
+    Ri = angle.sky_distance_deg(cmx, cmy, x, y)
+
+    d = angle.sky_distance_deg(cmx, cmy, ra0, dec0)
+
+    phi = angle_section(Ri, rmax, d)
+
+    Xmax = np.amax(Ri) / a
+    Xmin = np.amin(Ri) / a
+    X = Ri / a
+
+    N_sys_tot = n_plummer_angle(Xmax * a, rmax, d, a) - n_plummer_angle(
+        Xmin * a, rmax, d, a
+    )
+
+    SD = sd_plummer(X) + norm * N_sys_tot / (rmax ** 2)
+
+    Ntot = N_sys_tot * (1 + norm)
+
+    fi = (phi / np.pi) * (X / a) * SD / Ntot
 
     idx_valid = np.logical_not(np.isnan(np.log(fi)))
 
