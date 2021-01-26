@@ -33,7 +33,7 @@ CONTAINS(
 )=1
 ```
 
-We are going to select all sources inside a two degrees cone. For that, remove the `TOP 500` command (for selecting all stars) and change `0.001388888888888889` to `2.0` (two degrees):
+We are going to select all sources inside a two degrees cone. For that, remove the `'TOP 500'` command (for selecting all stars) and change `'0.001388888888888889'` to `'2.0'` (two degrees):
 
 ```javascript
 SELECT *
@@ -49,7 +49,7 @@ CONTAINS(
 )=1
 ```
 
-Note that you can change the *Gaia* release you want to analyze by changing the line `FROM gaiaedr3.gaia_source`.
+Note that you can change the *Gaia* release you want to analyze by changing the line `'FROM gaiaedr3.gaia_source'`.
 
 Submit your query and download the file in **FITS** format.
 
@@ -94,49 +94,48 @@ print("var_sd:", var_sd)
 BALRoGO is usually able to perform its routine over most of *Gaia* sources with its default parameters. However, we strongly encourage the user to adapt them to the source in question. Here is a small description of the main optional parameters you can change in the function `extract_object`:
 
 - ***sd_model*** : string, optional
-        Surface density model to be considered. Available options are:
-             - `'sersic'`
-             - `'kazantzidis'`
-             - `'plummer'`
-             - `'test'`, for testing which among Plummer, Kazantzidis and Sersic should be used, based on AICc.
-        The default is `'plummer'`.
+    Surface density model to be considered. Available options are:
+    - `'sersic'`
+    - `'kazantzidis'`
+    - `'plummer'`
+    - `'test'`, for testing which among Plummer, Kazantzidis and Sersic should be used, based on AICc.
+    The default is `'plummer'`.
 - ***prob_method*** : string, optional
-        Method of probability cut chosen. Available options are:
-            - `'complete'`: Considers proper motions and projected radii.
-            - `'pm'`: Considers only proper motions.
-            - `'position'`: Considers only projected radii.
-        The default is `'complete'`.
+    Method of probability cut chosen. Available options are:
+    - `'complete'`: Considers proper motions and projected radii.
+    - `'pm'`: Considers only proper motions.
+    - `'position'`: Considers only projected radii.
+    The default is `'complete'`.
 - ***prob_limit*** : float, optional
-        Probability threshold (between 0 and 1) considered to cut the data. The default is `0.9`.
+    Probability threshold (between 0 and 1) considered to cut the data. The default is `0.9`.
 - ***use_hrd*** : boolean, optional
-        True if the user wants to select stars inside a n-sigma contour region inside the color-magnitude diagram.
-        The default is `True`.
+    True if the user wants to select stars inside a n-sigma contour region inside the color-magnitude diagram.
+    The default is `True`.
 - ***nsig*** : float, optional
-        Number of sigma up to when consider stars inside the KDE color-magnitude diagram.
-        The default is `3.3`.
+    Number of sigma up to when consider stars inside the KDE color-magnitude diagram.
+    The default is `3.3`.
 - ***bw_hrd*** : float or string, optional
-        Bandwidth method of KDE's scipy method. The default is `None`.
+    Bandwidth method of KDE's scipy method. The default is `None`.
 - ***r_max*** : float, optional
-        Maximum projected radius up to where consider the data.
-        The default is `None`.
+    Maximum projected radius up to where consider the data.
+    The default is `None`.
 - ***err_lim*** : float, optional
-        Error threshold for proper motions. The default is `None`.
+    Error threshold for proper motions. The default is `None`.
 - ***err_handle*** : string, optional
-        Way in which the error limit is handled:
-            - `'relative'`, if the err_lim argument is the number of times the initial guess on the galactic object proper motion dispersion.
-            - `'absolute'`, if the err_lim argument is the absolute error limit in mas/yr.
-        The default is `'relative'`.
+    Way in which the error limit is handled:
+    - `'relative'`, if the err_lim argument is the number of times the initial guess on the galactic object proper motion dispersion.
+    - `'absolute'`, if the err_lim argument is the absolute error limit in mas/yr.
+    The default is `'relative'`.
 - ***object_type*** : string, optional
-        Galactic object type, to be considered when defining the default value of err_lim:
-            - `'gc'`, for globular cluster.
-            - `'dsph'`, for dwarf spheroidal galaxy.
-        The default is `'gc'`.
+    Galactic object type, to be considered when defining the default value of err_lim:
+    - `'gc'`, for globular cluster.
+    - `'dsph'`, for dwarf spheroidal galaxy.
+    The default is `'gc'`.
 - ***return_center*** : boolean, optional
-        True if the user wants an estimate of the center as output.
-        The default is `False`.
+    True if the user wants an estimate of the center as output.
+    The default is `False`.
 - ***check_fit*** : boolean, optional
-        True is the user wants to plot validity checks throughout the fitting procedure.
-        The default is `False`.
+    True is the user wants to plot validity checks throughout the fitting procedure. The default is `False`.
 
 The reader is also encouraged to use the other methods of BALRoGO, specially, ***pm.py***, ***position.py***, ***mockdata.py*** and ***angle.py***.
 
