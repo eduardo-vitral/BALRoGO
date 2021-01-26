@@ -12,7 +12,7 @@
 BALRoGO: Bayesian Astrometric Likelihood Recover of Galactic Objects.
 
 - Specially developed to handle data from the Gaia space mission.
-- Extracts galactic objects such as globular clusters and dwarf galaxies.
+- Extracts galactic objects such as globular clusters and dwarf galaxies from data contiminated by interlopers.
 - Uses a combination of Bayesian and non-Bayesian approaches.
 - Provides:
   - Fits of proper motion space.
@@ -27,30 +27,26 @@ If something does not work, please [file an issue](https://gitlab.com/eduardo-vi
 Please cite [us](https://arxiv.org/abs/2010.05532) if you find this code useful in your research and add your paper to the testimonials list. The BibTeX entry for the paper is:
 
 ```bibtex
-@ARTICLE{Vitral&Mamon20b,
-       author = {{Vitral}, Eduardo and {Mamon}, Gary A.},
-        title = "{Does NGC 6397 contain an intermediate-mass black hole or a more diffuse inner sub-cluster?}",
-      journal = {arXiv e-prints},
-     keywords = {Astrophysics - Astrophysics of Galaxies},
-         year = 2020,
-        month = oct,
-          eid = {arXiv:2010.05532},
-        pages = {arXiv:2010.05532},
-archivePrefix = {arXiv},
-       eprint = {2010.05532},
- primaryClass = {astro-ph.GA},
-       adsurl = {https://ui.adsabs.harvard.edu/abs/2020arXiv201005532V},
-      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
-}
+To be uploaded after acceptance.
 ```
 
 ## Quick overview
 
-To be written.
+BALRoGO has eight modules that perform different tasks:
+
+- angle.py : This module contains the main functions concerning angular tansformations, sky projections and spherical trigonomtry.
+- gaia.py : This module contains the main functions concerning the handling of the Gaia mission data.
+- hrd.py : This module contains the main functions concerning the color magnitude diagram (CMD). It provides a Kernel Density Estimation (KDE) of the CMD distribution.
+- marginals.py : This module is based on the Python corner package (Copyright 2013-2016 Dan Foreman-Mackey & contributors, The Journal of Open Source Software): https://joss.theoj.org/papers/10.21105/joss.00024
+I have done some modifications on it so it allows some new features and so it takes into account some choices as default. I thank Gary Mamon for his good suggestions concerning the plot visualization.
+-  parallax.py : This module contains the main functions concerning parallax information. It provides a kernel density estimation of the distance distribution, as well as a fit of the mode of this distribution.
+- pm.py : This module contains the main functions concerning proper motion data. It provides MCMC and maximum likelihood fits of proper motions data, as well as robust initial guesses for those fits.
+- position.py : This module contains the main functions concerning positional information. It provides MCMC and maximum likelihood fits of surface density, as well as robust initial guesses for the (RA,Dec) center of the source.
+- mockdata.py : This files handles mock data sets. It converts 3D coordinates to sky coordinates and is able to add realistic errors to proper motions. It is also able to generate Milky Way interlopers.
 
 ### Using BALRoGO on [*Gaia*](https://www.cosmos.esa.int/web/gaia/data-access) data
 
-To be written.
+For quick tutorial of BALRoGO applied to *Gaia* data, please click [here](https://gitlab.com/eduardo-vitral/balrogo/-/blob/master/GAIA.md).
 
 ## License
 
