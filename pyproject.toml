@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "balrogo"
-version = "0.4.1"
+version = "0.4.0"
 description = "Bayesian Astrometric Likelihood Recover of Galactic Objects"
 authors = ["Eduardo Vitral <vitral@iap.fr>", "Alexandre Macedo <arj.macedo@gmail.com>"]
 license = "MIT"
