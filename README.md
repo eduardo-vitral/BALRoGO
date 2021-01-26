@@ -27,7 +27,7 @@ If something does not work, please [file an issue](https://gitlab.com/eduardo-vi
 Please cite [us](https://arxiv.org/abs/2010.05532) if you find this code useful in your research and add your paper to the testimonials list. The BibTeX entry for the paper is:
 
 ```bibtex
-To be uploaded after acceptance.
+To be uploaded after publication.
 ```
 
 ## Quick overview
@@ -43,6 +43,27 @@ I have done some modifications on it so it allows some new features and so it ta
 - ***pm.py*** : This module contains the main functions concerning proper motion data. It provides MCMC and maximum likelihood fits of proper motions data, as well as robust initial guesses for those fits.
 - ***position.py*** : This module contains the main functions concerning positional information. It provides MCMC and maximum likelihood fits of surface density, as well as robust initial guesses for the (RA,Dec) center of the source.
 - ***mockdata.py*** : This files handles mock data sets. It converts 3D coordinates to sky coordinates and is able to add realistic errors to proper motions. It is also able to generate Milky Way interlopers.
+
+## Installation
+
+BALRoGO is available through [pip](https://pypi.org/project/balrogo/). The quickiest way to install it is to type the following command in your terminal:
+
+```terminal
+pip install balrogo
+```
+
+If you are using [Anaconda](https://www.anaconda.com/), you might want to install it directly in your Anaconda bin path:
+
+```terminal
+cd path/anaconda3/bin/
+pip install balrogo
+```
+
+For updated versions of the code, you can do the same as above, but instead of using `pip install balrogo`, you should type:
+
+```terminal
+pip install --upgrade balrogo
+```
 
 ### Using BALRoGO on [*Gaia*](https://www.cosmos.esa.int/web/gaia/data-access) data
 
