@@ -13,7 +13,7 @@ By the end of this tutorial, you should be able to:
 
 The first step is to acquire the data that BALRoGO will fit. We encourage you to download it directly from the *Gaia* archive [here](https://gea.esac.esa.int/archive/).
 
-1. Type the name PGC 3589 (or other source you want to fit) in the box "Name".
+1. Click on "Search", and then type the name PGC 3589 (or other source you want to fit) in the box "Name".
 2. Then, click on "Display columns" and select all entries.
 3. Click on "Show query", at the bottom of the page.
 
