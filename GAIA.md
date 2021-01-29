@@ -13,7 +13,7 @@ By the end of this tutorial, you should be able to:
 
 The first step is to acquire the data that BALRoGO will fit. We encourage you to download it directly from the *Gaia* archive [here](https://gea.esac.esa.int/archive/).
 
-1. Click on "Search", and then type the name NGC 6397 (or other source you want to fit) in the box "Name".
+1. Click on "Search", and then type the name `NGC 6397` (or other source you want to fit) in the box "Name".
 2. Then, click on "Display columns" and select all entries.
 3. Click on "Show query", at the bottom of the page.
 
@@ -65,7 +65,7 @@ Once you have your data `NGC6397.fits` in your `path`, you need to make sure tha
 
 ### Python script
 
-Congratulations, you have BALRoGO installed and you have the data to use it, so from now on, you can model globular clusters, dwarf galaxies and mock data as you wish. Below, we show an example of script for the Sculptor Dwarf Spheroidal.
+Congratulations, you have BALRoGO installed and you have the data to use it, so from now on, you can model globular clusters, dwarf galaxies and mock data as you wish. Below, we show an example of script for the NGC 6397 globular cluster.
 
 The function `extract_object` from the `gaia` method is supposed to clean the data and fit the proper motion and surface density of your source, finally providing the stars that have high probability of belonging to the analyzed object. The input you must provide is the path to your .FITS file:
 
