@@ -140,3 +140,4 @@ BALRoGO is usually able to perform its routine over most of *Gaia* sources with 
 The reader is also encouraged to use the other methods of BALRoGO, specially, ***pm.py***, ***position.py***, ***mock.py*** and ***angle.py***.
 
 - [x] Change default parameters in BALRoGO and adapt them to your analyzed source.
+
