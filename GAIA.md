@@ -137,6 +137,6 @@ BALRoGO is usually able to perform its routine over most of *Gaia* sources with 
 - ***check_fit*** : boolean, optional
     True is the user wants to plot validity checks throughout the fitting procedure. The default is `False`.
 
-The reader is also encouraged to use the other methods of BALRoGO, specially, ***pm.py***, ***position.py***, ***mockdata.py*** and ***angle.py***.
+The reader is also encouraged to use the other methods of BALRoGO, specially, ***pm.py***, ***position.py***, ***mock.py*** and ***angle.py***.
 
 - [x] Change default parameters in BALRoGO and adapt them to your analyzed source.
