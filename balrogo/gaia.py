@@ -11,7 +11,7 @@ Created on 2020
 # This file contains the main functions concerning the handling of the
 # Gaia mission data.
 #
-# Documentation is provided on Vitral & Macedo, 2021.
+# Documentation is provided on Vitral, 2021.
 # If you have any further questions please email vitral@iap.fr
 #
 ###############################################################################
@@ -196,7 +196,7 @@ def find_object(
 
     """
     Finds galactic object by employing the analysis proposed in
-    Vitral & Macedo 2021.
+    Vitral 2021.
 
     Parameters
     ----------
@@ -229,8 +229,8 @@ def find_object(
              - 'sersic'
              - 'kazantzidis'
              - 'plummer'
-             - 'test', for testing which among Plummer, Kazantzidis
-             and Sersic should be used, based on AICc.
+             - 'test', for testing which among Plummer and Sersic should be
+             used, based on AICc.
         The default is 'plummer'.
     min_method : string, optional
         Minimization method to be used by the pm maximum likelihood fit.
@@ -711,8 +711,8 @@ def extract_object(
              - 'sersic'
              - 'kazantzidis'
              - 'plummer'
-             - 'test', for testing which among Plummer, Kazantzidis
-             and Sersic should be used, based on AICc.
+             - 'test', for testing which among Plummer and Sersic should be
+             used, based on AICc.
         The default is 'plummer'.
     min_method : string, optional
         Minimization method to be used by the pm maximum likelihood fit.

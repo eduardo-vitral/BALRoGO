@@ -12,7 +12,7 @@ Created on 2020
 # It provides MCMC and maximum likelihood fits of proper motions data,
 # as well as robust initial guesses for those fits.
 #
-# Documentation is provided on Vitral & Macedo, 2021.
+# Documentation is provided on Vitral, 2021.
 # If you have any further questions please email vitral@iap.fr
 #
 ###############################################################################
@@ -108,7 +108,7 @@ def proj_global_pdf(Ux, mu_pmx, sig_pm, sr_pmx, slp_pm, frc_go_mw):
 
 def pdf_field_stars(Ux, Uy, mu_pmx, mu_pmy, sr_pmx, sr_pmy, rot_pm, slp_pm):
     """
-    PDF of Milky Way field stars according to Vitral & Macedo (2021).
+    PDF of Milky Way field stars according to Vitral (2021).
 
     Parameters
     ----------
@@ -255,7 +255,7 @@ def global_pdf(
 
 def likelihood_function(params, Ux, Uy):
     """
-    Computes minus the likelihood of the PM model from Vitral & Macedo (2021).
+    Computes minus the likelihood of the PM model from Vitral (2021).
 
     Parameters
     ----------

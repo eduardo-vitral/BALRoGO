@@ -12,7 +12,7 @@ Created on 2020
 # It provides MCMC and maximum likelihood fits of surface density,
 # as well as robust initial guesses for the (RA,Dec) center of the source.
 #
-# Documentation is provided on Vitral & Macedo, 2021.
+# Documentation is provided on Vitral, 2021.
 # If you have any further questions please email vitral@iap.fr
 #
 ###############################################################################
@@ -259,7 +259,6 @@ def center_mle(x, y):
 
     return center, unc
 
-
 def center_mle_rob(x, y):
     """
     Fit a center (peak) of the [x,y] data through an mle robust approach.
@@ -280,10 +279,10 @@ def center_mle_rob(x, y):
         Uncertainty in the position.
 
     """
-
-    ra0 = 0.5 * (max(x) + min(x))
+    
+    ra0  = 0.5 * (max(x) + min(x))
     dec0 = 0.5 * (max(y) + min(y))
-    rmax = np.nanmax(angle.sky_distance_deg(x, y, ra0, dec0))
+    rmax = np.nanmax(angle.sky_distance_deg(x,y,ra0,dec0))
 
     cmx, cmy = ra0, dec0
     hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
@@ -299,9 +298,7 @@ def center_mle_rob(x, y):
         lambda c: likelihood_plummer_center(c, x, y, ra0, dec0, rmax), bounds
     )
     results = mle_model.x
-    hfun = ndt.Hessian(
-        lambda c: likelihood_plummer_center(c, x, y, ra0, dec0, rmax), full_output=True
-    )
+    hfun = ndt.Hessian(lambda c: likelihood_plummer_center(c, x, y, ra0, dec0, rmax), full_output=True)
 
     hessian_ndt, info = hfun(results)
     var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
@@ -950,8 +947,7 @@ def n_plummer(X):
     N = X * X / (1 + X * X)
     return N
 
-
-def n_plummer_angle(R, Rmax, d, a):
+def n_plummer_angle(R,Rmax,d,a) :
     """
     Returns the angle analyzed in the surface density fit, for each value of R.
 
@@ -971,54 +967,45 @@ def n_plummer_angle(R, Rmax, d, a):
     N : array_like (same shape as n), float
         Plummer projected number.
 
-    """
-
-    if R <= Rmax - d:
-        return n_plummer(R / a)
-    else:
-        if R >= d + Rmax:
+    """    
+    
+    if (R <= Rmax - d) :
+        return n_plummer(R/a)
+    else :
+        if (R >= d + Rmax) :
             return 1
-        arg1 = (R * R + d * d - Rmax * Rmax) / (2 * R * d)
-        term1 = -a * a * np.arccos(arg1) / (np.pi * (a * a + R * R))
-
-        arg2 = np.sqrt(
-            -(d ** 4) - (R * R - Rmax * Rmax) ** 2 + 2 * d * d * (R * R + Rmax * Rmax)
-        )
-
-        arg3 = -np.sqrt(
-            a ** 4 + (d * d - Rmax * Rmax) ** 2 + 2 * a * a * (d * d + Rmax * Rmax)
-        )
-
-        arg4 = (d * d - Rmax * Rmax) ** 2 - R * R * (d * d + Rmax * Rmax)
-
-        arg5 = np.arctan(arg4 / (arg2 * (d * d - Rmax * Rmax)))
-
+        arg1  = (R*R + d*d - Rmax*Rmax) / (2*R*d)
+        term1 = - a*a * np.arccos(arg1) / (np.pi * (a*a + R*R))
+        
+        arg2 = np.sqrt(- d**4 - (R*R - Rmax*Rmax)**2 + 2*d*d*(R*R + Rmax*Rmax))
+        
+        arg3 = - np.sqrt(a**4 + (d*d - Rmax*Rmax)**2 + 2*a*a*(d*d + Rmax*Rmax))
+        
+        arg4 = (d*d - Rmax*Rmax)**2 - R*R*(d*d + Rmax*Rmax)
+        
+        arg5 = np.arctan(arg4 / (arg2 * (d*d - Rmax*Rmax)))
+        
         term2 = arg3 * arg5
-
-        arg6 = a * a + d * d - Rmax * Rmax
-
-        arg7 = (
-            (d * d - Rmax * Rmax) ** 2
-            + a * a * (d * d + Rmax * Rmax)
-            - R * R * (a * a + d * d + Rmax * Rmax)
-        )
-
-        arg8 = arg6 * np.arctan(arg7 / (-arg3 * arg2))
-
+        
+        arg6 = a*a + d*d - Rmax*Rmax
+        
+        arg7 = (d*d - Rmax*Rmax)**2 + a*a*(d*d + Rmax*Rmax) - R*R*(a*a + d*d + Rmax*Rmax)
+        
+        arg8 = arg6 * np.arctan(arg7 / (- arg3 * arg2))
+        
         term3 = (term2 + arg8) * arg2
-
-        arg9 = -2 * np.pi * arg3 * arg2
-
+        
+        arg9 = - 2 * np.pi * arg3 * arg2
+        
         term4 = term3 / arg9
-
+        
         n = 1 + (term1 + term4)
-
+        
         return n
 
-
-def angle_section(R, Rmax, d):
+def angle_section(R,Rmax,d) :
     """
-    Returns the angle of the circular section analyzed in the
+    Returns the angle of the circular section analyzed in the 
     surface density fit, for each value of R.
 
     Parameters
@@ -1036,17 +1023,17 @@ def angle_section(R, Rmax, d):
         angle analyzed in the surface density fit, for each value of R.
 
     """
-
+    
     phi = np.zeros(len(R))
-
+    
     idx_phi = np.where(R > Rmax - d)
-    idx_2pi = np.where(R <= Rmax - d)
-
-    argphi = (R[idx_phi] * R[idx_phi] + d * d - Rmax * Rmax) / (2 * R[idx_phi] * d)
-
+    idx_2pi = np.where(R <= Rmax -d)
+    
+    argphi = (R[idx_phi]*R[idx_phi] + d*d - Rmax*Rmax) / (2*R[idx_phi]*d)
+    
     phi[idx_phi] = 2 * np.arccos(argphi)
     phi[idx_2pi] = 2 * np.pi * np.ones(len(R[idx_2pi]))
-
+    
     return phi
 
 
@@ -1149,7 +1136,6 @@ def likelihood_plummer_freec(params, x, y):
 
     return L
 
-
 def likelihood_plummer_center(params, x, y, ra0, dec0, rmax):
     """
     Likelihood function of the Plummer profile plus a constant contribution
@@ -1189,26 +1175,24 @@ def likelihood_plummer_center(params, x, y, ra0, dec0, rmax):
 
     cmx = params[2]
     cmy = params[3]
-
+    
     Ri = angle.sky_distance_deg(cmx, cmy, x, y)
-
-    d = angle.sky_distance_deg(cmx, cmy, ra0, dec0)
-
-    phi = angle_section(Ri, rmax, d)
+    
+    d = angle.sky_distance_deg(cmx,cmy,ra0,dec0)
+    
+    phi = angle_section(Ri,rmax,d)
 
     Xmax = np.amax(Ri) / a
     Xmin = np.amin(Ri) / a
     X = Ri / a
 
-    N_sys_tot = n_plummer_angle(Xmax * a, rmax, d, a) - n_plummer_angle(
-        Xmin * a, rmax, d, a
-    )
+    N_sys_tot = n_plummer_angle(Xmax*a,rmax,d,a) - n_plummer_angle(Xmin*a,rmax,d,a)
 
     SD = sd_plummer(X) + norm * N_sys_tot / (rmax ** 2)
 
     Ntot = N_sys_tot * (1 + norm)
 
-    fi = (phi / np.pi) * (X / a) * SD / Ntot
+    fi = (phi/np.pi) * (X / a) * SD / Ntot
 
     idx_valid = np.logical_not(np.isnan(np.log(fi)))
 
