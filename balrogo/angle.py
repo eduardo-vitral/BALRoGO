@@ -243,7 +243,7 @@ def angular_sep_vector(v0, v):
         A0 = 2 * np.pi - np.arccos(cosA0)
     if cosA0 >= 0 and sinA0 < 0:
         A0 = np.arcsin(sinA0)
-        
+
     cosR = np.sin(B0) * np.sin(B) + np.cos(B0) * np.cos(B) * np.cos(A - A0)
     R = np.arccos(cosR)
 
@@ -398,7 +398,7 @@ def sky_coord_rotate(v_i, v0_i, v0_f, theta=0, debug=False):
     return A * (180 / np.pi), B * (180 / np.pi)
 
 
-def sky_vector(a,d,a0,d0,af,df):
+def sky_vector(a, d, a0, d0, af, df):
     """
     Transforms sky coordinates in vectors to be used by sky_coord_rotate.
 
@@ -427,26 +427,20 @@ def sky_vector(a,d,a0,d0,af,df):
         Vector pointing to the final centroid position.
 
     """
-    
-    a  = a * (np.pi/180)
-    d  = d * (np.pi/180)
-    a0 = a0 * (np.pi/180)
-    d0 = d0 * (np.pi/180)
-    af = af * (np.pi/180)
-    df = df * (np.pi/180)
-    
-    v_i = np.asarray([np.cos(a) * np.cos(d),
-                      np.sin(a) * np.cos(d),
-                      np.sin(d)])
-    
-    v0_i  = np.asarray([np.cos(a0) * np.cos(d0),
-                        np.sin(a0) * np.cos(d0),
-                        np.sin(d0)])
-    
-    v0_f  = np.asarray([np.cos(af) * np.cos(df),
-                        np.sin(af) * np.cos(df),
-                        np.sin(df)])
-    
+
+    a = a * (np.pi / 180)
+    d = d * (np.pi / 180)
+    a0 = a0 * (np.pi / 180)
+    d0 = d0 * (np.pi / 180)
+    af = af * (np.pi / 180)
+    df = df * (np.pi / 180)
+
+    v_i = np.asarray([np.cos(a) * np.cos(d), np.sin(a) * np.cos(d), np.sin(d)])
+
+    v0_i = np.asarray([np.cos(a0) * np.cos(d0), np.sin(a0) * np.cos(d0), np.sin(d0)])
+
+    v0_f = np.asarray([np.cos(af) * np.cos(df), np.sin(af) * np.cos(df), np.sin(df)])
+
     return v_i, v0_i, v0_f
 
 
@@ -455,7 +449,8 @@ def sky_vector(a,d,a0,d0,af,df):
 "Axis rotation"
 # ------------------------------------------------------------------------------
 
-def transrot_source(a,d,a0,d0,af,df) :
+
+def transrot_source(a, d, a0, d0, af, df):
     """
     Translades and then rotates a source in spherical coordinates, so
     the original directions remain the same.
@@ -483,30 +478,35 @@ def transrot_source(a,d,a0,d0,af,df) :
         Declination in degrees.
 
     """
-    
+
     v_i, v0_i, v0_f = sky_vector(a, d, a0, d0, af, df)
 
-    a, d = sky_coord_rotate(v_i,v0_i,v0_f)
-    
-    rmax = np.nanmax(sky_distance_deg(a, d, af, df)) * (np.pi/180)
-    
-    narr = np.asarray([0,0.1,0.25,0.5]) * rmax
-    vt = np.asarray([np.cos(a0 + narr)*np.cos([d0,d0,d0,d0]),
-                     np.sin(a0 + narr)*np.cos([d0,d0,d0,d0]),
-                     np.sin([d0,d0,d0,d0])])
-    
-    at,dt = sky_coord_rotate(vt,v0_i,v0_f)
-    
-    r0,p0 =  sky_to_polar(a0 + narr, d0*np.ones(len(narr)), a0, d0)
-    rf,pf =  sky_to_polar(at,dt, af, df)
-    
+    a, d = sky_coord_rotate(v_i, v0_i, v0_f)
+
+    rmax = np.nanmax(sky_distance_deg(a, d, af, df)) * (np.pi / 180)
+
+    narr = np.asarray([0, 0.1, 0.25, 0.5]) * rmax
+    vt = np.asarray(
+        [
+            np.cos(a0 + narr) * np.cos([d0, d0, d0, d0]),
+            np.sin(a0 + narr) * np.cos([d0, d0, d0, d0]),
+            np.sin([d0, d0, d0, d0]),
+        ]
+    )
+
+    at, dt = sky_coord_rotate(vt, v0_i, v0_f)
+
+    r0, p0 = sky_to_polar(a0 + narr, d0 * np.ones(len(narr)), a0, d0)
+    rf, pf = sky_to_polar(at, dt, af, df)
+
     phi = np.nanmean(pf - p0)
-    
+
     v_i, v0_i, v0_f = sky_vector(a, d, af, df, af, df)
-    
-    a,d = sky_coord_rotate(v_i,v0_i,v0_f,theta=phi)
-    
+
+    a, d = sky_coord_rotate(v_i, v0_i, v0_f, theta=phi)
+
     return a, d
+
 
 def rotate_axis(x, y, theta, mu_x=0, mu_y=0):
     """
