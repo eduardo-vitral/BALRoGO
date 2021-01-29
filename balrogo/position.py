@@ -77,7 +77,7 @@ def gauss_sig(x_axis, gauss, peak):
     return sigma
 
 
-def find_center(x, y, method="mle_robust"):
+def find_center(x, y, method="mle", ra0=None, dec0=None):
     """
     Fit a center (peak) of the [x,y] data.
 
@@ -92,7 +92,12 @@ def find_center(x, y, method="mle_robust"):
             - 'iterative'.
             - 'mle'.
             - 'mle_robust'.
-        Default is 'mle_robust'.
+        Default is 'mle'.
+    ra0 : float, optional
+        RA center of the original data set downloaded.
+    dec0 : float, optional
+        Dec center of the original data set downloaded.
+
 
     Raises
     ------
@@ -125,7 +130,7 @@ def find_center(x, y, method="mle_robust"):
     elif method == "mle":
         center, unc = center_mle(x, y)
     elif method == "mle_robust":
-        center, unc = center_mle_rob(x, y)
+        center, unc = center_mle_rob(x, y, ra0=ra0, dec0=dec0)
 
     return center, unc
 
@@ -260,7 +265,7 @@ def center_mle(x, y):
     return center, unc
 
 
-def center_mle_rob(x, y):
+def center_mle_rob(x, y, ra0=None, dec0=None):
     """
     Fit a center (peak) of the [x,y] data through an mle robust approach.
     It considers the circular section where the data is complete.
@@ -271,6 +276,10 @@ def center_mle_rob(x, y):
         Data in x-direction
     y : array_like
         Data in y-direction
+    ra0 : float, optional
+        RA center of the original data set downloaded.
+    dec0 : float, optional
+        Dec center of the original data set downloaded.
 
     Returns
     -------
@@ -280,9 +289,10 @@ def center_mle_rob(x, y):
         Uncertainty in the position.
 
     """
-
-    ra0 = 0.5 * (max(x) + min(x))
-    dec0 = 0.5 * (max(y) + min(y))
+    if ra0 is None:
+        ra0 = 0.5 * (max(x) + min(x))
+    if dec0 is None:
+        dec0 = 0.5 * (max(y) + min(y))
     rmax = np.nanmax(angle.sky_distance_deg(x, y, ra0, dec0))
 
     cmx, cmy = ra0, dec0

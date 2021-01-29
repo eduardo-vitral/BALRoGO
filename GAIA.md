@@ -1,6 +1,6 @@
 # Handling ***Gaia*** data
 
-BALRoGO was develop with *Gaia* data in mind, so this document depicts an example with data from the nearby globular cluster NGC 6397 ([NGC 6397](https://en.wikipedia.org/wiki/NGC_6397)).
+BALRoGO was develop with *Gaia* data in mind, so this document depicts an example with data from the Sculptor dwarf spheroidal ([PGC 3589](https://en.wikipedia.org/wiki/Sculptor_Dwarf_Galaxy)).
 
 By the end of this tutorial, you should be able to:
 
@@ -13,7 +13,7 @@ By the end of this tutorial, you should be able to:
 
 The first step is to acquire the data that BALRoGO will fit. We encourage you to download it directly from the *Gaia* archive [here](https://gea.esac.esa.int/archive/).
 
-1. Click on "Search", and then type the name `NGC 6397` (or other source you want to fit) in the box "Name".
+1. Click on "Search", and then type the name PGC 3589 (or other source you want to fit) in the box "Name".
 2. Then, click on "Display columns" and select all entries.
 3. Click on "Show query", at the bottom of the page.
 
@@ -27,13 +27,13 @@ CONTAINS(
 	POINT('ICRS',gaiaedr3.gaia_source.ra,gaiaedr3.gaia_source.dec),
 	CIRCLE(
 		'ICRS',
-		COORD1(EPOCH_PROP_POS(265.175375,-53.674333,0,3.3000,-17.6000,18.3900,2000,2016.0)),
-		COORD2(EPOCH_PROP_POS(265.175375,-53.674333,0,3.3000,-17.6000,18.3900,2000,2016.0)),
+		COORD1(EPOCH_PROP_POS(15.03916667,-33.70888889,0,.0900,.0200,111.4000,2000,2016.0)),
+		COORD2(EPOCH_PROP_POS(15.03916667,-33.70888889,0,.0900,.0200,111.4000,2000,2016.0)),
 		0.001388888888888889)
 )=1
 ```
 
-We are going to select all sources inside a one degree cone. For that, remove the `'TOP 500'` command (for selecting all stars) and change `'0.001388888888888889'` to `'1.0'` (one degree):
+We are going to select all sources inside a two degrees cone. For that, remove the `'TOP 500'` command (for selecting all stars) and change `'0.001388888888888889'` to `'2.0'` (two degrees):
 
 ```javascript
 SELECT *
@@ -43,9 +43,9 @@ CONTAINS(
 	POINT('ICRS',gaiaedr3.gaia_source.ra,gaiaedr3.gaia_source.dec),
 	CIRCLE(
 		'ICRS',
-		COORD1(EPOCH_PROP_POS(265.175375,-53.674333,0,3.3000,-17.6000,18.3900,2000,2016.0)),
-		COORD2(EPOCH_PROP_POS(265.175375,-53.674333,0,3.3000,-17.6000,18.3900,2000,2016.0)),
-		1.0)
+		COORD1(EPOCH_PROP_POS(15.03916667,-33.70888889,0,.0900,.0200,111.4000,2000,2016.0)),
+		COORD2(EPOCH_PROP_POS(15.03916667,-33.70888889,0,.0900,.0200,111.4000,2000,2016.0)),
+		2.0)
 )=1
 ```
 
@@ -59,13 +59,13 @@ Submit your query and download the file in **FITS** format.
 
 ### Installation
 
-Once you have your data `NGC6397.fits` in your `path`, you need to make sure that you have BALRoGO installed and updated. For that, check the section **Installation** in the [README](https://gitlab.com/eduardo-vitral/balrogo/-/blob/master/README.md) file.
+Once you have your data `SCULPTOR.fits` in your `path`, you need to make sure that you have BALRoGO installed and updated. For that, check the section **Installation** in the [README](https://gitlab.com/eduardo-vitral/balrogo/-/blob/master/README.md) file.
 
 - [x] Install and update BALRoGO.
 
 ### Python script
 
-Congratulations, you have BALRoGO installed and you have the data to use it, so from now on, you can model globular clusters, dwarf galaxies and mock data as you wish. Below, we show an example of script for the NGC 6397 globular cluster.
+Congratulations, you have BALRoGO installed and you have the data to use it, so from now on, you can model globular clusters, dwarf galaxies and mock data as you wish. Below, we show an example of script for the Sculptor Dwarf Spheroidal.
 
 The function `extract_object` from the `gaia` method is supposed to clean the data and fit the proper motion and surface density of your source, finally providing the stars that have high probability of belonging to the analyzed object. The input you must provide is the path to your .FITS file:
 
@@ -74,7 +74,7 @@ from balrogo import gaia
 
 # Read HDU
 print("Reading input...")
-path = r"path/NGC6397.fits"
+path = r"path/SCULPTOR.fits"
 
 # Run sample code
 print("Running code...")
@@ -86,8 +86,6 @@ print("var_pm:", var_pm)
 print("results_sd:", results_sd)
 print("var_sd:", var_sd)
 ```
-
-The code might take a while to run for objects with many stars.
 
 - [x] Run BALRoGO in a Python console.
 
@@ -142,4 +140,3 @@ BALRoGO is usually able to perform its routine over most of *Gaia* sources with 
 The reader is also encouraged to use the other methods of BALRoGO, specially, ***pm.py***, ***position.py***, ***mock.py*** and ***angle.py***.
 
 - [x] Change default parameters in BALRoGO and adapt them to your analyzed source.
-
