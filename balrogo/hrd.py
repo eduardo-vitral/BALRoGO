@@ -12,7 +12,7 @@ Created on 2020
 # diagram (CMD).
 # It provides a Kernel Density Estimation (KDE) of the CMD distribution.
 #
-# Documentation is provided on Vitral & Macedo, 2021.
+# Documentation is provided on Vitral, 2021.
 # If you have any further questions please email vitral@iap.fr
 #
 ###############################################################################

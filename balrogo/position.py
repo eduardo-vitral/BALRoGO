@@ -12,7 +12,7 @@ Created on 2020
 # It provides MCMC and maximum likelihood fits of surface density,
 # as well as robust initial guesses for the (RA,Dec) center of the source.
 #
-# Documentation is provided on Vitral & Macedo, 2021.
+# Documentation is provided on Vitral, 2021.
 # If you have any further questions please email vitral@iap.fr
 #
 ###############################################################################

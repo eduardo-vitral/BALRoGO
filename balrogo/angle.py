@@ -11,7 +11,7 @@ Created on 2020
 # This file contains the main functions concerning the angular tansformations,
 # sky projections and spherical trigonomtry.
 #
-# Documentation is provided on Vitral & Macedo, 2021.
+# Documentation is provided on Vitral, 2021.
 # If you have any further questions please email vitral@iap.fr
 #
 ###############################################################################
@@ -240,7 +240,7 @@ def angular_sep_vector(v0, v):
     if cosA0 <= 0 and sinA0 > 0:
         A0 = np.arccos(cosA0)
     if cosA0 < 0 and sinA0 <= 0:
-        A0 = 2 * np.pi - np.arccos(cosA)
+        A0 = 2 * np.pi - np.arccos(cosA0)
     if cosA0 >= 0 and sinA0 < 0:
         A0 = np.arcsin(sinA0)
 
@@ -309,7 +309,7 @@ def rodrigues_formula(k, v, theta, debug=False):
     return v_rot
 
 
-def sky_coord_rotate(v_i, v0_i, v0_f, debug=False):
+def sky_coord_rotate(v_i, v0_i, v0_f, theta=0, debug=False):
     """
     Gets new angles (RA,Dec) in degrees of a rotated vector.
 
@@ -321,6 +321,8 @@ def sky_coord_rotate(v_i, v0_i, v0_f, debug=False):
         Vector pointing to the initial centroid position.
     v0_f : array_like
         Vector pointing to the final centroid position.
+    theta : float, optional
+        Angle to rotate (for no translation), in radians. The default is 0.
     debug : boolean, optional
        True if the reader wants to print debug diagnistics.
        The default is False.
@@ -336,11 +338,6 @@ def sky_coord_rotate(v_i, v0_i, v0_f, debug=False):
         if debug is True:
             print("Pure rotation")
         k = v0_i / np.linalg.norm(v0_i)
-        try:
-            theta = args[0]
-        except NameError:
-            ("You did not provide an angle to rotate. Default is zero.")
-            theta = 0
     else:
         if debug is True:
             print("Translation in spherical geometry")
@@ -401,10 +398,114 @@ def sky_coord_rotate(v_i, v0_i, v0_f, debug=False):
     return A * (180 / np.pi), B * (180 / np.pi)
 
 
+def sky_vector(a, d, a0, d0, af, df):
+    """
+    Transforms sky coordinates in vectors to be used by sky_coord_rotate.
+
+    Parameters
+    ----------
+    a : float, array_like
+        Original set of RA in degrees.
+    d : float, array_like
+        Original set of Dec in degrees.
+    a0 : float
+        Original centroid RA in degrees.
+    d0 : float
+        Original centroid Dec in degrees.
+    af : float
+        Final centroid RA in degrees.
+    df : float
+        Final centroid Dec in degrees.
+
+    Returns
+    -------
+    v_i : array_like
+        Vectors to be rotated.
+    v0_i : array_like
+        Vector pointing to the initial centroid position.
+    v0_f : array_like
+        Vector pointing to the final centroid position.
+
+    """
+
+    a = a * (np.pi / 180)
+    d = d * (np.pi / 180)
+    a0 = a0 * (np.pi / 180)
+    d0 = d0 * (np.pi / 180)
+    af = af * (np.pi / 180)
+    df = df * (np.pi / 180)
+
+    v_i = np.asarray([np.cos(a) * np.cos(d), np.sin(a) * np.cos(d), np.sin(d)])
+
+    v0_i = np.asarray([np.cos(a0) * np.cos(d0), np.sin(a0) * np.cos(d0), np.sin(d0)])
+
+    v0_f = np.asarray([np.cos(af) * np.cos(df), np.sin(af) * np.cos(df), np.sin(df)])
+
+    return v_i, v0_i, v0_f
+
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
 "Axis rotation"
 # ------------------------------------------------------------------------------
+
+
+def transrot_source(a, d, a0, d0, af, df):
+    """
+    Translades and then rotates a source in spherical coordinates, so
+    the original directions remain the same.
+
+    Parameters
+    ----------
+    a : float, array_like
+        Original set of RA in degrees.
+    d : float, array_like
+        Original set of Dec in degrees.
+    a0 : float
+        Original centroid RA in degrees.
+    d0 : float
+        Original centroid Dec in degrees.
+    af : float
+        Final centroid RA in degrees.
+    df : float
+        Final centroid Dec in degrees.
+
+    Returns
+    -------
+    a : array_like
+        Right ascention in degrees.
+    d : array_like
+        Declination in degrees.
+
+    """
+
+    v_i, v0_i, v0_f = sky_vector(a, d, a0, d0, af, df)
+
+    a, d = sky_coord_rotate(v_i, v0_i, v0_f)
+
+    rmax = np.nanmax(sky_distance_deg(a, d, af, df)) * (np.pi / 180)
+
+    narr = np.asarray([0, 0.1, 0.25, 0.5]) * rmax
+    vt = np.asarray(
+        [
+            np.cos(a0 + narr) * np.cos([d0, d0, d0, d0]),
+            np.sin(a0 + narr) * np.cos([d0, d0, d0, d0]),
+            np.sin([d0, d0, d0, d0]),
+        ]
+    )
+
+    at, dt = sky_coord_rotate(vt, v0_i, v0_f)
+
+    r0, p0 = sky_to_polar(a0 + narr, d0 * np.ones(len(narr)), a0, d0)
+    rf, pf = sky_to_polar(at, dt, af, df)
+
+    phi = np.nanmean(pf - p0)
+
+    v_i, v0_i, v0_f = sky_vector(a, d, af, df, af, df)
+
+    a, d = sky_coord_rotate(v_i, v0_i, v0_f, theta=phi)
+
+    return a, d
 
 
 def rotate_axis(x, y, theta, mu_x=0, mu_y=0):

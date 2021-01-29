@@ -7,7 +7,7 @@
 [![license](http://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 <!-- markdownlint-disable-next-line no-inline-html -->
-<img alt="logo" align="right" src="logo.png" width="20%" />
+<img alt="logo" align="right" src="https://gitlab.com/eduardo-vitral/balrogo/-/raw/master/logo.png" width="20%" />
 
 BALRoGO: Bayesian Astrometric Likelihood Recover of Galactic Objects.
 

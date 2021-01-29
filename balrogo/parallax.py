@@ -12,7 +12,7 @@ Created on 2020
 # It provides a kernel density estimation of the distance distribution,
 # as well as a fit of the mode of this distribution.
 #
-# Documentation is provided on Vitral & Macedo, 2021.
+# Documentation is provided on Vitral, 2021.
 # If you have any further questions please email vitral@iap.fr
 #
 ###############################################################################
