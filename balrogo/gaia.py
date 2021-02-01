@@ -128,7 +128,7 @@ def clean_gaia(
 
     if r_cut is None:
         ri = angle.sky_distance_deg(ra, dec, c[0], c[1])
-        results = position.maximum_likelihood(x=np.asarray([ri]), model="plummer")
+        results, var = position.maximum_likelihood(x=np.asarray([ri]), model="plummer")
         r_cut = 10 * 10 ** results[0]
 
     idx = np.where(angle.sky_distance_deg(ra, dec, c[0], c[1]) < r_cut)
