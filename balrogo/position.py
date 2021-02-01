@@ -380,10 +380,16 @@ def surface_density(x=None, y=None, x0=None, y0=None):
     q_m, q_p = q_50 - q_16, q_84 - q_50
     nbins = int((np.amax(r) - np.amin(r)) / (min(q_m, q_p) / 5))
 
+    idx_valid = np.where(r > 0)
+
     counts, binlim = np.histogram(
         r,
-        range=(np.amin(r), np.amax(r)),
-        bins=np.logspace(np.log10(np.amin(r)), np.log10(np.amax(r)), nbins + 1),
+        range=(np.nanmin(r[idx_valid]), np.nanmax(r[idx_valid])),
+        bins=np.logspace(
+            np.nanmin(np.log10(r[idx_valid])),
+            np.nanmax(np.log10(r[idx_valid])),
+            nbins + 1,
+        ),
     )
 
     bincent = 0.5 * (binlim[1:] + binlim[:-1])
