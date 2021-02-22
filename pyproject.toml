@@ -8,7 +8,7 @@ readme = "README.md"
 repository = "https://gitlab.com/eduardo-vitral/balrogo"
 
 [tool.poetry.dependencies]
-python = "^3.6"
+python = "^3.7"
 numpy = "^1.18.5"
 matplotlib = "^3.1.2"
 astropy = "^4.0"
