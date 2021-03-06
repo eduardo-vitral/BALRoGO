@@ -150,7 +150,6 @@ def clean_gaia(
         Cleaning procedure to be adopted:
             - 'v21', to use the same cleaning from Vitral 2021
             - 'vm21', to use the same cleaning from Vitral & Mamon 21
-            - 'vb21', to use the same cleaning from Vasiliev & Baumgardt 21
         The default is 'v21'.
 
     Raises
@@ -165,7 +164,6 @@ def clean_gaia(
         cleaning is not one of the following:
             - 'v21'
             - 'vm21'
-            - 'vb21'
 
     Returns
     -------
@@ -181,7 +179,7 @@ def clean_gaia(
     if object_type not in ["gc", "dsph"]:
         raise ValueError("Does not recognize object type.")
 
-    if cleaning not in ["v21", "vm21", "vb21"]:
+    if cleaning not in ["v21", "vm21"]:
         raise ValueError("Does not recognize cleaning procedure.")
 
     if c is None:
@@ -249,35 +247,6 @@ def clean_gaia(
         idx_noiseE1 = np.where(1.0 + 0.015 * br_mag ** 2 < br_excess)
         idx_noiseE2 = np.where(br_excess < 1.3 + 0.06 * br_mag ** 2)
         idx_noise1 = np.intersect1d(idx_noiseE1, idx_noiseE2)
-        idx_noise2 = np.where(u < 1.2 * np.maximum(1, np.exp(-0.2 * (g_mag - 19.5))))
-
-        idx_noise = np.intersect1d(idx_noise1, idx_noise2)
-
-        idx = np.intersect1d(idx, idx_noise)
-
-    elif cleaning == "vb21":
-
-        print("Cleaning type currently deprecated. Switch to 'v21'.")
-
-        u = np.sqrt(chi2 / (nu - 5))
-
-        c33 = epmra * epmra
-        c34 = epmra * epmdec * corrpm
-        c44 = epmdec * epmdec
-        err = np.sqrt(
-            0.5 * (c33 + c44) + 0.5 * np.sqrt((c44 - c33) ** 2 + 4 * c34 ** 2)
-        )
-
-        idx_err = np.where(err < err_lim)
-        idx = np.intersect1d(idx, idx_err)
-
-        f = polyRiello20(br_mag)
-
-        C_new = br_excess - f
-
-        sig_c = 0.0059898 + 8.817481 * 1e-12 * g_mag ** (7.618399)
-
-        idx_noise1 = np.where(C_new < 3 * sig_c)
         idx_noise2 = np.where(u < 1.2 * np.maximum(1, np.exp(-0.2 * (g_mag - 19.5))))
 
         idx_noise = np.intersect1d(idx_noise1, idx_noise2)
@@ -405,7 +374,6 @@ def find_object(
         Cleaning procedure to be adopted:
             - 'v21', to use the same cleaning from Vitral 2021
             - 'vm21', to use the same cleaning from Vitral & Mamon 21
-            - 'vb21', to use the same cleaning from Vasiliev & Baumgardt 21
         The default is 'v21'.
 
     Raises
@@ -431,7 +399,6 @@ def find_object(
         cleaning is not one of the following:
             - 'v21'
             - 'vm21'
-            - 'vb21'
 
     Returns
     -------
@@ -467,7 +434,7 @@ def find_object(
     if object_type not in ["gc", "dsph"]:
         raise ValueError("Does not recognize object type.")
 
-    if cleaning not in ["v21", "vm21", "vb21"]:
+    if cleaning not in ["v21", "vm21"]:
         raise ValueError("Does not recognize cleaning procedure.")
 
     c, unc = position.find_center(ra, dec)
@@ -902,7 +869,6 @@ def extract_object(
         Cleaning procedure to be adopted:
             - 'v21', to use the same cleaning from Vitral 2021
             - 'vm21', to use the same cleaning from Vitral & Mamon 21
-            - 'vb21', to use the same cleaning from Vasiliev & Baumgardt 21
         The default is 'v21'.
 
     Raises
@@ -928,7 +894,6 @@ def extract_object(
         cleaning is not one of the following:
             - 'v21'
             - 'vm21'
-            - 'vb21'
 
     Returns
     -------
@@ -964,7 +929,7 @@ def extract_object(
     if object_type not in ["gc", "dsph"]:
         raise ValueError("Does not recognize object type.")
 
-    if cleaning not in ["v21", "vm21", "vb21"]:
+    if cleaning not in ["v21", "vm21"]:
         raise ValueError("Does not recognize cleaning procedure.")
 
     hdu = fits.open(path)
