@@ -31,6 +31,53 @@ from . import hrd
 # ---------------------------------------------------------------------------
 
 
+def polyRiello20(x):
+    """
+    Polynomial from Riello et al. 2020. With coefficients from their Table 2.
+
+    Parameters
+    ----------
+    x : array_like
+        x = G_BP − G_RP.
+
+    Returns
+    -------
+    f : array_like
+        BP and RP flux excess factor C dependence on the x = G_BP − G_RP.
+
+    """
+
+    f = np.zeros(len(x))
+
+    for i in range(len(x)):
+
+        if np.isnan(x[i]):
+            f[i] = np.nan
+
+        elif x[i] < 0.5:
+            a0 = 1.154360
+            a1 = 0.033772
+            a2 = 0.032277
+
+            f[i] = a0 + a1 * x[i] + a2 * x[i] * x[i]
+
+        elif x[i] >= 0.5 and x[i] < 4.0:
+            a0 = 1.162004
+            a1 = 0.011464
+            a2 = 0.049255
+            a3 = -0.005879
+
+            f[i] = a0 + a1 * x[i] + a2 * x[i] * x[i] + a3 * x[i] * x[i] * x[i]
+
+        elif x[i] >= 4.0:
+            a0 = 1.057572
+            a1 = 0.140537
+
+            f[i] = a0 + a1 * x[i]
+
+    return f
+
+
 def clean_gaia(
     pmra,
     pmdec,
@@ -49,6 +96,7 @@ def clean_gaia(
     object_type="gc",
     r_cut=None,
     c=None,
+    cleaning="v21",
 ):
     """
     Cleans the Gaia data based on astrometric flags.
@@ -98,6 +146,12 @@ def clean_gaia(
         Projected radius limit. The default is None.
     c : 2D array, optional
         (ra,dec) of the center. The default is None.
+    cleaning : string, optional
+        Cleaning procedure to be adopted:
+            - 'v21', to use the same cleaning from Vitral 2021
+            - 'vm21', to use the same cleaning from Vitral & Mamon 21
+            - 'vb21', to use the same cleaning from Vasiliev & Baumgardt 21
+        The default is 'v21'.
 
     Raises
     ------
@@ -108,6 +162,10 @@ def clean_gaia(
         object_type is not one of the following:
             - 'gc'
             - 'dsph'
+        cleaning is not one of the following:
+            - 'v21'
+            - 'vm21'
+            - 'vb21'
 
     Returns
     -------
@@ -122,6 +180,9 @@ def clean_gaia(
 
     if object_type not in ["gc", "dsph"]:
         raise ValueError("Does not recognize object type.")
+
+    if cleaning not in ["v21", "vm21", "vb21"]:
+        raise ValueError("Does not recognize cleaning procedure.")
 
     if c is None:
         c, unc = position.find_center(ra, dec)
@@ -144,24 +205,84 @@ def clean_gaia(
             ini = pm.initial_guess(pmra[idx], pmdec[idx])
             err_lim = err_lim * ini[2]
 
-    u = np.sqrt(chi2 / (nu - 5))
+    if cleaning == "v21":
 
-    c33 = epmra * epmra
-    c34 = epmra * epmdec * corrpm
-    c44 = epmdec * epmdec
-    err = np.sqrt(0.5 * (c33 + c44) + 0.5 * np.sqrt((c44 - c33) ** 2 + 4 * c34 ** 2))
+        u = np.sqrt(chi2 / (nu - 5))
 
-    idx_err = np.where(err < err_lim)
-    idx = np.intersect1d(idx, idx_err)
+        c33 = epmra * epmra
+        c34 = epmra * epmdec * corrpm
+        c44 = epmdec * epmdec
+        err = np.sqrt(
+            0.5 * (c33 + c44) + 0.5 * np.sqrt((c44 - c33) ** 2 + 4 * c34 ** 2)
+        )
 
-    idx_noiseE1 = np.where(1.0 + 0.015 * br_mag ** 2 < br_excess)
-    idx_noiseE2 = np.where(br_excess < 1.3 + 0.06 * br_mag ** 2)
-    idx_noise1 = np.intersect1d(idx_noiseE1, idx_noiseE2)
-    idx_noise2 = np.where(u < 1.2 * np.maximum(1, np.exp(-0.2 * (g_mag - 19.5))))
+        idx_err = np.where(err < err_lim)
+        idx = np.intersect1d(idx, idx_err)
 
-    idx_noise = np.intersect1d(idx_noise1, idx_noise2)
+        f = polyRiello20(br_mag)
 
-    idx = np.intersect1d(idx, idx_noise)
+        C_new = br_excess - f
+
+        sig_c = 0.0059898 + 8.817481 * 1e-12 * g_mag ** (7.618399)
+
+        idx_noise1 = np.where(np.abs(C_new) < 3 * sig_c)
+        idx_noise2 = np.where(u < 1.2 * np.maximum(1, np.exp(-0.2 * (g_mag - 19.5))))
+
+        idx_noise = np.intersect1d(idx_noise1, idx_noise2)
+
+        idx = np.intersect1d(idx, idx_noise)
+
+    elif cleaning == "vm21":
+
+        u = np.sqrt(chi2 / (nu - 5))
+
+        c33 = epmra * epmra
+        c34 = epmra * epmdec * corrpm
+        c44 = epmdec * epmdec
+        err = np.sqrt(
+            0.5 * (c33 + c44) + 0.5 * np.sqrt((c44 - c33) ** 2 + 4 * c34 ** 2)
+        )
+
+        idx_err = np.where(err < err_lim)
+        idx = np.intersect1d(idx, idx_err)
+
+        idx_noiseE1 = np.where(1.0 + 0.015 * br_mag ** 2 < br_excess)
+        idx_noiseE2 = np.where(br_excess < 1.3 + 0.06 * br_mag ** 2)
+        idx_noise1 = np.intersect1d(idx_noiseE1, idx_noiseE2)
+        idx_noise2 = np.where(u < 1.2 * np.maximum(1, np.exp(-0.2 * (g_mag - 19.5))))
+
+        idx_noise = np.intersect1d(idx_noise1, idx_noise2)
+
+        idx = np.intersect1d(idx, idx_noise)
+
+    elif cleaning == "vb21":
+
+        print("Cleaning type currently deprecated. Switch to 'v21'.")
+
+        u = np.sqrt(chi2 / (nu - 5))
+
+        c33 = epmra * epmra
+        c34 = epmra * epmdec * corrpm
+        c44 = epmdec * epmdec
+        err = np.sqrt(
+            0.5 * (c33 + c44) + 0.5 * np.sqrt((c44 - c33) ** 2 + 4 * c34 ** 2)
+        )
+
+        idx_err = np.where(err < err_lim)
+        idx = np.intersect1d(idx, idx_err)
+
+        f = polyRiello20(br_mag)
+
+        C_new = br_excess - f
+
+        sig_c = 0.0059898 + 8.817481 * 1e-12 * g_mag ** (7.618399)
+
+        idx_noise1 = np.where(C_new < 3 * sig_c)
+        idx_noise2 = np.where(u < 1.2 * np.maximum(1, np.exp(-0.2 * (g_mag - 19.5))))
+
+        idx_noise = np.intersect1d(idx_noise1, idx_noise2)
+
+        idx = np.intersect1d(idx, idx_noise)
 
     return idx
 
@@ -192,6 +313,7 @@ def find_object(
     object_type="gc",
     return_center=False,
     check_fit=False,
+    cleaning="v21",
 ):
 
     """
@@ -279,6 +401,12 @@ def find_object(
         True is the user wants to plot validity checks throughout the fitting
         procedure.
         The default is False.
+    cleaning : string, optional
+        Cleaning procedure to be adopted:
+            - 'v21', to use the same cleaning from Vitral 2021
+            - 'vm21', to use the same cleaning from Vitral & Mamon 21
+            - 'vb21', to use the same cleaning from Vasiliev & Baumgardt 21
+        The default is 'v21'.
 
     Raises
     ------
@@ -300,6 +428,10 @@ def find_object(
         object_type is not one of the following:
             - 'gc'
             - 'dsph'
+        cleaning is not one of the following:
+            - 'v21'
+            - 'vm21'
+            - 'vb21'
 
     Returns
     -------
@@ -334,6 +466,9 @@ def find_object(
 
     if object_type not in ["gc", "dsph"]:
         raise ValueError("Does not recognize object type.")
+
+    if cleaning not in ["v21", "vm21", "vb21"]:
+        raise ValueError("Does not recognize cleaning procedure.")
 
     c, unc = position.find_center(ra, dec)
 
@@ -512,6 +647,7 @@ def find_object(
         err_lim=err_lim,
         err_handle=err_handle,
         object_type=object_type,
+        cleaning=cleaning,
     )
 
     prob_sd = prob_sd[idx]
@@ -698,6 +834,7 @@ def extract_object(
     object_type="gc",
     return_center=False,
     check_fit=False,
+    cleaning="v21",
 ):
     """
 
@@ -761,6 +898,12 @@ def extract_object(
         True is the user wants to plot validity checks throughout the fitting
         procedure.
         The default is False.
+    cleaning : string, optional
+        Cleaning procedure to be adopted:
+            - 'v21', to use the same cleaning from Vitral 2021
+            - 'vm21', to use the same cleaning from Vitral & Mamon 21
+            - 'vb21', to use the same cleaning from Vasiliev & Baumgardt 21
+        The default is 'v21'.
 
     Raises
     ------
@@ -782,6 +925,10 @@ def extract_object(
         object_type is not one of the following:
             - 'gc'
             - 'dsph'
+        cleaning is not one of the following:
+            - 'v21'
+            - 'vm21'
+            - 'vb21'
 
     Returns
     -------
@@ -816,6 +963,9 @@ def extract_object(
 
     if object_type not in ["gc", "dsph"]:
         raise ValueError("Does not recognize object type.")
+
+    if cleaning not in ["v21", "vm21", "vb21"]:
+        raise ValueError("Does not recognize cleaning procedure.")
 
     hdu = fits.open(path)
 
@@ -862,6 +1012,7 @@ def extract_object(
             err_handle=err_handle,
             object_type=object_type,
             check_fit=check_fit,
+            cleaning=cleaning,
         )
     else:
         idx_final, results_sd, var_sd, results_pm, var_pm, center = find_object(
@@ -890,6 +1041,7 @@ def extract_object(
             object_type=object_type,
             return_center=return_center,
             check_fit=check_fit,
+            cleaning=cleaning,
         )
 
     full_data = full_data[idx_final]
