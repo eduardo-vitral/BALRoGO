@@ -283,6 +283,7 @@ def find_object(
     return_center=False,
     check_fit=False,
     cleaning="v21",
+    conv=True,
 ):
 
     """
@@ -375,6 +376,9 @@ def find_object(
             - 'v21', to use the same cleaning from Vitral 2021
             - 'vm21', to use the same cleaning from Vitral & Mamon 21
         The default is 'v21'.
+    conv : boolean, optional
+        True, if the user wants to convolve the galactic object PDF with
+        Gaussian errors. The defualt is True.
 
     Raises
     ------
@@ -620,10 +624,15 @@ def find_object(
     prob_sd = prob_sd[idx]
     pmra = pmra[idx]
     pmdec = pmdec[idx]
+    epmra = epmra[idx]
+    epmdec = epmdec[idx]
+    corrpm = corrpm[idx]
 
-    results_pm, var_pm = pm.maximum_likelihood(pmra, pmdec, min_method=min_method)
+    results_pm, var_pm = pm.maximum_likelihood(
+        pmra, pmdec, eX=epmra, eY=epmdec, eXY=corrpm, min_method=min_method, conv=conv
+    )
 
-    prob_pm = pm.prob(pmra, pmdec, results_pm)
+    prob_pm = pm.prob(pmra, pmdec, epmra, epmdec, corrpm, results_pm, conv=conv)
 
     if check_fit is True:
         ellipse_rot = angle.get_ellipse(
@@ -802,6 +811,7 @@ def extract_object(
     return_center=False,
     check_fit=False,
     cleaning="v21",
+    conv=True,
 ):
     """
 
@@ -870,6 +880,10 @@ def extract_object(
             - 'v21', to use the same cleaning from Vitral 2021
             - 'vm21', to use the same cleaning from Vitral & Mamon 21
         The default is 'v21'.
+    conv : boolean, optional
+        True, if the user wants to convolve the galactic object PDF with
+        Gaussian errors. The defualt is True.
+
 
     Raises
     ------
@@ -978,6 +992,7 @@ def extract_object(
             object_type=object_type,
             check_fit=check_fit,
             cleaning=cleaning,
+            conv=conv,
         )
     else:
         idx_final, results_sd, var_sd, results_pm, var_pm, center = find_object(
@@ -1007,6 +1022,7 @@ def extract_object(
             return_center=return_center,
             check_fit=check_fit,
             cleaning=cleaning,
+            conv=conv,
         )
 
     full_data = full_data[idx_final]

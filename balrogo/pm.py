@@ -191,6 +191,9 @@ def gauss_2d(Ux, Uy, mu_pmx, mu_pmy, sig_pm):
 def global_pdf(
     Ux,
     Uy,
+    ex,
+    ey,
+    exy,
     mu_pmx_go,
     mu_pmy_go,
     sig_pm_go,
@@ -212,6 +215,12 @@ def global_pdf(
         Array containting the data to be fitted, in x-direction.
     Uy : array_like
         Array containting the data to be fitted, in y-direction.
+    ex : array_like
+        Data uncertainty in x-direction.
+    ey : array_like
+        Data uncertainty in y-direction.
+    exy : array_like
+        Correlation of data uncertainty in x and y-direction.
     mu_pmx_go : float
         Mean proper motion of galactic object in x-direction.
     mu_pmy_go : float
@@ -241,6 +250,14 @@ def global_pdf(
         (2D Gaussian) and Milky Way field stars.
 
     """
+    # Deals with a semi-convolution, only accounting for the galactic object.
+    pm_mod = np.sqrt((Ux - mu_pmx_go) ** 2 + (Uy - mu_pmy_go) ** 2)
+    err = (
+        (ex * (Ux - mu_pmx_go) / pm_mod) ** 2
+        + (ey * (Uy - mu_pmy_go) / pm_mod) ** 2
+        + 2 * ex * ey * exy * (Ux - mu_pmx_go) * (Uy - mu_pmy_go) / pm_mod ** 2
+    )
+    sig_pm_go = np.sqrt(sig_pm_go * sig_pm_go + err)
 
     # PDF from galactic object
     pdf_go = frc_go_mw * gauss_2d(Ux, Uy, mu_pmx_go, mu_pmy_go, sig_pm_go)
@@ -253,7 +270,7 @@ def global_pdf(
     return pdf_go + pdf_mw
 
 
-def likelihood_function(params, Ux, Uy):
+def likelihood_function(params, Ux, Uy, ex, ey, exy):
     """
     Computes minus the likelihood of the PM model from Vitral (2021).
 
@@ -265,6 +282,12 @@ def likelihood_function(params, Ux, Uy):
         Array containting the data to be fitted, in x-direction.
     Uy : array_like
         Array containting the data to be fitted, in y-direction.
+    ex : array_like
+        Data uncertainty in x-direction.
+    ey : array_like
+        Data uncertainty in y-direction.
+    exy : array_like
+        Correlation of data uncertainty in x and y-direction.
 
     Returns
     -------
@@ -290,6 +313,9 @@ def likelihood_function(params, Ux, Uy):
     f_i = global_pdf(
         Ux,
         Uy,
+        ex,
+        ey,
+        exy,
         mu_pmx_go,
         mu_pmy_go,
         sig_pm_go,
@@ -350,7 +376,7 @@ def likelihood_prior(params, guess, bounds):
         return -np.inf
 
 
-def likelihood_prob(params, Ux, Uy, guess, bounds):
+def likelihood_prob(params, Ux, Uy, ex, ey, exy, guess, bounds):
     """
     This function gets the prior probability for MCMC.
 
@@ -362,6 +388,12 @@ def likelihood_prob(params, Ux, Uy, guess, bounds):
         Array containting the data to be fitted, in x-direction.
     Uy : array_like
         Array containting the data to be fitted, in y-direction.
+    ex : array_like
+        Data uncertainty in x-direction.
+    ey : array_like
+        Data uncertainty in y-direction.
+    exy : array_like
+        Correlation of data uncertainty in x and y-direction.
     guess : array_like
         Array containing the initial guess of the parameters.
     bounds : array_like
@@ -376,10 +408,10 @@ def likelihood_prob(params, Ux, Uy, guess, bounds):
     lp = likelihood_prior(params, guess, bounds)
     if not np.isfinite(lp):
         return -np.inf
-    return lp - likelihood_function(params, Ux, Uy)
+    return lp - likelihood_function(params, Ux, Uy, ex, ey, exy)
 
 
-def prob(Ux, Uy, params):
+def prob(Ux, Uy, ex, ey, exy, params, conv=True):
     """
     This function gives the probability of a certain star to belong to
     a galactic object. This is computed with distribution functions in
@@ -391,8 +423,17 @@ def prob(Ux, Uy, params):
         Array containting the data in the x-direction.
     Uy : array_like
         Array containting the data in the y-direction.
+    ex : array_like
+        Data uncertainty in x-direction.
+    ey : array_like
+        Data uncertainty in y-direction.
+    exy : array_like
+        Correlation of data uncertainty in x and y-direction.
     params : array_like
         Array containing the fitted values.
+    conv : boolean, optional
+        True, if the user wants to convolve the galactic object PDF with
+        Gaussian errors. The defualt is True.
 
     Returns
     -------
@@ -414,6 +455,15 @@ def prob(Ux, Uy, params):
     slp_pm_mw = params[8]  # slope from Milky Way field stars
 
     frc_go_mw = params[9]  # fraction of galactic objects by Milky Way stars
+
+    if conv is True:
+        pm_mod = np.sqrt((Ux - mu_pmx_go) ** 2 + (Uy - mu_pmy_go) ** 2)
+        err = (
+            (ex * (Ux - mu_pmx_go) / pm_mod) ** 2
+            + (ey * (Uy - mu_pmy_go) / pm_mod) ** 2
+            + 2 * ex * ey * exy * (Ux - mu_pmx_go) * (Uy - mu_pmy_go) / pm_mod ** 2
+        )
+        sig_pm_go = sig_pm_go = np.sqrt(sig_pm_go * sig_pm_go + err)
 
     pdf_go = gauss_2d(Ux, Uy, mu_pmx_go, mu_pmy_go, sig_pm_go)
     pdf_mw = pdf_field_stars(
@@ -667,7 +717,7 @@ def initial_guess(x_data, y_data):
 # ---------------------------------------------------------------------------
 
 
-def maximum_likelihood(X, Y, min_method="dif"):
+def maximum_likelihood(X, Y, eX=None, eY=None, eXY=None, min_method="dif", conv=True):
     """
     Calls a maximum likelihood fit of the proper motion paramters of
     the joint distribution of galactic object plus Milky Way stars.
@@ -678,9 +728,22 @@ def maximum_likelihood(X, Y, min_method="dif"):
         Data in x-direction.
     Y : array_like
         Data in y-direction.
+    eX : array_like, optional
+        Data uncertainty in x-direction.
+        The default is None
+    eY : array_like, optional
+        Data uncertainty in y-direction.
+        The default is None
+    eXY : array_like, optional
+        Correlation of data uncertainty in x and y-direction.
+        The default is None
     min_method : string, optional
         Minimization method to be used by the maximum likelihood fit.
         The default is 'dif'.
+    conv : boolean, optional
+        True, if the user wants to convolve the galactic object PDF with
+        Gaussian errors. The defualt is True.
+
 
     Returns
     -------
@@ -726,9 +789,29 @@ def maximum_likelihood(X, Y, min_method="dif"):
     X = X[idxpm]
     Y = Y[idxpm]
 
+    if conv is False:
+        eX = np.zeros(len(X))
+        eY = np.zeros(len(X))
+        eXY = np.zeros(len(X))
+    else:
+        if eX is None:
+            eX = np.zeros(len(X))
+        else:
+            eX = eX[idxpm]
+
+        if eY is None:
+            eY = np.zeros(len(X))
+        else:
+            eY = eY[idxpm]
+
+        if eXY is None:
+            eXY = np.zeros(len(X))
+        else:
+            eXY = eXY[idxpm]
+
     if min_method == "dif":
         mle_model = differential_evolution(
-            lambda c: likelihood_function(c, X, Y), bounds
+            lambda c: likelihood_function(c, X, Y, eX, eY, eXY), bounds
         )
         results = mle_model.x
 
@@ -738,21 +821,35 @@ def maximum_likelihood(X, Y, min_method="dif"):
             [ini[0], ini[1], ini[2], ini[3], ini[4], ini[5], ini[5], 0, ini[6], ini[7]]
         )
         mle_model = minimize(
-            lambda c: likelihood_function(c, X, Y),
+            lambda c: likelihood_function(c, X, Y, eX, eY, eXY),
             ini,
             method=min_method,
             bounds=bounds,
         )
         results = mle_model["x"]
 
-    hfun = ndt.Hessian(lambda c: likelihood_function(c, X, Y), full_output=True)
+    hfun = ndt.Hessian(
+        lambda c: likelihood_function(c, X, Y, eX, eY, eXY), full_output=True
+    )
     hessian_ndt, info = hfun(results)
     var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
     return results, var
 
 
-def mcmc(X, Y, nwalkers=None, steps=1000, ini=None, bounds=None, use_pool=False):
+def mcmc(
+    X,
+    Y,
+    eX=None,
+    eY=None,
+    eXY=None,
+    conv=True,
+    nwalkers=None,
+    steps=1000,
+    ini=None,
+    bounds=None,
+    use_pool=False,
+):
     """
     MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
 
@@ -766,6 +863,18 @@ def mcmc(X, Y, nwalkers=None, steps=1000, ini=None, bounds=None, use_pool=False)
         Data in x-direction.
     Y : array_like
         Data in y-direction.
+    eX : array_like, optional
+        Data uncertainty in x-direction.
+        The default is None
+    eY : array_like, optional
+        Data uncertainty in y-direction.
+        The default is None
+    eXY : array_like, optional
+        Correlation of data uncertainty in x and y-direction.
+        The default is None
+    conv : boolean, optional
+        True, if the user wants to convolve the galactic object PDF with
+        Gaussian errors. The defualt is True.
     nwalkers : int, optional
         Number of Markov chains. The default is None.
     steps : int, optional
@@ -821,17 +930,35 @@ def mcmc(X, Y, nwalkers=None, steps=1000, ini=None, bounds=None, use_pool=False)
 
     pos = [ini + bounds * np.random.randn(ndim) for i in range(nwalkers)]
 
+    if conv is False:
+        eX = np.zeros(len(X))
+        eY = np.zeros(len(X))
+        eXY = np.zeros(len(X))
+    else:
+        if eX is None:
+            eX = np.zeros(len(X))
+
+        if eY is None:
+            eY = np.zeros(len(X))
+
+        if eXY is None:
+            eXY = np.zeros(len(X))
+
     if use_pool:
 
         with Pool() as pool:
             sampler = emcee.EnsembleSampler(
-                nwalkers, ndim, likelihood_prob, args=(X, Y, ini, bounds), pool=pool
+                nwalkers,
+                ndim,
+                likelihood_prob,
+                args=(X, Y, eX, eY, eXY, ini, bounds),
+                pool=pool,
             )
             sampler.run_mcmc(pos, steps)
     else:
 
         sampler = emcee.EnsembleSampler(
-            nwalkers, ndim, likelihood_prob, args=(X, Y, ini, bounds)
+            nwalkers, ndim, likelihood_prob, args=(X, Y, eX, eY, eXY, ini, bounds)
         )
         sampler.run_mcmc(pos, steps)
 
