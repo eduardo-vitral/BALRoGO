@@ -24,23 +24,21 @@ If something does not work, please [file an issue](https://gitlab.com/eduardo-vi
 
 ## Attribution
 
-Please cite [us](https://arxiv.org/abs/2102.04841) if you find this code useful in your research and add your paper to the testimonials list. The BibTeX entry for the paper is:
+Please cite [us](https://academic.oup.com/mnras/article-abstract/504/1/1355/6237524?redirectedFrom=fulltext) if you find this code useful in your research and add your paper to the testimonials list. The BibTeX entry for the paper is:
 
 ```bibtex
-@ARTICLE{Vitral2021,
-       author = {{Vitral}, Eduardo},
-        title = "{BALRoGO: Bayesian Astrometric Likelihood Recovery of Galactic Objects -- Global properties of over one hundred globular clusters with Gaia EDR3}",
-      journal = {arXiv e-prints},
-     keywords = {Astrophysics - Astrophysics of Galaxies, Astrophysics - Instrumentation and Methods for Astrophysics},
-         year = 2021,
-        month = feb,
-          eid = {arXiv:2102.04841},
-        pages = {arXiv:2102.04841},
-archivePrefix = {arXiv},
-       eprint = {2102.04841},
- primaryClass = {astro-ph.GA},
-       adsurl = {https://ui.adsabs.harvard.edu/abs/2021arXiv210204841V},
-      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+@ARTICLE{Vitral21,
+   author = {{Vitral}, Eduardo},
+    title = "BALRoGO: Bayesian Astrometric Likelihood Recovery of Galactic Objects - Global properties of over one hundred globular clusters with Gaia EDR3",
+  journal = {\mnras},
+     year = 2021,
+    month = jun,
+   volume = {504},
+   number = {1},
+    pages = {1355-1369},
+      doi = {10.1093/mnras/stab947},
+   eprint = {2102.04841},
+   adsurl = {https://ui.adsabs.harvard.edu/abs/2021MNRAS.504.1355V},
 }
 ```
 
