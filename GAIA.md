@@ -98,6 +98,7 @@ BALRoGO is usually able to perform its routine over most of *Gaia* sources with 
     - `'sersic'`
     - `'kazantzidis'`
     - `'plummer'`
+    - `'gplummer'`
     - `'test'`, for testing which among Plummer, Kazantzidis and Sersic should be used, based on AICc.
     The default is `'plummer'`.
 - ***prob_method*** : string, optional

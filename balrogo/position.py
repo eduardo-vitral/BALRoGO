@@ -21,7 +21,8 @@ from . import angle
 import numpy as np
 from skimage.feature import peak_local_max
 from scipy.optimize import differential_evolution
-from scipy.special import gamma, gammainc, kn
+from scipy.special import gamma, gammainc, kn, hyp2f1
+
 import numdifftools as ndt
 import emcee
 from multiprocessing import Pool
@@ -754,6 +755,198 @@ def lnprob_s(params, Ri, guess, bounds):
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
+"gPlummer profile functions"
+# ---------------------------------------------------------------------------
+
+###############################################################################
+#
+# Functions concerning the general Plummer profile
+# (see http://www2.iap.fr/users/gam/mkmocks.pdf).
+#
+###############################################################################
+
+
+def sd_gplummer(gam, X):
+    """
+    gPlummer surface density, normalized according to the convention:
+
+    SD(X = R/a) = SD_real(R) * pi * a^2 / N_infinty
+
+    Parameters
+    ----------
+    gam : array_like, float
+        Inner slope.
+    X : array_like (same shape as gam), float
+        Projected radius X = R/a.
+
+    Returns
+    -------
+    SD : array_like (same shape as gam), float
+        Normalized surface density profile.
+
+    """
+
+    term1 = (
+        -(1 + X * X)
+        * (-3 + X * X + gam)
+        * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
+    )
+    term2 = (-17 + X ** 4 - X * X * (gam - 8) - gam * (gam - 9)) * hyp2f1(
+        1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
+    )
+    term3 = (gam - 3 - X * X) * (term1 + term2)
+
+    num = -(gam - 3) * (X * X * (gam - 4) * (gam - 2) + term3)
+    den = 2 * X ** 4 * (1 + X * X) * (gam - 4) * (gam - 2)
+
+    sd = num / den
+
+    return sd
+
+
+def n_gplummer(gam, X):
+    """
+    gPlummer projected number, normalized according to the convention:
+
+    N(X = R/a) = N(R) / N_infinty
+
+    Parameters
+    ----------
+    gam : array_like, float
+        Inner slope.
+    X : array_like (same shape as gam), float
+        Projected radius X = R/a.
+
+    Returns
+    -------
+    N : array_like (same shape as gam), float
+        gPlummer projected number.
+
+    """
+
+    term1 = 1 / (X * X * (gam - 4) * (gam - 2))
+    term2 = (
+        (1 + X * X) * (X * X + gam - 3) * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
+    )
+    term3 = (17 - X ** 4 + X * X * (gam - 8) + gam * (gam - 9)) * hyp2f1(
+        1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
+    )
+
+    N = 1 + term1 * (term2 + term3) * (3 - gam)
+
+    return N
+
+
+def likelihood_gplummer(params, Ri):
+    """
+    Likelihood function of the gPlummer profile plus a constant contribution
+    from fore/background tracers.
+
+    Parameters
+    ----------
+    Parameters to be fitted: gPlummer inner slope, gPlummer characteristic radius a and
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    Ri : array_like
+        Array containing the ensemble of projected radii.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+    """
+
+    gam = params[0]
+    a = 10 ** params[1]
+    if params[2] < -10:
+        norm = 0
+    else:
+        norm = 10 ** params[2]
+
+    Xmax = np.amax(Ri) / a
+    Xmin = np.amin(Ri) / a
+    X = Ri / a
+
+    N_sys_tot = n_gplummer(gam, Xmax) - n_gplummer(gam, Xmin)
+
+    SD = sd_gplummer(gam, X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+
+    Ntot = N_sys_tot * (1 + norm)
+
+    fi = 2 * (X / a) * SD / Ntot
+
+    idx_valid = np.logical_not(np.isnan(np.log(fi)))
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
+    return L
+
+
+def lnprior_gp(params, guess, bounds):
+    """
+    Prior assumptions on the parameters.
+
+    Parameters
+    ----------
+    Parameters to be fitted: gPlummer inner slope, gPlummer characteristic radius a and
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    guess : array_like
+        Array containing the initial guess of the parameters.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+
+
+    Returns
+    -------
+    log-prior probability : float
+        0, if the parameters are within the prior range,
+        - Infinity otherwise.
+
+    """
+
+    if (
+        (guess[0] - bounds[0] <= params[0] <= guess[0] + bounds[0])
+        and (guess[1] - bounds[1] <= params[1] <= guess[1] + bounds[1])
+        and (guess[2] - bounds[2] <= params[2] <= guess[2] + bounds[2])
+    ):
+        return 0.0
+    return -np.inf
+
+
+def lnprob_gp(params, Ri, guess, bounds):
+    """
+    log-probability of fit parameters.
+
+    Parameters
+    ----------
+    Parameters to be fitted: gPlummer inner slope, gPlummer characteristic radius a and
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    Ri : array_like
+        Array containing the ensemble of projected radii.
+    guess : array_like
+        Array containing the initial guess of the parameters.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+
+
+    Returns
+    -------
+    log-prior probability : float
+        log-probability of fit parameters.
+
+    """
+
+    lp = lnprior_s(params, guess, bounds)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp - likelihood_sersic(params, Ri)
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
 "Kazantzidis profile functions"
 # ---------------------------------------------------------------------------
 
@@ -1377,6 +1570,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
              - 'sersic'
              - 'kazantzidis'
              - 'plummer'
+             - 'gplummer'
         The default is 'plummer'.
     x0 : float, optional
         Peak of data in x-direction. The default is None.
@@ -1393,6 +1587,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
             - 'sersic'
             - 'kazantzidis'
             - 'plummer'
+            - 'gplummer'
         No data is provided.
 
     Returns
@@ -1404,7 +1599,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
 
     """
 
-    if model not in ["sersic", "plummer", "kazantzidis"]:
+    if model not in ["sersic", "plummer", "kazantzidis", "gplummer"]:
         raise ValueError("Does not recognize surface density model.")
 
     if (x is None and y is None) or (x is None):
@@ -1429,6 +1624,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
     norm = np.log10(norm)
     if hybrid is False:
         norm = -50
+
     if model == "sersic":
         bounds = [(0.5, 10), (hmr - 2, hmr + 2), (norm - 2, norm + 2)]
         mle_model = differential_evolution(lambda c: likelihood_sersic(c, ri), bounds)
@@ -1449,7 +1645,21 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
         results = mle_model.x
         hfun = ndt.Hessian(lambda c: likelihood_plummer(c, ri), full_output=True)
 
+    elif model == "gplummer":
+        bounds = [(0, 2), (hmr - 2, hmr + 2), (norm - 2, norm + 2)]
+        mle_model = differential_evolution(lambda c: likelihood_gplummer(c, ri), bounds)
+        results = mle_model.x
+        hfun = ndt.Hessian(lambda c: likelihood_gplummer(c, ri), full_output=True)
+
     hessian_ndt, info = hfun(results)
+    if hybrid is False:
+        dim = np.shape(hessian_ndt)[0] - 1
+        new_hessian = np.zeros((dim, dim))
+        for i in range(0, dim):
+            for j in range(0, dim):
+                new_hessian[i, j] = hessian_ndt[i, j]
+        hessian_ndt = new_hessian
+
     var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
     return results, var
@@ -1486,6 +1696,7 @@ def mcmc(
              - 'sersic'
              - 'kazantzidis'
              - 'plummer'
+             - 'gplummer'
         The default is 'plummer'.
     nwalkers : int, optional
         Number of Markov chains. The default is None.
@@ -1520,6 +1731,7 @@ def mcmc(
             - 'sersic'
             - 'kazantzidis'
             - 'plummer'
+            - 'gplummer'
         No data is provided.
 
     Returns
@@ -1529,7 +1741,7 @@ def mcmc(
 
     """
 
-    if model not in ["sersic", "plummer", "kazantzidis"]:
+    if model not in ["sersic", "plummer", "kazantzidis", "gplummer"]:
         raise ValueError("Does not recognize surface density model.")
 
     if (x is None and y is None) or (x is None):
@@ -1554,6 +1766,8 @@ def mcmc(
             ini, var = maximum_likelihood(x=x, y=y, x0=x0, y0=y0, model=model)
             if model == "sersic":
                 ini = np.asarray([2, ini[0], ini[1]])
+            if model == "gplummer":
+                ini = np.asarray([1, ini[0], ini[1]])
 
     ndim = len(ini)  # number of dimensions.
     if nwalkers is None or nwalkers < 2 * ndim:
@@ -1563,7 +1777,7 @@ def mcmc(
         bounds = 3 * var
 
     if hybrid is False:
-        if model == "sersic":
+        if model == "sersic" or model == "gplummer":
             ini[2] = -50
         else:
             ini[1] = -50
@@ -1578,6 +1792,9 @@ def mcmc(
 
     elif model == "plummer":
         func = lnprob_p
+
+    elif model == "gplummer":
+        func = lnprob_gp
 
     if use_pool:
 
