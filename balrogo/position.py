@@ -752,6 +752,7 @@ def lnprob_s(params, Ri, guess, bounds):
         return -np.inf
     return lp - likelihood_sersic(params, Ri)
 
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
 "gPlummer profile functions"
@@ -759,9 +760,11 @@ def lnprob_s(params, Ri, guess, bounds):
 
 ###############################################################################
 #
-# Functions concerning the general Plummer profile (see http://www2.iap.fr/users/gam/mkmocks.pdf).
+# Functions concerning the general Plummer profile
+# (see http://www2.iap.fr/users/gam/mkmocks.pdf).
 #
 ###############################################################################
+
 
 def sd_gplummer(gam, X):
     """
@@ -782,16 +785,22 @@ def sd_gplummer(gam, X):
         Normalized surface density profile.
 
     """
-    
-    term1 = -(1+X*X)*(-3+X*X+gam)*hyp2f1(1,(5-gam)/2,-1/2,-1/(X*X))
-    term2 = (-17 + X**4 - X*X*(gam-8) - gam*(gam-9))*hyp2f1(1,(5-gam)/2,1/2,-1/(X*X))
-    term3 = (gam-3-X*X)*(term1+term2)
-    
-    num = -(gam-3)*(X*X*(gam-4)*(gam-2) + term3)
-    den = 2 * X**4 * (1+X*X)*(gam-4)*(gam-2)
-    
-    sd = num/den
-    
+
+    term1 = (
+        -(1 + X * X)
+        * (-3 + X * X + gam)
+        * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
+    )
+    term2 = (-17 + X ** 4 - X * X * (gam - 8) - gam * (gam - 9)) * hyp2f1(
+        1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
+    )
+    term3 = (gam - 3 - X * X) * (term1 + term2)
+
+    num = -(gam - 3) * (X * X * (gam - 4) * (gam - 2) + term3)
+    den = 2 * X ** 4 * (1 + X * X) * (gam - 4) * (gam - 2)
+
+    sd = num / den
+
     return sd
 
 
@@ -814,13 +823,17 @@ def n_gplummer(gam, X):
         gPlummer projected number.
 
     """
-    
-    term1 = 1 / (X*X*(gam-4)*(gam-2))
-    term2 = (1+X*X)*(X*X+gam-3)*hyp2f1(1,(5-gam)/2,-1/2,-1/(X*X))
-    term3 = (17 - X**4 + X*X*(gam-8) + gam*(gam-9))*hyp2f1(1,(5-gam)/2,1/2,-1/(X*X))
-    
-    N = 1 + term1 * (term2 + term3) * (3-gam)
-    
+
+    term1 = 1 / (X * X * (gam - 4) * (gam - 2))
+    term2 = (
+        (1 + X * X) * (X * X + gam - 3) * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
+    )
+    term3 = (17 - X ** 4 + X * X * (gam - 8) + gam * (gam - 9)) * hyp2f1(
+        1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
+    )
+
+    N = 1 + term1 * (term2 + term3) * (3 - gam)
+
     return N
 
 
@@ -1611,7 +1624,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
     norm = np.log10(norm)
     if hybrid is False:
         norm = -50
-        
+
     if model == "sersic":
         bounds = [(0.5, 10), (hmr - 2, hmr + 2), (norm - 2, norm + 2)]
         mle_model = differential_evolution(lambda c: likelihood_sersic(c, ri), bounds)
@@ -1631,9 +1644,9 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
         mle_model = differential_evolution(lambda c: likelihood_plummer(c, ri), bounds)
         results = mle_model.x
         hfun = ndt.Hessian(lambda c: likelihood_plummer(c, ri), full_output=True)
-        
+
     elif model == "gplummer":
-        bounds = [(0,2), (hmr - 2, hmr + 2), (norm - 2, norm + 2)]
+        bounds = [(0, 2), (hmr - 2, hmr + 2), (norm - 2, norm + 2)]
         mle_model = differential_evolution(lambda c: likelihood_gplummer(c, ri), bounds)
         results = mle_model.x
         hfun = ndt.Hessian(lambda c: likelihood_gplummer(c, ri), full_output=True)
@@ -1641,12 +1654,12 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
     hessian_ndt, info = hfun(results)
     if hybrid is False:
         dim = np.shape(hessian_ndt)[0] - 1
-        new_hessian = np.zeros((dim,dim))
-        for i in range(0,dim):
-            for j in range(0,dim):
-                new_hessian[i,j] = hessian_ndt[i,j]
+        new_hessian = np.zeros((dim, dim))
+        for i in range(0, dim):
+            for j in range(0, dim):
+                new_hessian[i, j] = hessian_ndt[i, j]
         hessian_ndt = new_hessian
-        
+
     var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
     return results, var
@@ -1728,7 +1741,7 @@ def mcmc(
 
     """
 
-    if model not in ["sersic", "plummer", "kazantzidis","gplummer"]:
+    if model not in ["sersic", "plummer", "kazantzidis", "gplummer"]:
         raise ValueError("Does not recognize surface density model.")
 
     if (x is None and y is None) or (x is None):
@@ -1779,7 +1792,7 @@ def mcmc(
 
     elif model == "plummer":
         func = lnprob_p
-        
+
     elif model == "gplummer":
         func = lnprob_gp
 
