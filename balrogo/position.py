@@ -78,7 +78,7 @@ def gauss_sig(x_axis, gauss, peak):
     return sigma
 
 
-def find_center(x, y, method="mle", ra0=None, dec0=None):
+def find_center(x, y, method="mle", ra0=None, dec0=None, hybrid=True):
     """
     Fit a center (peak) of the [x,y] data.
 
@@ -98,7 +98,9 @@ def find_center(x, y, method="mle", ra0=None, dec0=None):
         RA center of the original data set downloaded.
     dec0 : float, optional
         Dec center of the original data set downloaded.
-
+    hydrid :  boolean, optional
+        "True", if the user whises to consider field stars in the fit.
+        The default is True.
 
     Raises
     ------
@@ -129,9 +131,9 @@ def find_center(x, y, method="mle", ra0=None, dec0=None):
     if method == "iterative":
         center, unc = center_iterative(x, y)
     elif method == "mle":
-        center, unc = center_mle(x, y)
+        center, unc = center_mle(x, y, hybrid=hybrid)
     elif method == "mle_robust":
-        center, unc = center_mle_rob(x, y, ra0=ra0, dec0=dec0)
+        center, unc = center_mle_rob(x, y, ra0=ra0, dec0=dec0, hybrid=hybrid)
 
     return center, unc
 
@@ -221,7 +223,7 @@ def center_iterative(x, y):
     return center, unc
 
 
-def center_mle(x, y):
+def center_mle(x, y, hybrid=True):
     """
     Fit a center (peak) of the [x,y] data through a simple mle approach.
 
@@ -231,6 +233,9 @@ def center_mle(x, y):
         Data in x-direction
     y : array_like
         Data in y-direction
+    hydrid :  boolean, optional
+        "True", if the user whises to consider field stars in the fit.
+        The default is True.
 
     Returns
     -------
@@ -243,6 +248,11 @@ def center_mle(x, y):
 
     cmx, cmy = quantile(x, 0.5), quantile(y, 0.5)
     hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
+
+    hmr = np.log10(hmr)
+    norm = np.log10(norm)
+    if hybrid is False:
+        norm = -50
 
     bounds = [
         (hmr - 2, hmr + 2),
@@ -258,15 +268,24 @@ def center_mle(x, y):
     hfun = ndt.Hessian(lambda c: likelihood_plummer_freec(c, x, y), full_output=True)
 
     hessian_ndt, info = hfun(results)
-    var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+    if hybrid is False:
+        arg_null = np.argmin(np.abs(np.diag(hessian_ndt)))
+        hessian_ndt = np.delete(hessian_ndt, arg_null, axis=1)
+        hessian_ndt = np.delete(hessian_ndt, arg_null, axis=0)
+        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
-    center = np.asarray([results[2], results[3]])
-    unc = np.asarray([var[2], var[3]])
+        center = np.asarray([results[1], results[2]])
+        unc = np.asarray([var[1], var[2]])
+    else:
+        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+        center = np.asarray([results[2], results[3]])
+        unc = np.asarray([var[2], var[3]])
 
     return center, unc
 
 
-def center_mle_rob(x, y, ra0=None, dec0=None):
+def center_mle_rob(x, y, ra0=None, dec0=None, hybrid=True):
     """
     Fit a center (peak) of the [x,y] data through an mle robust approach.
     It considers the circular section where the data is complete.
@@ -281,6 +300,9 @@ def center_mle_rob(x, y, ra0=None, dec0=None):
         RA center of the original data set downloaded.
     dec0 : float, optional
         Dec center of the original data set downloaded.
+    hydrid :  boolean, optional
+        "True", if the user whises to consider field stars in the fit.
+        The default is True.
 
     Returns
     -------
@@ -299,6 +321,11 @@ def center_mle_rob(x, y, ra0=None, dec0=None):
     cmx, cmy = ra0, dec0
     hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
 
+    hmr = np.log10(hmr)
+    norm = np.log10(norm)
+    if hybrid is False:
+        norm = -50
+
     bounds = [
         (hmr - 2, hmr + 2),
         (norm - 2, norm + 2),
@@ -315,10 +342,20 @@ def center_mle_rob(x, y, ra0=None, dec0=None):
     )
 
     hessian_ndt, info = hfun(results)
-    var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+    if hybrid is False:
+        arg_null = np.argmin(np.abs(np.diag(hessian_ndt)))
+        hessian_ndt = np.delete(hessian_ndt, arg_null, axis=1)
+        hessian_ndt = np.delete(hessian_ndt, arg_null, axis=0)
 
-    center = np.asarray([results[2], results[3]])
-    unc = np.asarray([var[2], var[3]])
+        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+        center = np.asarray([results[1], results[2]])
+        unc = np.asarray([var[1], var[2]])
+    else:
+        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+        center = np.asarray([results[2], results[3]])
+        unc = np.asarray([var[2], var[3]])
 
     return center, unc
 
@@ -1653,12 +1690,9 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
 
     hessian_ndt, info = hfun(results)
     if hybrid is False:
-        dim = np.shape(hessian_ndt)[0] - 1
-        new_hessian = np.zeros((dim, dim))
-        for i in range(0, dim):
-            for j in range(0, dim):
-                new_hessian[i, j] = hessian_ndt[i, j]
-        hessian_ndt = new_hessian
+        arg_null = np.argmin(np.abs(np.diag(hessian_ndt)))
+        hessian_ndt = np.delete(hessian_ndt, arg_null, axis=1)
+        hessian_ndt = np.delete(hessian_ndt, arg_null, axis=0)
 
     var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
