@@ -302,7 +302,7 @@ def global_pdf(
     return pdf_go + pdf_mw
 
 
-def likelihood_function(params, Ux, Uy, ex, ey, exy):
+def likelihood_function(params, Ux, Uy, ex, ey, exy, values=None):
     """
     Computes minus the likelihood of the PM model from Vitral (2021).
 
@@ -320,6 +320,10 @@ def likelihood_function(params, Ux, Uy, ex, ey, exy):
         Data uncertainty in y-direction.
     exy : array_like
         Correlation of data uncertainty in x and y-direction.
+    values : array_like, optional
+        Array containing some of the parameters already fitted. If not fitted,
+        they are filled with np.nan.
+        The default is None.
 
     Returns
     -------
@@ -327,6 +331,14 @@ def likelihood_function(params, Ux, Uy, ex, ey, exy):
         minus the logarithm of the likelihood function.
 
     """
+
+    if values is None:
+        values = np.zeros(10)
+        values[:] = np.nan
+
+    for i in range(len(values)):
+        if np.logical_not(np.isnan(values[i])):
+            params[i] = values[i]
 
     mu_pmx_go = params[0]  # mean pmra from galactic object
     mu_pmy_go = params[1]  # mean pmdec from galactic object
@@ -370,7 +382,7 @@ def likelihood_function(params, Ux, Uy, ex, ey, exy):
     return L
 
 
-def likelihood_gauss2d(params, Ux, Uy, ex, ey, exy):
+def likelihood_gauss2d(params, Ux, Uy, ex, ey, exy, values=None):
     """
     Computes minus the likelihood of a 2D Gaussian.
 
@@ -388,6 +400,10 @@ def likelihood_gauss2d(params, Ux, Uy, ex, ey, exy):
         Data uncertainty in y-direction.
     exy : array_like
         Correlation of data uncertainty in x and y-direction.
+    values : array_like, optional
+        Array containing some of the parameters already fitted. If not fitted,
+        they are filled with np.nan.
+        The default is None.
 
     Returns
     -------
@@ -395,6 +411,14 @@ def likelihood_gauss2d(params, Ux, Uy, ex, ey, exy):
         minus the logarithm of the likelihood function.
 
     """
+
+    if values is None:
+        values = np.zeros(10)
+        values[:] = np.nan
+
+    for i in range(len(values)):
+        if np.logical_not(np.isnan(values[i])):
+            params[i] = values[i]
 
     mu_pmx_go = params[0]  # mean pmra from galactic object
     mu_pmy_go = params[1]  # mean pmdec from galactic object
@@ -891,7 +915,15 @@ def initial_guess(x_data, y_data):
 
 
 def maximum_likelihood(
-    X, Y, eX=None, eY=None, eXY=None, min_method="dif", conv=True, hybrid=True
+    X,
+    Y,
+    eX=None,
+    eY=None,
+    eXY=None,
+    min_method="dif",
+    conv=True,
+    hybrid=True,
+    values=None,
 ):
     """
     Calls a maximum likelihood fit of the proper motion paramters of
@@ -921,6 +953,10 @@ def maximum_likelihood(
     hybrid : boolean, optional
         True, if the data contain interlopers.
         The default is True.
+    values : array_like, optional
+        Array containing some of the parameters already fitted. If not fitted,
+        they are filled with np.nan.
+        The default is None.
 
 
     Returns
@@ -933,6 +969,10 @@ def maximum_likelihood(
     """
 
     if hybrid is True:
+        if values is None:
+            values = np.zeros(10)
+            values[:] = np.nan
+
         # Gets the initial guess of the parameters
         ini = initial_guess(X, Y)
 
@@ -949,6 +989,14 @@ def maximum_likelihood(
             (0.01, 1),
         ]
 
+        for i in range(len(values)):
+            if np.logical_not(np.isnan(values[i])):
+                bounds[i] = (
+                    values[i] - 1e-6 * np.abs(values[i]),
+                    values[i] + 1e-6 * np.abs(values[i]),
+                )
+                ini[i] = values[i]
+
         ranges = [
             [
                 min(ini[0], ini[3]) - 3 * max(ini[2], ini[5]),
@@ -960,6 +1008,10 @@ def maximum_likelihood(
             ],
         ]
     else:
+        if values is None:
+            values = np.zeros(3)
+            values[:] = np.nan
+
         # Gets the initial guess of the parameters
         ini = np.asarray([np.median(X), np.median(Y), 0.5 * (np.std(X) + np.std(Y))])
 
@@ -968,6 +1020,14 @@ def maximum_likelihood(
             (ini[1] - 3 * ini[2], ini[1] + 3 * ini[2]),
             (0.1 * ini[2], 10 * ini[2]),
         ]
+
+        for i in range(len(values)):
+            if np.logical_not(np.isnan(values[i])):
+                bounds[i] = (
+                    values[i] - 1e-6 * np.abs(values[i]),
+                    values[i] + 1e-6 * np.abs(values[i]),
+                )
+                ini[i] = values[i]
 
         ranges = [
             [
@@ -1011,7 +1071,8 @@ def maximum_likelihood(
     if hybrid is True:
         if min_method == "dif":
             mle_model = differential_evolution(
-                lambda c: likelihood_function(c, X, Y, eX, eY, eXY), bounds
+                lambda c: likelihood_function(c, X, Y, eX, eY, eXY, values=values),
+                bounds,
             )
             results = mle_model.x
 
@@ -1032,7 +1093,7 @@ def maximum_likelihood(
                 ]
             )
             mle_model = minimize(
-                lambda c: likelihood_function(c, X, Y, eX, eY, eXY),
+                lambda c: likelihood_function(c, X, Y, eX, eY, eXY, values=values),
                 ini,
                 method=min_method,
                 bounds=bounds,
@@ -1040,20 +1101,34 @@ def maximum_likelihood(
             results = mle_model["x"]
 
         hfun = ndt.Hessian(
-            lambda c: likelihood_function(c, X, Y, eX, eY, eXY), full_output=True
+            lambda c: likelihood_function(c, X, Y, eX, eY, eXY, values=values),
+            full_output=True,
         )
+
         hessian_ndt, info = hfun(results)
+        for i in range(len(values) - 1, -1, -1):
+            if np.logical_not(np.isnan(values[i])):
+                hessian_ndt = np.delete(hessian_ndt, i, axis=1)
+                hessian_ndt = np.delete(hessian_ndt, i, axis=0)
+                results[i] = values[i]
         var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
     else:
         mle_model = differential_evolution(
-            lambda c: likelihood_gauss2d(c, X, Y, eX, eY, eXY), bounds
+            lambda c: likelihood_gauss2d(c, X, Y, eX, eY, eXY, values=values), bounds
         )
         results = mle_model.x
 
         hfun = ndt.Hessian(
-            lambda c: likelihood_gauss2d(c, X, Y, eX, eY, eXY), full_output=True
+            lambda c: likelihood_gauss2d(c, X, Y, eX, eY, eXY, values=values),
+            full_output=True,
         )
         hessian_ndt, info = hfun(results)
+        for i in range(len(values) - 1, -1, -1):
+            if np.logical_not(np.isnan(values[i])):
+                hessian_ndt = np.delete(hessian_ndt, i, axis=1)
+                hessian_ndt = np.delete(hessian_ndt, i, axis=0)
+                results[i] = values[i]
         var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
     return results, var
