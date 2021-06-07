@@ -979,7 +979,7 @@ def maximum_likelihood(
 
         # Gets the initial guess of the parameters
         ini = initial_guess(X, Y)
-        
+
         if bounds is None:
             ranges = [
                 [
@@ -994,15 +994,19 @@ def maximum_likelihood(
         else:
             ranges = [
                 [
-                    min(bounds[0][0], bounds[3][0]) - 3 * max(bounds[2][1], bounds[5][1]),
-                    max(bounds[0][1], bounds[3][1]) + 3 * max(bounds[2][1], bounds[5][1]),
+                    min(bounds[0][0], bounds[3][0])
+                    - 3 * max(bounds[2][1], bounds[5][1]),
+                    max(bounds[0][1], bounds[3][1])
+                    + 3 * max(bounds[2][1], bounds[5][1]),
                 ],
                 [
-                    min(bounds[1][0], bounds[4][0]) - 3 * max(bounds[2][1], bounds[5][1]),
-                    max(bounds[1][1], bounds[4][1]) + 3 * max(bounds[2][1], bounds[5][1]),
+                    min(bounds[1][0], bounds[4][0])
+                    - 3 * max(bounds[2][1], bounds[5][1]),
+                    max(bounds[1][1], bounds[4][1])
+                    + 3 * max(bounds[2][1], bounds[5][1]),
                 ],
             ]
-        
+
         if bounds is None:
             bounds = [
                 (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
@@ -1032,7 +1036,7 @@ def maximum_likelihood(
 
         # Gets the initial guess of the parameters
         ini = np.asarray([np.median(X), np.median(Y), 0.5 * (np.std(X) + np.std(Y))])
-        
+
         if bounds is None:
             ranges = [
                 [
@@ -1047,15 +1051,15 @@ def maximum_likelihood(
         else:
             ranges = [
                 [
-                    bounds[0][0] - 3*bounds[2][1],
-                    bounds[0][1] + 3*bounds[2][1],
+                    bounds[0][0] - 3 * bounds[2][1],
+                    bounds[0][1] + 3 * bounds[2][1],
                 ],
                 [
-                    bounds[1][0] - 3*bounds[2][1],
-                    bounds[1][1] + 3*bounds[2][1],
+                    bounds[1][0] - 3 * bounds[2][1],
+                    bounds[1][1] + 3 * bounds[2][1],
                 ],
-            ] 
-        
+            ]
+
         if bounds is None:
             bounds = [
                 (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
