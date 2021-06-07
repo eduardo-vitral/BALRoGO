@@ -924,6 +924,7 @@ def maximum_likelihood(
     conv=True,
     hybrid=True,
     values=None,
+    bounds=None,
 ):
     """
     Calls a maximum likelihood fit of the proper motion paramters of
@@ -957,6 +958,9 @@ def maximum_likelihood(
         Array containing some of the parameters already fitted. If not fitted,
         they are filled with np.nan.
         The default is None.
+    bounds : array_like, optional
+        Bounds used in the MLE fit.
+        The default is None.
 
 
     Returns
@@ -975,19 +979,43 @@ def maximum_likelihood(
 
         # Gets the initial guess of the parameters
         ini = initial_guess(X, Y)
-
-        bounds = [
-            (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
-            (ini[1] - 3 * ini[2], ini[1] + 3 * ini[2]),
-            (0.1 * ini[2], 10 * ini[2]),
-            (ini[3] - 5 * ini[5], ini[3] + 5 * ini[5]),
-            (ini[4] - 5 * ini[5], ini[4] + 5 * ini[5]),
-            (0.1 * ini[5], 10 * ini[5]),
-            (0.1 * ini[5], 10 * ini[5]),
-            (-np.pi / 2, np.pi / 2),
-            (-20, -3),
-            (0.01, 1),
-        ]
+        
+        if bounds is None:
+            ranges = [
+                [
+                    min(ini[0], ini[3]) - 3 * max(ini[2], ini[5]),
+                    max(ini[0], ini[3]) + 3 * max(ini[2], ini[5]),
+                ],
+                [
+                    min(ini[1], ini[4]) - 3 * max(ini[2], ini[5]),
+                    max(ini[1], ini[4]) + 3 * max(ini[2], ini[5]),
+                ],
+            ]
+        else:
+            ranges = [
+                [
+                    min(bounds[0][0], bounds[3][0]) - 3 * max(bounds[2][1], bounds[5][1]),
+                    max(bounds[0][1], bounds[3][1]) + 3 * max(bounds[2][1], bounds[5][1]),
+                ],
+                [
+                    min(bounds[1][0], bounds[4][0]) - 3 * max(bounds[2][1], bounds[5][1]),
+                    max(bounds[1][1], bounds[4][1]) + 3 * max(bounds[2][1], bounds[5][1]),
+                ],
+            ]
+        
+        if bounds is None:
+            bounds = [
+                (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
+                (ini[1] - 3 * ini[2], ini[1] + 3 * ini[2]),
+                (0.1 * ini[2], 10 * ini[2]),
+                (ini[3] - 5 * ini[5], ini[3] + 5 * ini[5]),
+                (ini[4] - 5 * ini[5], ini[4] + 5 * ini[5]),
+                (0.1 * ini[5], 10 * ini[5]),
+                (0.1 * ini[5], 10 * ini[5]),
+                (-np.pi / 2, np.pi / 2),
+                (-20, -3),
+                (0.01, 1),
+            ]
 
         for i in range(len(values)):
             if np.logical_not(np.isnan(values[i])):
@@ -997,16 +1025,6 @@ def maximum_likelihood(
                 )
                 ini[i] = values[i]
 
-        ranges = [
-            [
-                min(ini[0], ini[3]) - 3 * max(ini[2], ini[5]),
-                max(ini[0], ini[3]) + 3 * max(ini[2], ini[5]),
-            ],
-            [
-                min(ini[1], ini[4]) - 3 * max(ini[2], ini[5]),
-                max(ini[1], ini[4]) + 3 * max(ini[2], ini[5]),
-            ],
-        ]
     else:
         if values is None:
             values = np.zeros(3)
@@ -1014,12 +1032,36 @@ def maximum_likelihood(
 
         # Gets the initial guess of the parameters
         ini = np.asarray([np.median(X), np.median(Y), 0.5 * (np.std(X) + np.std(Y))])
-
-        bounds = [
-            (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
-            (ini[1] - 3 * ini[2], ini[1] + 3 * ini[2]),
-            (0.1 * ini[2], 10 * ini[2]),
-        ]
+        
+        if bounds is None:
+            ranges = [
+                [
+                    ini[0] - 3 * ini[2],
+                    ini[0] + 3 * ini[2],
+                ],
+                [
+                    ini[1] - 3 * ini[2],
+                    ini[1] + 3 * ini[2],
+                ],
+            ]
+        else:
+            ranges = [
+                [
+                    bounds[0][0] - 3*bounds[2][1],
+                    bounds[0][1] + 3*bounds[2][1],
+                ],
+                [
+                    bounds[1][0] - 3*bounds[2][1],
+                    bounds[1][1] + 3*bounds[2][1],
+                ],
+            ] 
+        
+        if bounds is None:
+            bounds = [
+                (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
+                (ini[1] - 3 * ini[2], ini[1] + 3 * ini[2]),
+                (0.1 * ini[2], 10 * ini[2]),
+            ]
 
         for i in range(len(values)):
             if np.logical_not(np.isnan(values[i])):
@@ -1028,17 +1070,6 @@ def maximum_likelihood(
                     values[i] + 1e-6 * np.abs(values[i]),
                 )
                 ini[i] = values[i]
-
-        ranges = [
-            [
-                ini[0] - 3 * ini[2],
-                ini[0] + 3 * ini[2],
-            ],
-            [
-                ini[1] - 3 * ini[2],
-                ini[1] + 3 * ini[2],
-            ],
-        ]
 
     idx_x = np.intersect1d(np.where(X < ranges[0][1]), np.where(X > ranges[0][0]))
     idx_y = np.intersect1d(np.where(Y < ranges[1][1]), np.where(Y > ranges[1][0]))
