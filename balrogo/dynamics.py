@@ -672,6 +672,76 @@ def perc_bins(x, y, ey, dimy, bootp=True, logx=True, nnodes=5):
     return r, disp, err
 
 
+def closest_points(x, y, ey, dimy, bootp=True, logx=True, nbin=5):
+    """
+    Calculates the dispersion in a grid of the closest nbin tracers.
+
+    Parameters
+    ----------
+    x : array_like
+        Reference array.
+    y : array_like
+        Quantity from which the dispersion is calculated.
+    ey : array_like
+        Uncertainty on the quantity from which the dispersion is calculated.
+    dimy : int
+        Dimension of y.
+    bootp : boolean, optional
+        True if the errors are drawn from a Bootstrap method.
+        The default is True.
+    logx : boolean, optional
+        True if the dispersion is evaluated in a logarithm-spaced grid of x.
+        The default is False.
+    nbin : int, optional
+        Number of closest points. The default is 5.
+
+    Returns
+    -------
+    r : array_like
+        Binned version of x.
+    disp : array_like
+        Dispersion.
+    err : array_like
+        Uncertainty on the dispersion.
+
+    """
+
+    size = len(x)
+    disp = np.zeros((dimy, size))
+    err = np.zeros((dimy, size))
+    r = np.zeros(size)
+
+    for i in range(0, size):
+
+        dist_r = np.abs(x[i] - x)
+        idxr = (np.argpartition(dist_r, nbin)[:nbin]).astype(int)
+
+        if len(idxr) > 30:
+            dof = 0
+        else:
+            dof = 1
+
+        r[i] = x[i]
+
+        for j in range(0, dimy):
+
+            disp[j, i] = np.sqrt(
+                np.nanstd(y[j][idxr], ddof=dof) ** 2 - np.nanmean(ey[j][idxr] ** 2)
+            )
+
+            if bootp is True:
+                err[j, i] = bootstrap(y[j][idxr])
+            else:
+                err[j, i] = disp[j, i] / np.sqrt(
+                    2 * (len(y[j][idxr][np.logical_not(np.isnan(y[j][idxr]))]) - 1)
+                )
+
+    disp = np.sqrt(np.sum(disp * disp, axis=0)) / np.sqrt(dimy)
+    err = np.sqrt(np.sum(err * err, axis=0)) / np.sqrt(dimy)
+
+    return r, disp, err
+
+
 def disp1d(
     x,
     y,
@@ -734,9 +804,7 @@ def disp1d(
     """
 
     if isinstance(bins, int) is True:
-
         r, disp, err = bin_disp1d(x, y, ey, dimy, bins=bins, bootp=bootp, logx=logx)
-        return r, disp, err
 
     if bins == "moving":
         if nbin is None:
@@ -763,6 +831,14 @@ def disp1d(
             nnodes = nbin
         r, disp, err = perc_bins(x, y, ey, dimy, bootp=bootp, logx=logx, nnodes=nnodes)
 
+    if bins == "closest":
+        if nbin is None:
+            bins = int(position.good_bin(x))
+            nbin = int(len(x) / bins)
+        else:
+            nbin = nbin
+        r, disp, err = closest_points(x, y, ey, dimy, bootp=bootp, logx=logx, nbin=nbin)
+
     nonan1 = np.logical_not(np.isnan(disp))
     nonan2 = np.logical_not(np.isnan(err))
     nonan = nonan1 * nonan2
@@ -771,11 +847,12 @@ def disp1d(
     rmax = np.nanmax(r)
     idxrange = np.intersect1d(np.where(x > rmin), np.where(x < rmax))
 
-    disp = PchipInterpolator(r[nonan], disp[nonan])(x[idxrange])
-    err = PchipInterpolator(r[nonan], err[nonan])(x[idxrange])
-    r = x[idxrange]
-
     if smooth is True:
+
+        disp = PchipInterpolator(r[nonan], disp[nonan])(x[idxrange])
+        err = PchipInterpolator(r[nonan], err[nonan])(x[idxrange])
+        r = x[idxrange]
+
         if polorder is None:
             pold = int(0.2 * position.good_bin(disp))
             pole = int(0.2 * position.good_bin(err))
@@ -990,7 +1067,7 @@ def disp2d(
 def dispersion(
     x,
     y,
-    ey,
+    ey=None,
     bins=None,
     smooth=True,
     bootp=False,
@@ -1012,8 +1089,9 @@ def dispersion(
         Reference array.
     y : array_like
         Quantity from which the dispersion is calculated.
-    ey : array_like
+    ey : array_like, optional
         Uncertainty on the quantity from which the dispersion is calculated.
+        Default is None.
     bins : int, string, optional
         Number of bins or method used to bin the data.
         "moving" stands for a moving grid, later interpolated with a
@@ -1074,11 +1152,17 @@ def dispersion(
 
     if len(np.shape(y)) == 1:
         dimy = 1
+        if ey is None:
+            ey = np.asarray([np.zeros(len(y))])
+        else:
+            ey = np.asarray([ey])
         y = np.asarray([y])
-        ey = np.asarray([ey])
     else:
         y = np.asarray(y)
-        ey = np.asarray(ey)
+        if ey is None:
+            ey = np.zeros(np.shape(y))
+        else:
+            ey = np.asarray(ey)
         dimy = np.shape(y)[0]
 
     if dimx == 1:
@@ -1266,7 +1350,7 @@ def plot_disp1D(
 
     pmr, pmt = v_sky_to_polar(ra, dec, pmra, pmdec, ra0, dec0, pmra0, pmdec0)
     rproj = angle.sky_distance_deg(ra, dec, ra0, dec0)
-    pmr = pmr + pmr_corr(vlos0, rproj, d0)
+    pmr = pmr - pmr_corr(vlos0, rproj, d0)
 
     uncpmr, uncpmt = unc_sky_to_polar(
         ra, dec, epmra, epmdec, corrpm, ra0, dec0, epmra0, epmdec0
@@ -1428,7 +1512,7 @@ def plot_disp2D(
 
     pmr, pmt = v_sky_to_polar(ra, dec, pmra, pmdec, ra0, dec0, pmra0, pmdec0)
     rproj = angle.sky_distance_deg(ra, dec, ra0, dec0)
-    pmr = pmr + pmr_corr(vlos0, rproj, d0)
+    pmr = pmr - pmr_corr(vlos0, rproj, d0)
 
     uncpmr, uncpmt = unc_sky_to_polar(
         ra, dec, epmra, epmdec, corrpm, ra0, dec0, epmra0, epmdec0

@@ -570,3 +570,113 @@ def get_ellipse(a, b, theta, nbins):
         ellipse_rot[:, i] = np.dot(m_rot, ellipse[:, i])
 
     return ellipse_rot
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ------------------------------------------------------------------------------
+"Transform coordinates"
+# ------------------------------------------------------------------------------
+
+
+def cart_to_sph(x, y, z, vx, vy, vz):
+    """
+    Transforms 6D cartesian coordinates to spherical coordinates.
+
+    Parameters
+    ----------
+    x : array_like
+        x-axis.
+    y : array_like
+        y-axis.
+    z : array_like
+        z-axis.
+    vx : array_like
+        x-axis velocity.
+    vy : array_like
+        y-axis velocity.
+    vz : array_like
+        z-axis velocity.
+
+    Returns
+    -------
+    r : array_like
+        r-axis.
+    phi : array_like
+        phi-angle.
+    theta : array_like
+        theta-angle.
+    vr : array_like
+        r-axis velocity.
+    vphi : array_like
+        phi-angle velocity.
+    vtheta : array_like
+        theta-angle velocity.
+
+    """
+
+    r = np.sqrt(x * x + y * y + z * z)
+    phi = np.arctan(y / x)
+    theta = np.arccos(z / r)
+
+    vr = (vx * x + vy * y + vz * z) / r
+    vphi = r * (vy * x - vx * y) / (x * x + y * y)
+    vtheta = (vz * (x * x + y * y) - z * (vx * x + vy * y)) / (
+        np.sqrt(x * x + y * y) * r
+    )
+
+    return r, phi, theta, vr, vphi, vtheta
+
+
+def sph_to_cart(r, phi, theta, vr, vphi, vtheta):
+    """
+    Transforms 6D spherical coordinates to cartesian coordinates.
+
+    Parameters
+    ----------
+    r : array_like
+        r-axis.
+    phi : array_like
+        phi-angle.
+    theta : array_like
+        theta-angle.
+    vr : array_like
+        r-axis velocity.
+    vphi : array_like
+        phi-angle velocity.
+    vtheta : array_like
+        theta-angle velocity.
+
+    Returns
+    -------
+    x : array_like
+        x-axis.
+    y : array_like
+        y-axis.
+    z : array_like
+        z-axis.
+    vx : array_like
+        x-axis velocity.
+    vy : array_like
+        y-axis velocity.
+    vz : array_like
+        z-axis velocity.
+
+    """
+
+    x = r * np.sin(theta) * np.cos(phi)
+    y = r * np.sin(theta) * np.sin(phi)
+    z = r * np.cos(theta)
+
+    vx = (
+        vr * np.sin(theta) * np.cos(phi)
+        + vtheta * np.cos(theta) * np.cos(phi)
+        - vphi * np.sin(theta) * np.sin(phi)
+    )
+    vy = (
+        vr * np.sin(theta) * np.sin(phi)
+        + vtheta * np.cos(theta) * np.sin(phi)
+        + vphi * np.sin(theta) * np.cos(phi)
+    )
+    vz = vr * np.cos(theta) - vtheta * np.sin(theta)
+
+    return x, y, z, vx, vy, vz
