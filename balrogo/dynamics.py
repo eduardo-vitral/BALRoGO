@@ -859,12 +859,21 @@ def disp1d(
         else:
             pold = polorder
             pole = polorder
-        poly_disp = np.polyfit(r, disp, pold)
-        poly_err = np.polyfit(r, err, pole)
 
-        disp = np.poly1d(poly_disp)(x[np.where(x < rmax)])
-        err = np.poly1d(poly_err)(x[np.where(x < rmax)])
-        r = x[np.where(x < rmax)]
+        if logx is False:
+            poly_disp = np.polyfit(r, disp, pold)
+            poly_err = np.polyfit(r, err, pole)
+
+            disp = np.poly1d(poly_disp)(x[np.where(x < rmax)])
+            err = np.poly1d(poly_err)(x[np.where(x < rmax)])
+            r = x[np.where(x < rmax)]
+        else:
+            poly_disp = np.polyfit(np.log10(r), disp, pold)
+            poly_err = np.polyfit(np.log10(r), err, pole)
+
+            disp = np.poly1d(poly_disp)(np.log10(x[idxrange]))
+            err = np.poly1d(poly_err)(np.log10(x[idxrange]))
+            r = x[idxrange]
 
         if return_fits is True:
             return r, disp, err, poly_disp, poly_err
