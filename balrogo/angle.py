@@ -774,10 +774,18 @@ def radec_to_lb(a, d, dadt=None, dddt=None):
     sindl = cosb_sindl / cosb
     cosdl = cosb_cosdl / cosb
 
-    if (sindl >= 0 and cosdl > 0) or (sindl < 0 and cosdl >= 0):
-        lon = l_NCP - np.arctan(cosb_sindl / cosb_cosdl)
-    elif (sindl > 0 and cosdl <= 0) or (sindl <= 0 and cosdl < 0):
-        lon = l_NCP - np.arctan(cosb_sindl / cosb_cosdl) + np.pi
+    if np.isscalar(sindl):
+        if (sindl >= 0 and cosdl > 0) or (sindl < 0 and cosdl >= 0):
+            lon = l_NCP - np.arctan(cosb_sindl / cosb_cosdl)
+        elif (sindl > 0 and cosdl <= 0) or (sindl <= 0 and cosdl < 0):
+            lon = l_NCP - np.arctan(cosb_sindl / cosb_cosdl) + np.pi
+    else:
+        lon = np.zeros(len(sindl))
+        for i in range(len(sindl)):
+            if (sindl[i] >= 0 and cosdl[i] > 0) or (sindl[i] < 0 and cosdl[i] >= 0):
+                lon[i] = l_NCP - np.arctan(cosb_sindl[i] / cosb_cosdl[i])
+            elif (sindl[i] > 0 and cosdl[i] <= 0) or (sindl[i] <= 0 and cosdl[i] < 0):
+                lon[i] = l_NCP - np.arctan(cosb_sindl[i] / cosb_cosdl[i]) + np.pi
 
     if np.isscalar(lon):
         lon = lon % (2 * np.pi)
@@ -861,10 +869,18 @@ def lb_to_radec(lon, b, dldt=None, dbdt=None):
     sinda = cosd_sinda / cosd
     cosda = cosd_cosda / cosd
 
-    if (sinda >= 0 and cosda > 0) or (sinda < 0 and cosda >= 0):
-        a = a_NGP + np.arctan(cosd_sinda / cosd_cosda)
-    elif (sinda > 0 and cosda <= 0) or (sinda <= 0 and cosda < 0):
-        a = a_NGP + np.arctan(cosd_sinda / cosd_cosda) + np.pi
+    if np.isscalar(sinda):
+        if (sinda >= 0 and cosda > 0) or (sinda < 0 and cosda >= 0):
+            a = a_NGP + np.arctan(cosd_sinda / cosd_cosda)
+        elif (sinda > 0 and cosda <= 0) or (sinda <= 0 and cosda < 0):
+            a = a_NGP + np.arctan(cosd_sinda / cosd_cosda) + np.pi
+    else:
+        a = np.zeros(len(sinda))
+        for i in range(len(sinda)):
+            if (sinda[i] >= 0 and cosda[i] > 0) or (sinda[i] < 0 and cosda[i] >= 0):
+                a[i] = a_NGP + np.arctan(cosd_sinda[i] / cosd_cosda[i])
+            elif (sinda[i] > 0 and cosda[i] <= 0) or (sinda[i] <= 0 and cosda[i] < 0):
+                a[i] = a_NGP + np.arctan(cosd_sinda[i] / cosd_cosda[i]) + np.pi
 
     if np.isscalar(a):
         a = a % (2 * np.pi)
