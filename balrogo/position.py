@@ -1816,7 +1816,7 @@ def mcmc(
         else:
             ini[1] = -50
 
-    pos = [ini + bounds * np.random.randn(ndim) for i in range(nwalkers)]
+    pos = [ini + 1e-3 * bounds * np.random.randn(ndim) for i in range(nwalkers)]
 
     if model == "sersic":
         func = lnprob_s

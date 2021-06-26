@@ -20,6 +20,47 @@ import numpy as np
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
+"Global variables"
+# ------------------------------------------------------------------------------
+
+# Right ascention of the north galactic pole, in radians
+a_NGP = 192.85947789 * (np.pi / 180)
+# Declination of the north galactic pole, in radians
+d_NGP = 27.12825241 * (np.pi / 180)
+# Longitude of the north celestial pole, in radians
+l_NCP = 122.93192526 * (np.pi / 180)
+
+# Vertical waves in the solar neighbourhood in Gaia DR2
+# Bennett & Bovy, 2019, MNRAS
+# --> Sun Z position (kpc), in galactocentric coordinates
+z_sun = 0.0208
+
+# Sun Y position (kpc), in galactocentric coordinates, by definition.
+y_sun = 0
+
+# A geometric distance measurement to the Galactic center black hole
+# with 0.3% uncertainty
+# Gracity Collaboration, 2019, A&A
+# --> Sun distance from the Galactic center, in kpc.
+d_sun = 8.178
+
+# Sun X position (kpc), in galactocentric coordinates
+x_sun = np.sqrt(d_sun * d_sun - z_sun * z_sun)
+
+# On the Solar Velocity
+# Ronald Drimmel and Eloisa Poggio, 2018, RNAAS
+# --> Sun X velocity (km/s), in galactocentric coordinates
+vx_sun = -12.9
+# --> Sun Y velocity (km/s), in galactocentric coordinates
+vy_sun = 245.6
+# --> Sun Z velocity (km/s), in galactocentric coordinates
+vz_sun = 7.78
+
+# Multuplying factor to pass from kpc to km
+kpc_to_km = 3.086 * 10 ** 16
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ------------------------------------------------------------------------------
 "Angles handling"
 # ------------------------------------------------------------------------------
 
@@ -584,32 +625,32 @@ def cart_to_sph(x, y, z, vx, vy, vz):
 
     Parameters
     ----------
-    x : array_like
+    x : array_like, float
         x-axis.
-    y : array_like
+    y : array_like, float
         y-axis.
-    z : array_like
+    z : array_like, float
         z-axis.
-    vx : array_like
+    vx : array_like, float
         x-axis velocity.
-    vy : array_like
+    vy : array_like, float
         y-axis velocity.
-    vz : array_like
+    vz : array_like, float
         z-axis velocity.
 
     Returns
     -------
-    r : array_like
+    r : array_like, float
         r-axis.
-    phi : array_like
+    phi : array_like, float
         phi-angle.
-    theta : array_like
+    theta : array_like, float
         theta-angle.
-    vr : array_like
+    vr : array_like, float
         r-axis velocity.
-    vphi : array_like
+    vphi : array_like, float
         phi-angle velocity.
-    vtheta : array_like
+    vtheta : array_like, float
         theta-angle velocity.
 
     """
@@ -633,32 +674,32 @@ def sph_to_cart(r, phi, theta, vr, vphi, vtheta):
 
     Parameters
     ----------
-    r : array_like
+    r : array_like, float
         r-axis.
-    phi : array_like
+    phi : array_like, float
         phi-angle.
-    theta : array_like
+    theta : array_like, float
         theta-angle.
-    vr : array_like
+    vr : array_like, float
         r-axis velocity.
-    vphi : array_like
+    vphi : array_like, float
         phi-angle velocity.
-    vtheta : array_like
+    vtheta : array_like, float
         theta-angle velocity.
 
     Returns
     -------
-    x : array_like
+    x : array_like, float
         x-axis.
-    y : array_like
+    y : array_like, float
         y-axis.
-    z : array_like
+    z : array_like, float
         z-axis.
-    vx : array_like
+    vx : array_like, float
         x-axis velocity.
-    vy : array_like
+    vy : array_like, float
         y-axis velocity.
-    vz : array_like
+    vz : array_like, float
         z-axis velocity.
 
     """
@@ -680,3 +721,429 @@ def sph_to_cart(r, phi, theta, vr, vphi, vtheta):
     vz = vr * np.cos(theta) - vtheta * np.sin(theta)
 
     return x, y, z, vx, vy, vz
+
+
+def radec_to_lb(a, d, dadt=None, dddt=None):
+    """
+    Transforms celestial coordinates into galactic coordinates.
+
+    Parameters
+    ----------
+    a : array_like, float
+        Right ascention in degrees.
+    d : array_like, float
+        Declination in degrees.
+    dadt : array_like, float, optional
+        Right ascention velocity (PMRA), in mas/yr.
+        The default is None
+    dddt : array_like, float, optional
+        Declination velocity (PMDec), in mas/yr.
+        The default is None
+
+    Returns
+    -------
+    lon : array_like, float
+        Galactic longitude, in degrees.
+    b : array_like, float
+        Galactic latitude, in degrees.
+    dldt : array_like, float, optional
+        Galactic longitude velocity, in mas/yr
+    dbdt : array_like, float, optional
+        Galactic latitude velocity, in mas/yr. The default is None
+
+    """
+
+    a = a * (np.pi / 180)
+    d = d * (np.pi / 180)
+
+    sind = np.sin(d)
+    cosd = np.cos(d)
+    sind_NGP = np.sin(d_NGP)
+    cosd_NGP = np.cos(d_NGP)
+    cosda = np.cos(a - a_NGP)
+    sinda = np.sin(a - a_NGP)
+
+    sinb = sind_NGP * sind + cosd_NGP * cosd * cosda
+    cosb_sindl = cosd * sinda
+    cosb_cosdl = cosd_NGP * sind - sind_NGP * cosd * cosda
+
+    b = np.arcsin(sinb)
+
+    cosb = np.cos(b)
+
+    sindl = cosb_sindl / cosb
+    cosdl = cosb_cosdl / cosb
+
+    if (sindl >= 0 and cosdl > 0) or (sindl < 0 and cosdl >= 0):
+        lon = l_NCP - np.arctan(cosb_sindl / cosb_cosdl)
+    elif (sindl > 0 and cosdl <= 0) or (sindl <= 0 and cosdl < 0):
+        lon = l_NCP - np.arctan(cosb_sindl / cosb_cosdl) + np.pi
+
+    if np.isscalar(lon):
+        lon = lon % (2 * np.pi)
+    else:
+        for i in range(len(lon)):
+            lon[i] = lon[i] % (2 * np.pi)
+
+    if dadt is not None and dddt is not None:
+        sinb = np.sin(b)
+        cosdl = np.cos(l_NCP - lon)
+
+        dbdt = (
+            sind_NGP * cosd * dddt
+            - cosd_NGP * cosda * sind * dddt
+            - cosd_NGP * sinda * dadt
+        ) / cosb
+
+        dldt = (
+            cosb * (sind * dddt * sinda - cosda * dadt) - cosd * sinda * sinb * dbdt
+        ) / (cosb * cosb * cosdl)
+
+        lon = lon * (180 / np.pi)
+        b = b * (180 / np.pi)
+
+        return lon, b, dldt, dbdt
+
+    else:
+
+        lon = lon * (180 / np.pi)
+        b = b * (180 / np.pi)
+
+        return lon, b
+
+
+def lb_to_radec(lon, b, dldt=None, dbdt=None):
+    """
+    Transforms galactic coordinates into celestial coordinates.
+
+    Parameters
+    ----------
+    lon : array_like, float
+        Galactic longitude, in degrees.
+    b : array_like, float
+        Galactic latitude, in degrees.
+    dldt : array_like, float, optional
+        Galactic longitude velocity, in mas/yr. The default is None
+    dbdt : array_like, float, optional
+        Galactic latitude velocity, in mas/yr. The default is None
+
+    Returns
+    -------
+    a : array_like, float
+        Right ascention in degrees.
+    d : array_like, float
+        Declination in degrees.
+    dadt : array_like, float, optional
+        Right ascention velocity (PMRA), in mas/yr.
+    dddt : array_like, float, optional
+        Declination velocity (PMDec), in mas/yr.
+
+    """
+
+    lon = lon * (np.pi / 180)
+    b = b * (np.pi / 180)
+
+    sind_NGP = np.sin(d_NGP)
+    cosd_NGP = np.cos(d_NGP)
+    sinb = np.sin(b)
+    cosb = np.cos(b)
+    cosdl = np.cos(l_NCP - lon)
+    sindl = np.sin(l_NCP - lon)
+
+    sind = sind_NGP * sinb + cosd_NGP * cosb * cosdl
+    cosd_sinda = cosb * sindl
+    cosd_cosda = cosd_NGP * sinb - sind_NGP * cosb * cosdl
+
+    d = np.arcsin(sind)
+
+    cosd = np.cos(d)
+
+    sinda = cosd_sinda / cosd
+    cosda = cosd_cosda / cosd
+
+    if (sinda >= 0 and cosda > 0) or (sinda < 0 and cosda >= 0):
+        a = a_NGP + np.arctan(cosd_sinda / cosd_cosda)
+    elif (sinda > 0 and cosda <= 0) or (sinda <= 0 and cosda < 0):
+        a = a_NGP + np.arctan(cosd_sinda / cosd_cosda) + np.pi
+
+    if np.isscalar(a):
+        a = a % (2 * np.pi)
+    else:
+        for i in range(len(a)):
+            a[i] = a[i] % (2 * np.pi)
+
+    if dbdt is not None and dldt is not None:
+        sind = np.sin(d)
+        cosda = np.cos(a - a_NGP)
+
+        dddt = (
+            sind_NGP * cosb * dbdt
+            - cosd_NGP * cosdl * sinb * dbdt
+            + cosd_NGP * cosb * sindl * dldt
+        ) / cosd
+
+        dadt = -(
+            cosd * (sinb * dbdt * sindl + cosb * cosdl * dldt)
+            - cosb * sindl * sind * dddt
+        ) / (cosd * cosd * cosda)
+
+        dadt = dadt * cosd
+
+        a = a * (180 / np.pi)
+        d = d * (180 / np.pi)
+
+        return a, d, dadt, dddt
+
+    else:
+
+        a = a * (180 / np.pi)
+        d = d * (180 / np.pi)
+
+        return a, d
+
+
+def cart_to_radec(x, y, z, vx=None, vy=None, vz=None):
+    """
+    Transforms galactocentric coordinates into celestial coordinates.
+
+    Parameters
+    ----------
+    x : array_like, float
+        x-axis.
+    y : array_like, float
+        y-axis.
+    z : array_like, float
+        z-axis.
+    vx : array_like, float, optional
+        x-axis velocity. The default is None.
+    vy : array_like, float, optional
+        y-axis velocity. The default is None.
+    vz : array_like, float, optional
+        z-axis velocity. The default is None.
+
+    Raises
+    ------
+    ValueError
+        Velocity components are incomplete
+        (number of velocity dimensions equal to 1 or 2).
+
+    Returns
+    -------
+    a : array_like, float
+        Right ascention in degrees.
+    d : array_like, float
+        Declination in degrees.
+    r : array_float
+        Distance of the source, in kpc.
+    dadt : array_like, float, optional
+        Right ascention velocity (PMRA), in mas/yr.
+    dddt : array_like, float, optional
+        Declination velocity (PMDec), in mas/yr.
+    vr : array_like, float
+        Line of sight velocity, in km/s.
+
+    """
+    if vx is None or vy is None or vz is None:
+
+        onlypos = True
+
+        if vx is not None:
+            raise ValueError("Please provide other velocity components.")
+        if vy is not None:
+            raise ValueError("Please provide other velocity components.")
+        if vz is not None:
+            raise ValueError("Please provide other velocity components.")
+
+        vx = 0
+        vy = 0
+        vz = 0
+
+    else:
+
+        onlypos = False
+
+    lon, b, r, dldt, dbdt, vr = cart_to_lb(x, y, z, vx=vx, vy=vy, vz=vz)
+
+    a, d, dadt, dddt = lb_to_radec(lon, b, dldt=dldt, dbdt=dbdt)
+
+    if onlypos is True:
+        return a, d, r
+    else:
+        return a, d, r, dadt, dddt, vr
+
+
+def radec_to_cart(a, d, r, mua=None, mud=None, vr=None):
+    """
+    Transforms celestial coordinates into galactocentric coordinates.
+
+    Parameters
+    ----------
+
+    a : array_like, float
+        Right ascention in degrees.
+    d : array_like, float
+        Declination in degrees.
+    r : array_float
+        Distance of the source, in kpc.
+    mua : array_like, float, optional
+        Right ascention velocity (PMRA), in mas/yr.
+        The default is None.
+    mud : array_like, float, optional
+        Declination velocity (PMDec), in mas/yr.
+        The default is None.
+    vr : array_like, float, optional
+        Line of sight velocity, in km/s.
+        The default is None.
+
+    Raises
+    ------
+    ValueError
+        Velocity components are incomplete
+        (number of velocity dimensions equal to 1 or 2).
+
+    Returns
+    -------
+
+    x : array_like, float
+        x-axis.
+    y : array_like, float
+        y-axis.
+    z : array_like, float
+        z-axis.
+    vx : array_like, float
+        x-axis velocity.
+    vy : array_like, float
+        y-axis velocity.
+    vz : array_like, float
+        z-axis velocity.
+
+    """
+
+    masyr_to_kms = 4.7405 * r
+
+    if mua is None or mud is None or vr is None:
+
+        onlypos = True
+
+        if mua is not None:
+            raise ValueError("Please provide other velocity components.")
+        if mud is not None:
+            raise ValueError("Please provide other velocity components.")
+        if vr is not None:
+            raise ValueError("Please provide other velocity components.")
+
+        mua = 0
+        mud = 0
+        vr = 0
+
+    else:
+
+        onlypos = False
+
+    lon, b, dldt, dbdt = radec_to_lb(a, d, dadt=mua, dddt=mud)
+
+    dldt = dldt * masyr_to_kms
+    dbdt = dbdt * masyr_to_kms
+    r = r * kpc_to_km
+
+    phi = lon * (np.pi / 180)
+    theta = np.pi * 0.5 - b * (np.pi / 180)
+
+    x, y, z, vx, vy, vz = sph_to_cart(r, phi, theta, vr, dldt, -dbdt)
+
+    x = -x / kpc_to_km + x_sun
+    y = y / kpc_to_km - y_sun
+    z = z / kpc_to_km - z_sun
+
+    vx = -vx + vx_sun
+    vy = vy + vy_sun
+    vz = vz + vz_sun
+
+    if onlypos is True:
+        return x, y, z
+    else:
+        return x, y, z, vx, vy, vz
+
+
+def cart_to_lb(x, y, z, vx=None, vy=None, vz=None):
+    """
+    Transforms galactocentric coordinates into galactic coordinates.
+
+    Parameters
+    ----------
+    x : array_like, float
+        x-axis.
+    y : array_like, float
+        y-axis.
+    z : array_like, float
+        z-axis.
+    vx : array_like, float, optional
+        x-axis velocity. The default is None.
+    vy : array_like, float, optional
+        y-axis velocity. The default is None.
+    vz : array_like, float, optional
+        z-axis velocity. The default is None.
+
+    Raises
+    ------
+    ValueError
+        Velocity components are incomplete
+        (number of velocity dimensions equal to 1 or 2).
+
+    Returns
+    -------
+    lon : array_like, float
+        Galactic longitude, in degrees.
+    b : array_like, float
+        Galactic latitude, in degrees.
+    r : array_float
+        Distance of the source, in kpc.
+    dldt : array_like, float, optional
+        Galactic longitude velocity, in mas/yr.
+    dbdt : array_like, float, optional
+        Galactic latitude velocity, in mas/yr.
+    vr : array_like, float
+        Line of sight velocity, in km/s.
+
+    """
+
+    x = (-x + x_sun) * kpc_to_km
+    y = (y + y_sun) * kpc_to_km
+    z = (z + z_sun) * kpc_to_km
+
+    if vx is None or vy is None or vz is None:
+
+        onlypos = True
+
+        if vx is not None:
+            raise ValueError("Please provide other velocity components.")
+        if vy is not None:
+            raise ValueError("Please provide other velocity components.")
+        if vz is not None:
+            raise ValueError("Please provide other velocity components.")
+
+        vx = 0
+        vy = 0
+        vz = 0
+
+    else:
+
+        onlypos = False
+
+    vx = -vx + vx_sun
+    vy = vy - vy_sun
+    vz = vz - vz_sun
+
+    r, phi, theta, vr, vphi, vtheta = cart_to_sph(x, y, z, vx, vy, vz)
+
+    lon = phi * (180 / np.pi)
+    b = (np.pi * 0.5 - theta) * (180 / np.pi)
+
+    dldt = (vphi / r) * (3600 * 1000 * 180 / np.pi) * (3.154 * 10 ** 7)
+    dbdt = (vtheta / r) * (3600 * 1000 * 180 / np.pi) * (3.154 * 10 ** 7)
+    r = r / kpc_to_km
+
+    if onlypos is True:
+        return lon, b, r
+    else:
+        return lon, b, r, dldt, dbdt, vr
