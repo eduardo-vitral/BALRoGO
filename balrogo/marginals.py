@@ -51,8 +51,13 @@ def corner(
     smooth=True,
     smooth1d=False,
     gauss_prior=None,
+    gauss_mu=None,
+    gauss_sig=None,
     truths=None,
+    reals=None,
     truth_color="red",
+    reals_color="orange",
+    marker="X",
     own_dist=True,
     scale_hist=False,
     quantiles=None,
@@ -106,12 +111,28 @@ def corner(
         It is True if the variable had Gaussian priors and False if not.
         It will display the relative box with green contours.
 
+    gauss_mu : array
+        Array containing the mean of the Gaussian priors.
+
+    gauss_sig : array
+        Array containing the dispersion of the Gaussian priors.
+
     truths : iterable (ndim,)
         A list of reference values to indicate on the plots.  Individual
         values can be omitted by using ``None``.
 
+    reals : iterable (ndim,)
+        A list of second reference values to indicate on the plots.  Individual
+        values can be omitted by using ``None``.
+
     truth_color : str
         A ``matplotlib`` style color for the ``truths`` makers.
+
+    reals_color : str
+        A ``matplotlib`` style color for the ``reals`` makers.
+
+    marker : str
+        A ``matplotlib`` marker style. The default is "X".
 
     own_dist : Boolean
         True if the user wants to use specific implemantations for ticks/
@@ -321,11 +342,15 @@ def corner(
                     if prior_display == 2:
                         if range_provided:
                             xx = np.linspace(min(range[i]), max(range[i]), 50)
-                            disp0 = (np.amax(range[i]) - np.amin(range[i])) / 6
-                            mu0 = np.amin(range[i]) + 3 * disp0
+                            disp0 = gauss_sig[i]
+                            mu0 = gauss_mu[i]
                             amp = np.amax(n)
                             ax.plot(
-                                xx, dgauss(xx, mu0, disp0, amp), color=colorgauss, lw=6
+                                xx,
+                                dgauss(xx, mu0, disp0, amp),
+                                color=colorgauss,
+                                lw=4,
+                                alpha=0.8,
                             )
 
             for axis in ["top", "bottom", "left", "right"]:
@@ -355,11 +380,15 @@ def corner(
                     if prior_display == 2:
                         if range_provided:
                             xx = np.linspace(min(range[i]), max(range[i]), 50)
-                            disp0 = (np.amax(range[i]) - np.amin(range[i])) / 6
-                            mu0 = np.amin(range[i]) + 3 * disp0
+                            disp0 = gauss_sig[i]
+                            mu0 = gauss_mu[i]
                             amp = np.amax(n)
                             ax.plot(
-                                xx, dgauss(xx, mu0, disp0, amp), color=colorgauss, lw=6
+                                xx,
+                                dgauss(xx, mu0, disp0, amp),
+                                color=colorgauss,
+                                lw=4,
+                                alpha=0.8,
                             )
 
             for axis in ["top", "bottom", "left", "right"]:
@@ -384,6 +413,23 @@ def corner(
                 head_width=arrow_width,
                 head_length=arrow_length,
                 color=truth_color,
+                width=arrow_width / 4,
+                zorder=10,
+            )
+
+        if reals is not None and reals[i] is not None:
+
+            arrow_width = (np.amax(b) - np.amin(b)) / 20
+            arrow_length = (np.amax(n) - np.amin(n)) / 12
+
+            ax.arrow(
+                reals[i],
+                0,
+                0,
+                np.amax(n) * 0.4,
+                head_width=arrow_width,
+                head_length=arrow_length,
+                color=reals_color,
                 width=arrow_width / 4,
                 zorder=10,
             )
@@ -497,7 +543,14 @@ def corner(
             if truths is not None:
                 if truths[i] is not None and truths[j] is not None:
                     # "What's at the X? Pirate treasure?"
-                    ax.plot(truths[j], truths[i], "X", color=truth_color, markersize=10)
+                    ax.plot(
+                        truths[j], truths[i], marker, color=truth_color, markersize=10
+                    )
+
+            if reals is not None:
+                if reals[i] is not None and reals[j] is not None:
+                    # "What's at the X? Pirate treasure?"
+                    ax.plot(reals[j], reals[i], marker, color=reals_color, markersize=7)
 
             ax.xaxis.set_major_locator(MaxNLocator(max_n_ticks, prune="lower"))
             ax.yaxis.set_major_locator(MaxNLocator(max_n_ticks, prune="lower"))
