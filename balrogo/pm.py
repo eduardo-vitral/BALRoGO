@@ -1400,7 +1400,7 @@ def mcmc(
     if nwalkers is None or nwalkers < 2 * ndim:
         nwalkers = int(2 * ndim + 1)
 
-    pos = [ini + bounds * np.random.randn(ndim) for i in range(nwalkers)]
+    pos = [ini + 1e-3 * bounds * np.random.randn(ndim) for i in range(nwalkers)]
 
     if conv is False:
         eX = np.zeros(len(X))

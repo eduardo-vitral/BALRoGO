@@ -17,10 +17,6 @@ Created on 2021
 ###############################################################################
 
 from . import angle
-from astropy.coordinates import CartesianRepresentation
-from astropy.coordinates import CartesianDifferential
-from astropy.coordinates import ICRS
-from astropy import units as u
 import numpy as np
 import os
 import glob
@@ -404,29 +400,14 @@ def cart6d_to_gaia(data, error=False):
 
     """
 
-    x_sun, y_sun, z_sun = 8.3, 0, -0.03
+    coord = angle.cart_to_radec(data[0], data[1], data[2], data[3], data[4], data[5])
 
-    data[0] = data[0] - x_sun
-    data[1] = data[1] - y_sun
-    data[2] = data[2] - z_sun
-
-    coord = ICRS(
-        x=data[0] * u.kpc,
-        y=data[1] * u.kpc,
-        z=data[2] * u.kpc,
-        v_x=data[3] * u.km / u.s,
-        v_y=data[4] * u.km / u.s,
-        v_z=data[5] * u.km / u.s,
-        representation_type=CartesianRepresentation,
-        differential_type=CartesianDifferential,
-    )
-
-    RA = coord.spherical.lon.to_string(unit=u.degree, decimal=True)
-    Dec = coord.spherical.lat.to_string(unit=u.degree, decimal=True)
-    DD = coord.spherical.distance
-    v_LOS = np.asarray(coord.radial_velocity)
-    PMRA = np.asarray(coord.proper_motion[0])
-    PMDec = np.asarray(coord.proper_motion[1])
+    RA = coord[0]
+    Dec = coord[1]
+    DD = coord[2]
+    PMRA = coord[3]
+    PMDec = coord[4]
+    v_LOS = coord[5]
 
     if error is False:
         data_gaia = np.asarray([RA, Dec, DD, PMRA, PMDec, v_LOS])
