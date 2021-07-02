@@ -660,7 +660,7 @@ def cart_to_sph(x, y, z, vx, vy, vz):
     theta = np.arccos(z / r)
 
     vr = (vx * x + vy * y + vz * z) / r
-    vphi = r * (vy * x - vx * y) / (x * x + y * y)
+    vphi = (vy * x - vx * y) / np.sqrt(x * x + y * y)
     vtheta = -(vz * (x * x + y * y) - z * (vx * x + vy * y)) / (
         np.sqrt(x * x + y * y) * r
     )
