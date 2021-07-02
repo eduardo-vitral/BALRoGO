@@ -661,7 +661,7 @@ def cart_to_sph(x, y, z, vx, vy, vz):
 
     vr = (vx * x + vy * y + vz * z) / r
     vphi = r * (vy * x - vx * y) / (x * x + y * y)
-    vtheta = (vz * (x * x + y * y) - z * (vx * x + vy * y)) / (
+    vtheta = -(vz * (x * x + y * y) - z * (vx * x + vy * y)) / (
         np.sqrt(x * x + y * y) * r
     )
 
@@ -1156,7 +1156,7 @@ def cart_to_lb(x, y, z, vx=None, vy=None, vz=None):
     b = (np.pi * 0.5 - theta) * (180 / np.pi)
 
     dldt = (vphi / r) * (3600 * 1000 * 180 / np.pi) * (3.154 * 10 ** 7)
-    dbdt = (vtheta / r) * (3600 * 1000 * 180 / np.pi) * (3.154 * 10 ** 7)
+    dbdt = (-vtheta / r) * (3600 * 1000 * 180 / np.pi) * (3.154 * 10 ** 7)
     r = r / kpc_to_km
 
     if onlypos is True:
