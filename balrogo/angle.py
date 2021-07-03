@@ -711,12 +711,12 @@ def sph_to_cart(r, phi, theta, vr, vphi, vtheta):
     vx = (
         vr * np.sin(theta) * np.cos(phi)
         + vtheta * np.cos(theta) * np.cos(phi)
-        - vphi * np.sin(theta) * np.sin(phi)
+        - vphi * np.sin(phi)
     )
     vy = (
         vr * np.sin(theta) * np.sin(phi)
         + vtheta * np.cos(theta) * np.sin(phi)
-        + vphi * np.sin(theta) * np.cos(phi)
+        + vphi * np.cos(phi)
     )
     vz = vr * np.cos(theta) - vtheta * np.sin(theta)
 
