@@ -1268,6 +1268,212 @@ def bootstrap(array):
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
+"Handles anisotropy"
+# ------------------------------------------------------------------------------
+
+
+def get_beta(
+    x,
+    y,
+    z,
+    vx,
+    vy,
+    vz,
+    method="moving",
+    nbin=30,
+    polorder=10,
+    logx=False,
+    bootp=False,
+    smooth=True,
+):
+    """
+    Computes the velocity anisotropy.
+
+     Parameters
+    ----------
+    x : array_like, float
+        x-axis.
+    y : array_like, float
+        y-axis.
+    z : array_like, float
+        z-axis.
+    vx : array_like, float
+        x-axis velocity.
+    vy : array_like, float
+        y-axis velocity.
+    vz : array_like, float
+        z-axis velocity.
+    method : string, optional
+        Method used to compute the dispersion.
+        The default is "moving".
+    nbin : int, optional
+        Number of bins/tracers used in the dispersion calculation.
+        The default is 30.
+    polorder : int, optional
+        Order of smoothing polynomial.
+        The default is 10.
+    logx : boolean, optional
+        If the x axis should be binned logarithmly.
+        The default is False.
+    bootp : boolean, optional
+        Use bootstrap to compute errors. The default is False.
+    smooth : boolean, optional
+        Smooth the data with a polynomial. The default is True.
+
+    Returns
+    -------
+    rr : array_like
+        Radius.
+    beta : array_like
+        Velocity anisotropy.
+    ebeta : array_like
+        Uncertainty on velocity anisotropy.
+
+    """
+
+    r, phi, theta, vr, vphi, vtheta = angle.cart_to_sph(x, y, z, vx, vy, vz)
+
+    L = sorted(zip(r, vr, vtheta, vphi), key=operator.itemgetter(0))
+    r, vr, vtheta, vphi = zip(*L)
+
+    r = np.asarray(r)
+    vr = np.asarray(vr)
+    vtheta = np.asarray(vtheta)
+    vphi = np.asarray(vphi)
+
+    rr, dr, err = dispersion(
+        r,
+        vr,
+        bins=method,
+        nbin=nbin,
+        polorder=polorder,
+        bootp=bootp,
+        logx=logx,
+        smooth=smooth,
+    )
+
+    rr, dt, ert = dispersion(
+        r,
+        vtheta,
+        bins=method,
+        nbin=nbin,
+        polorder=polorder,
+        bootp=bootp,
+        logx=logx,
+        smooth=smooth,
+    )
+
+    rr, dp, erp = dispersion(
+        r,
+        vphi,
+        bins=method,
+        nbin=nbin,
+        polorder=polorder,
+        bootp=bootp,
+        logx=logx,
+        smooth=smooth,
+    )
+
+    beta = 1 - (dt * dt + dp * dp) / (2 * dr * dr)
+
+    ebeta = (
+        0.5
+        * (dt * dt + dp * dp)
+        / (2 * dr * dr)
+        * np.sqrt(
+            2 * err * err / (dr * dr)
+            + 2 * (dt * dt * ert * ert + dp * dp * erp * erp) / (dt * dt + dp * dp) ** 2
+        )
+    )
+
+    return rr, beta, ebeta
+
+
+def get_betasym(
+    x,
+    y,
+    z,
+    vx,
+    vy,
+    vz,
+    method="moving",
+    nbin=30,
+    polorder=10,
+    logx=False,
+    bootp=False,
+    smooth=True,
+):
+    """
+    Computes the symmetric velocity anisotropy, defined as:
+        beta_sym(r) = beta(r) / (1 - beta(r)/2)
+
+    Parameters
+    ----------
+    x : array_like, float
+        x-axis.
+    y : array_like, float
+        y-axis.
+    z : array_like, float
+        z-axis.
+    vx : array_like, float
+        x-axis velocity.
+    vy : array_like, float
+        y-axis velocity.
+    vz : array_like, float
+        z-axis velocity.
+    method : string, optional
+        Method used to compute the dispersion.
+        The default is "moving".
+    nbin : int, optional
+        Number of bins/tracers used in the dispersion calculation.
+        The default is 30.
+    polorder : int, optional
+        Order of smoothing polynomial.
+        The default is 10.
+    logx : boolean, optional
+        If the x axis should be binned logarithmly.
+        The default is False.
+    bootp : boolean, optional
+        Use bootstrap to compute errors. The default is False.
+    smooth : boolean, optional
+        Smooth the data with a polynomial. The default is True.
+
+    Returns
+    -------
+    rr : array_like
+        Radius.
+    beta : array_like
+        Symmetric velocity anisotropy.
+    ebeta : array_like
+        Uncertainty on the symmetric velocity anisotropy.
+
+    """
+    r, beta, ebeta = get_beta(
+        x,
+        y,
+        z,
+        vx,
+        vy,
+        vz,
+        method=method,
+        nbin=nbin,
+        polorder=polorder,
+        bootp=bootp,
+        logx=logx,
+        smooth=smooth,
+    )
+
+    beta_sym = beta / (1 - beta * 0.5)
+
+    ebeta_sym = np.abs(beta_sym * ebeta) * np.sqrt(
+        1 / (beta * beta) + 0.25 / ((1 - beta * 0.5) * (1 - beta * 0.5))
+    )
+
+    return r, beta_sym, ebeta_sym
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ------------------------------------------------------------------------------
 "Plotting functions"
 # ------------------------------------------------------------------------------
 

@@ -12,7 +12,7 @@
 BALRoGO: Bayesian Astrometric Likelihood Recovery of Galactic Objects.
 
 - Specially developed to handle data from the Gaia space mission.
-- Extracts galactic objects such as globular clusters and dwarf galaxies from data contiminated by interlopers.
+- Extracts galactic objects such as globular clusters and dwarf galaxies from data contaminated by interlopers.
 - Uses a combination of Bayesian and non-Bayesian approaches.
 - Provides:
   - Fits of proper motion space.
@@ -24,7 +24,7 @@ If something does not work, please [file an issue](https://gitlab.com/eduardo-vi
 
 ## Attribution
 
-Please cite [us](https://academic.oup.com/mnras/article-abstract/504/1/1355/6237524?redirectedFrom=fulltext) if you find this code useful in your research and add your paper to the testimonials list. The BibTeX entry for the paper is:
+Please cite [us](https://academic.oup.com/mnras/article-abstract/504/1/1355/6237524?redirectedFrom=fulltext) if you find this code useful in your research. The BibTeX entry for the paper is:
 
 ```bibtex
 @ARTICLE{Vitral21,
@@ -44,7 +44,7 @@ Please cite [us](https://academic.oup.com/mnras/article-abstract/504/1/1355/6237
 
 ## Quick overview
 
-BALRoGO has eight modules that perform different tasks:
+BALRoGO has nine modules that perform different tasks:
 
 - ***angle.py*** : This module contains the main functions concerning angular tansformations, sky projections and spherical trigonomtry.
 - ***gaia.py*** : This module contains the main functions concerning the handling of the Gaia mission data.
@@ -54,7 +54,8 @@ I have done some modifications on it so it allows some new features and so it ta
 -  ***parallax.py*** : This module contains the main functions concerning parallax information. It provides a kernel density estimation of the distance distribution, as well as a fit of the mode of this distribution.
 - ***pm.py*** : This module contains the main functions concerning proper motion data. It provides MCMC and maximum likelihood fits of proper motions data, as well as robust initial guesses for those fits.
 - ***position.py*** : This module contains the main functions concerning positional information. It provides MCMC and maximum likelihood fits of surface density, as well as robust initial guesses for the (RA,Dec) center of the source.
-- ***mock.py*** : This files handles mock data sets. It converts 3D coordinates to sky coordinates and is able to add realistic errors to proper motions. It is also able to generate Milky Way interlopers.
+- ***mock.py*** : This module handles mock data sets. It converts 3D coordinates to sky coordinates and is able to add realistic errors to proper motions. It is also able to generate Milky Way interlopers.
+- ***dynamics.py*** : This module handles conversions from celestial coordinates to plane of sky coordinates (vPOSr,vPOSt), as well as allows computation of dispersion profiles in different ways. Also computes the velocity anisotropy from cartesian data.
 
 ## Installation
 
