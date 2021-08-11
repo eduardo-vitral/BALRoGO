@@ -22,7 +22,6 @@ from . import angle
 
 import numpy as np
 import operator
-from scipy.interpolate import PchipInterpolator
 import math
 from scipy.spatial import ConvexHull
 from scipy.interpolate import griddata
@@ -849,34 +848,53 @@ def disp1d(
 
     if smooth is True:
 
-        disp = PchipInterpolator(r[nonan], disp[nonan])(x[idxrange])
-        err = PchipInterpolator(r[nonan], err[nonan])(x[idxrange])
-        r = x[idxrange]
+        disp = disp[nonan]
+        err = err[nonan]
+        r = r[nonan]
 
         if polorder is None:
             pold = int(0.2 * position.good_bin(disp))
-            pole = int(0.2 * position.good_bin(err))
         else:
             pold = polorder
-            pole = polorder
 
         if logx is False:
-            poly_disp = np.polyfit(r, disp, pold)
-            poly_err = np.polyfit(r, err, pole)
 
-            disp = np.poly1d(poly_disp)(x[np.where(x < rmax)])
-            err = np.poly1d(poly_err)(x[np.where(x < rmax)])
-            r = x[np.where(x < rmax)]
+            poly_disp, cov_disp = np.polyfit(r, disp, pold, w=1 / err, cov=True)
+
+            # Do the interpolation for plotting:
+            t = x[idxrange]
+            # Matrix with rows 1, t, t**2, ...:
+            TT = np.vstack([t ** (pold - i) for i in range(pold + 1)]).T
+            yi = np.dot(
+                TT, poly_disp
+            )  # matrix multiplication calculates the polynomial values
+            C_yi = np.dot(TT, np.dot(cov_disp, TT.T))  # C_y = TT*C_z*TT.T
+            sig_yi = np.sqrt(np.diag(C_yi))  # Standard deviations are sqrt of diagonal
+
+            disp = yi
+            err = sig_yi
+            r = x[idxrange]
         else:
-            poly_disp = np.polyfit(np.log10(r), disp, pold)
-            poly_err = np.polyfit(np.log10(r), err, pole)
+            poly_disp, cov_disp = np.polyfit(
+                np.log10(r), disp, pold, w=1 / err, cov=True
+            )
 
-            disp = np.poly1d(poly_disp)(np.log10(x[idxrange]))
-            err = np.poly1d(poly_err)(np.log10(x[idxrange]))
+            # Do the interpolation for plotting:
+            t = np.log10(x[idxrange])
+            # Matrix with rows 1, t, t**2, ...:
+            TT = np.vstack([t ** (pold - i) for i in range(pold + 1)]).T
+            yi = np.dot(
+                TT, poly_disp
+            )  # matrix multiplication calculates the polynomial values
+            C_yi = np.dot(TT, np.dot(cov_disp, TT.T))  # C_y = TT*C_z*TT.T
+            sig_yi = np.sqrt(np.diag(C_yi))  # Standard deviations are sqrt of diagonal
+
+            disp = yi
+            err = sig_yi
             r = x[idxrange]
 
         if return_fits is True:
-            return r, disp, err, poly_disp, poly_err
+            return r, disp, err, poly_disp
 
     return r, disp, err
 
