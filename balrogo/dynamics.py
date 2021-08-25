@@ -27,6 +27,9 @@ from scipy.spatial import ConvexHull
 from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 from functools import partial
+from scipy.optimize import curve_fit
+import uncertainties.unumpy as unp
+import uncertainties as unc
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
@@ -1290,7 +1293,86 @@ def bootstrap(array):
 # ------------------------------------------------------------------------------
 
 
-def get_beta(
+def bgOM(r, ra, b0, bi):
+    """
+    Generalized (Osipkov1979; Merritt 1985) anisotropy profile.
+
+    Parameters
+    ----------
+    r : array_like, float
+        Distance from center of the system.
+    ra : float
+        Anisotropy radius.
+    b0 : float
+        Anisotropy at r = 0.
+    bi : float
+        Anisotropy at r -> Infinity.
+
+    Returns
+    -------
+    b : array_like, float
+        Anisotropy profile.
+
+    """
+
+    b = b0 + (bi - b0) / (1 + (ra / r) * (ra / r))
+
+    return b
+
+
+def bgTiret(r, ra, b0, bi):
+    """
+    Generalized Tiret et al. 2007 anisotropy profile.
+
+    Parameters
+    ----------
+    r : array_like, float
+        Distance from center of the system.
+    ra : float
+        Anisotropy radius.
+    b0 : float
+        Anisotropy at r = 0.
+    bi : float
+        Anisotropy at r -> Infinity.
+
+    Returns
+    -------
+    b : array_like, float
+        Anisotropy profile.
+
+    """
+
+    b = b0 + (bi - b0) / (1 + (ra / r))
+
+    return b
+
+
+def bCOM(r, ra, b0):
+    """
+    Anisotropy profile from (Cuddeford 1991; Osipkov 1979; Merritt 1985) inversion.
+
+    Parameters
+    ----------
+    r : array_like, float
+        Distance from center of the system.
+    ra : float
+        Anisotropy radius.
+    b0 : float
+        Anisotropy at r = 0.
+
+    Returns
+    -------
+    b : array_like, float
+        Anisotropy profile.
+
+    """
+
+    b = (b0 + (r / ra) * (r / ra)) / (1 + (r / ra) * (r / ra))
+
+    return b
+
+
+def get_anisotropy(
     x,
     y,
     z,
@@ -1407,6 +1489,190 @@ def get_beta(
     return rr, beta, ebeta
 
 
+def get_beta(
+    x,
+    y,
+    z,
+    vx,
+    vy,
+    vz,
+    method="moving",
+    nbin=30,
+    polorder=10,
+    logx=False,
+    bootp=False,
+    smooth=True,
+    model="gOM",
+):
+    """
+    Computes the velocity anisotropy.
+
+     Parameters
+    ----------
+    x : array_like, float
+        x-axis.
+    y : array_like, float
+        y-axis.
+    z : array_like, float
+        z-axis.
+    vx : array_like, float
+        x-axis velocity.
+    vy : array_like, float
+        y-axis velocity.
+    vz : array_like, float
+        z-axis velocity.
+    method : string, optional
+        Method used to compute the dispersion.
+        The default is "moving".
+    nbin : int, optional
+        Number of bins/tracers used in the dispersion calculation.
+        The default is 30.
+    polorder : int, optional
+        Order of smoothing polynomial.
+        The default is 10.
+    logx : boolean, optional
+        If the x axis should be binned logarithmly.
+        The default is False.
+    bootp : boolean, optional
+        Use bootstrap to compute errors. The default is False.
+    smooth : boolean, optional
+        Smooth the data with a polynomial. The default is True.
+    model : string, optional
+        Model used to fit (or not fit) the data. The default is "gOM".
+
+    Raises
+    ------
+    ValueError
+        Anisotropy model is not one of the following:
+            - 'gOM'
+            - 'gTiret'
+            - 'gCOM'
+            - 'polynomial'
+            - 'discrete'
+
+    Returns
+    -------
+    rr : array_like
+        Radius.
+    beta : array_like
+        Velocity anisotropy.
+    ebeta : array_like
+        Uncertainty on velocity anisotropy.
+
+    """
+
+    if model not in ["gOM", "gTiret", "gCOM", "polynomial", "discrete"]:
+        raise ValueError("Does not recognize surface density model.")
+
+    if model == "discrete":
+        smooth = False
+
+    if smooth is False or model == "polynomial":
+        rr, beta, ebeta = get_anisotropy(
+            x,
+            y,
+            z,
+            vx,
+            vy,
+            vz,
+            method=method,
+            nbin=nbin,
+            polorder=polorder,
+            bootp=bootp,
+            logx=logx,
+            smooth=smooth,
+        )
+    else:
+        rr, beta, ebeta = get_anisotropy(
+            x,
+            y,
+            z,
+            vx,
+            vy,
+            vz,
+            method=method,
+            nbin=nbin,
+            polorder=polorder,
+            bootp=bootp,
+            logx=logx,
+            smooth=False,
+        )
+
+        r, phi, theta, vr, vphi, vtheta = angle.cart_to_sph(x, y, z, vx, vy, vz)
+        r = np.sort(r)
+
+        rmin = np.nanmin(rr)
+        rmax = np.nanmax(rr)
+        idxrange = np.intersect1d(np.where(r > rmin), np.where(r < rmax))
+
+        nonan1 = np.logical_not(np.isnan(beta))
+        nonan2 = np.logical_not(np.isnan(ebeta))
+        nonan = nonan1 * nonan2
+
+        rr = rr[nonan]
+        beta = beta[nonan]
+        ebeta = ebeta[nonan]
+
+        # https://stackoverflow.com/questions/24633664/confidence-interval-for-exponential-curve-fit/26042460#26042460
+
+        if model == "gOM":
+
+            popt, pcov = curve_fit(
+                bgOM,
+                rr,
+                beta,
+                sigma=ebeta,
+                p0=[np.nanmean(r), 0, 0],
+                absolute_sigma=False,
+                bounds=([0, -np.inf, -np.inf], [np.inf, 1.0, 1.0]),
+            )
+
+            b_params = unc.correlated_values(popt, pcov)
+
+            px = r[idxrange]
+            py = bgOM(px, *b_params)
+
+        if model == "gTiret":
+
+            popt, pcov = curve_fit(
+                bgTiret,
+                rr,
+                beta,
+                sigma=ebeta,
+                p0=[np.nanmean(r), 0, 0],
+                absolute_sigma=False,
+                bounds=([0, -np.inf, -np.inf], [np.inf, 1.0, 1.0]),
+            )
+
+            b_params = unc.correlated_values(popt, pcov)
+
+            px = r[idxrange]
+            py = bgTiret(px, *b_params)
+
+        if model == "gCOM":
+
+            popt, pcov = curve_fit(
+                bCOM,
+                rr,
+                beta,
+                sigma=ebeta,
+                p0=[np.nanmean(r), 0],
+                absolute_sigma=False,
+                bounds=([0, -np.inf], [np.inf, 1.0]),
+            )
+
+            b_params = unc.correlated_values(popt, pcov)
+
+            px = r[idxrange]
+            py = bCOM(px, *b_params)
+
+        rr = px
+        beta = unp.nominal_values(py)
+        ebeta = unp.std_devs(py)
+
+    return rr, beta, ebeta
+
+
 def get_betasym(
     x,
     y,
@@ -1420,6 +1686,7 @@ def get_betasym(
     logx=False,
     bootp=False,
     smooth=True,
+    model="gOM",
 ):
     """
     Computes the symmetric velocity anisotropy, defined as:
@@ -1455,6 +1722,8 @@ def get_betasym(
         Use bootstrap to compute errors. The default is False.
     smooth : boolean, optional
         Smooth the data with a polynomial. The default is True.
+    model : string, optional
+            Model used to fit (or not fit) the data. The default is "gOM".
 
     Returns
     -------
@@ -1479,6 +1748,7 @@ def get_betasym(
         bootp=bootp,
         logx=logx,
         smooth=smooth,
+        model=model,
     )
 
     beta_sym = beta / (1 - beta * 0.5)
