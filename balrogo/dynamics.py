@@ -1601,10 +1601,6 @@ def get_beta(
         r, phi, theta, vr, vphi, vtheta = angle.cart_to_sph(x, y, z, vx, vy, vz)
         r = np.sort(r)
 
-        rmin = np.nanmin(rr)
-        rmax = np.nanmax(rr)
-        idxrange = np.intersect1d(np.where(r > rmin), np.where(r < rmax))
-
         nonan1 = np.logical_not(np.isnan(beta))
         nonan2 = np.logical_not(np.isnan(ebeta))
         nonan = nonan1 * nonan2
@@ -1629,7 +1625,7 @@ def get_beta(
 
             b_params = unc.correlated_values(popt, pcov)
 
-            px = r[idxrange]
+            px = r
             py = bgOM(px, *b_params)
 
         if model == "gTiret":
@@ -1646,7 +1642,7 @@ def get_beta(
 
             b_params = unc.correlated_values(popt, pcov)
 
-            px = r[idxrange]
+            px = r
             py = bgTiret(px, *b_params)
 
         if model == "gCOM":
@@ -1663,7 +1659,7 @@ def get_beta(
 
             b_params = unc.correlated_values(popt, pcov)
 
-            px = r[idxrange]
+            px = r
             py = bCOM(px, *b_params)
 
         rr = px
