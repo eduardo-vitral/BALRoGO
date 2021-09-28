@@ -728,6 +728,49 @@ def likelihood_sersic(params, Ri):
     return L
 
 
+def likelihood_esersic(params, x, y, x0, y0):
+    """
+    Likelihood function of the Sersic profile plus a constant contribution
+    from fore/background tracers.
+
+    Parameters
+    ----------
+    Parameters to be fitted: Sersic index, Sersic characteristic radius R_e and
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    Ri : array_like
+        Array containing the ensemble of projected radii.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+    """
+
+    n = params[0]
+    re_a = 10 ** params[1]
+    re_b = 10 ** params[2]
+    theta = params[3]
+
+    xp = (x - x0) * np.cos(theta) + (y - y0) * np.sin(theta)
+    yp = -(x - x0) * np.sin(theta) + (y - y0) * np.cos(theta)
+
+    m = (xp / re_a) * (xp / re_a) + (yp / re_b) * (yp / re_b)
+
+    N_tot = np.pi * re_a * re_b
+
+    SD = sd_sersic(n, m)
+
+    fi = SD / N_tot
+
+    idx_valid = np.logical_not(np.isnan(np.log(fi)))
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
+    return L
+
+
 def lnprior_s(params, guess, bounds):
     """
     Prior assumptions on the parameters.
@@ -1845,3 +1888,86 @@ def mcmc(
     chain = sampler.chain
 
     return chain
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"Ellipsoidal fitting"
+# ---------------------------------------------------------------------------
+
+
+def ellipse_likelihood(x=None, y=None, model="sersic", x0=None, y0=None, hybrid=True):
+    """
+    Calls a maximum likelihood fit of the surface density paramters of
+    the joint distribution of galactic object plus Milky Way stars.
+
+    Parameters
+    ----------
+    x : array_like, optional
+        Data in x-direction. The default is None.
+    y : array_like, optional
+        Data in x-direction. The default is None.
+    model : string, optional
+        Surface density model to be considered. Available options are:
+             - 'sersic'
+        The default is 'sersic'.
+    x0 : float, optional
+        Peak of data in x-direction. The default is None.
+    y0 : TYPE, optional
+        Peak of data in y-direction. The default is None.
+
+    Raises
+    ------
+    ValueError
+        Surface density model is not one of the following:
+            - 'sersic'
+        No data is provided.
+
+    Returns
+    -------
+    results : array
+        Best fit parameters of the surface density model.
+    var : array
+        Uncertainty of the fits.
+
+    """
+
+    if model not in ["sersic"]:
+        raise ValueError("Does not recognize surface density model.")
+
+    if (x is None and y is None) or (x is None):
+        raise ValueError("Please provide the data to be fitted.")
+
+    if x0 is None or y0 is None:
+        center, unc = find_center(x, y)
+        if x0 is None:
+            x0 = center[0]
+        if y0 is None:
+            y0 = center[1]
+
+    hmr = np.log10(np.nanmean(np.asarray([np.nanstd(x), np.nanstd(y)])))
+
+    if model == "sersic":
+        bounds = [
+            (0.5, 10),
+            (hmr - 2, hmr + 2),
+            (hmr - 2, hmr + 2),
+            (-np.pi / 2, np.pi / 2),
+        ]
+        mle_model = differential_evolution(
+            lambda c: likelihood_esersic(c, x, y, x0, y0), bounds
+        )
+        results = mle_model.x
+        hfun = ndt.Hessian(
+            lambda c: likelihood_esersic(c, x, y, x0, y0), full_output=True
+        )
+
+    hessian_ndt, info = hfun(results)
+    if hybrid is False:
+        arg_null = np.argmin(np.abs(np.diag(hessian_ndt)))
+        hessian_ndt = np.delete(hessian_ndt, arg_null, axis=1)
+        hessian_ndt = np.delete(hessian_ndt, arg_null, axis=0)
+
+    var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+    return results, var
