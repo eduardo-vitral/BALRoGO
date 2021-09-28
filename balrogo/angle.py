@@ -262,28 +262,14 @@ def angular_sep_vector(v0, v):
     cosA = v[0] / np.cos(B)
     sinA = v[1] / np.cos(B)
 
-    if cosA > 0 and sinA >= 0:
-        A = np.arcsin(sinA)
-    if cosA <= 0 and sinA > 0:
-        A = np.arccos(cosA)
-    if cosA < 0 and sinA <= 0:
-        A = 2 * np.pi - np.arccos(cosA)
-    if cosA >= 0 and sinA < 0:
-        A = np.arcsin(sinA)
+    A = np.arctan2(sinA, cosA)
 
     v0 = v0 / np.linalg.norm(v0)
     B0 = np.arcsin(v0[2])
     cosA0 = v0[0] / np.cos(B0)
     sinA0 = v0[1] / np.cos(B0)
 
-    if cosA0 > 0 and sinA0 >= 0:
-        A0 = np.arcsin(sinA0)
-    if cosA0 <= 0 and sinA0 > 0:
-        A0 = np.arccos(cosA0)
-    if cosA0 < 0 and sinA0 <= 0:
-        A0 = 2 * np.pi - np.arccos(cosA0)
-    if cosA0 >= 0 and sinA0 < 0:
-        A0 = np.arcsin(sinA0)
+    A0 = np.arctan2(sinA0, cosA0)
 
     cosR = np.sin(B0) * np.sin(B) + np.cos(B0) * np.cos(B) * np.cos(A - A0)
     R = np.arccos(cosR)
@@ -403,14 +389,7 @@ def sky_coord_rotate(v_i, v0_i, v0_f, theta=0, debug=False):
         cosA = v_f[0] / np.cos(B)
         sinA = v_f[1] / np.cos(B)
 
-        if cosA > 0 and sinA >= 0:
-            A = np.arcsin(sinA)
-        if cosA <= 0 and sinA > 0:
-            A = np.arccos(cosA)
-        if cosA < 0 and sinA <= 0:
-            A = 2 * np.pi - np.arccos(cosA)
-        if cosA >= 0 and sinA < 0:
-            A = np.arcsin(sinA)
+        A = np.arctan2(sinA, cosA)
 
     elif len(np.shape(v_f)) == 2:
         A = np.zeros(len(v_f))
@@ -421,14 +400,7 @@ def sky_coord_rotate(v_i, v0_i, v0_f, theta=0, debug=False):
             cosA = v_f[i][0] / np.cos(B[i])
             sinA = v_f[i][1] / np.cos(B[i])
 
-            if cosA > 0 and sinA >= 0:
-                A[i] = np.arcsin(sinA)
-            if cosA <= 0 and sinA > 0:
-                A[i] = np.arccos(cosA)
-            if cosA < 0 and sinA <= 0:
-                A[i] = 2 * np.pi - np.arccos(cosA)
-            if cosA >= 0 and sinA < 0:
-                A[i] = np.arcsin(sinA)
+            A[i] = np.arctan2(sinA, cosA)
 
             if debug is True and i < 10:
                 print("A, B [degrees]:", A[i] * (180 / np.pi), B[i] * (180 / np.pi))
@@ -656,7 +628,7 @@ def cart_to_sph(x, y, z, vx, vy, vz):
     """
 
     r = np.sqrt(x * x + y * y + z * z)
-    phi = np.arctan(y / x)
+    phi = np.arctan2(y, x)
     theta = np.arccos(z / r)
 
     vr = (vx * x + vy * y + vz * z) / r
@@ -775,17 +747,11 @@ def radec_to_lb(a, d, dadt=None, dddt=None):
     cosdl = cosb_cosdl / cosb
 
     if np.isscalar(sindl):
-        if (sindl >= 0 and cosdl > 0) or (sindl < 0 and cosdl >= 0):
-            lon = l_NCP - np.arctan(cosb_sindl / cosb_cosdl)
-        elif (sindl > 0 and cosdl <= 0) or (sindl <= 0 and cosdl < 0):
-            lon = l_NCP - np.arctan(cosb_sindl / cosb_cosdl) + np.pi
+        lon = l_NCP - np.arctan2(sindl, cosdl)
     else:
         lon = np.zeros(len(sindl))
         for i in range(len(sindl)):
-            if (sindl[i] >= 0 and cosdl[i] > 0) or (sindl[i] < 0 and cosdl[i] >= 0):
-                lon[i] = l_NCP - np.arctan(cosb_sindl[i] / cosb_cosdl[i])
-            elif (sindl[i] > 0 and cosdl[i] <= 0) or (sindl[i] <= 0 and cosdl[i] < 0):
-                lon[i] = l_NCP - np.arctan(cosb_sindl[i] / cosb_cosdl[i]) + np.pi
+            lon[i] = l_NCP - np.arctan2(sindl[i], cosdl[i])
 
     if np.isscalar(lon):
         lon = lon % (2 * np.pi)
@@ -870,17 +836,11 @@ def lb_to_radec(lon, b, dldt=None, dbdt=None):
     cosda = cosd_cosda / cosd
 
     if np.isscalar(sinda):
-        if (sinda >= 0 and cosda > 0) or (sinda < 0 and cosda >= 0):
-            a = a_NGP + np.arctan(cosd_sinda / cosd_cosda)
-        elif (sinda > 0 and cosda <= 0) or (sinda <= 0 and cosda < 0):
-            a = a_NGP + np.arctan(cosd_sinda / cosd_cosda) + np.pi
+        a = np.arctan2(sinda, cosda) + a_NGP
     else:
         a = np.zeros(len(sinda))
         for i in range(len(sinda)):
-            if (sinda[i] >= 0 and cosda[i] > 0) or (sinda[i] < 0 and cosda[i] >= 0):
-                a[i] = a_NGP + np.arctan(cosd_sinda[i] / cosd_cosda[i])
-            elif (sinda[i] > 0 and cosda[i] <= 0) or (sinda[i] <= 0 and cosda[i] < 0):
-                a[i] = a_NGP + np.arctan(cosd_sinda[i] / cosd_cosda[i]) + np.pi
+            a[i] = np.arctan2(sinda[i], cosda[i]) + a_NGP
 
     if np.isscalar(a):
         a = a % (2 * np.pi)
@@ -1163,3 +1123,89 @@ def cart_to_lb(x, y, z, vx=None, vy=None, vz=None):
         return lon, b, r
     else:
         return lon, b, r, dldt, dbdt, vr
+
+
+def lb_to_cart(lon, b, r, dldt=None, dbdt=None, vr=None):
+    """
+    Transforms galactic coordinates into galactocentric coordinates.
+
+    Parameters
+    ----------
+    lon : array_like, float
+        Galactic longitude, in degrees.
+    b : array_like, float
+        Galactic latitude, in degrees.
+    r : array_float
+            Distance of the source, in kpc.
+    dldt : array_like, float, optional
+        Galactic longitude velocity, in mas/yr. The default is None
+    dbdt : array_like, float, optional
+        Galactic latitude velocity, in mas/yr. The default is None
+    vr : array_like, float, optional
+        Line of sight velocity, in km/s. The default is None.
+
+    Raises
+    ------
+    ValueError
+        Velocity components are incomplete
+        (number of velocity dimensions equal to 1 or 2).
+
+    Returns
+    -------
+
+    x : array_like, float
+        x-axis.
+    y : array_like, float
+        y-axis.
+    z : array_like, float
+        z-axis.
+    vx : array_like, float
+        x-axis velocity.
+    vy : array_like, float
+        y-axis velocity.
+    vz : array_like, float
+        z-axis velocity.
+    """
+
+    masyr_to_kms = 4.7405 * r
+
+    if dldt is None or dbdt is None or vr is None:
+
+        onlypos = True
+
+        if dldt is not None:
+            raise ValueError("Please provide other velocity components.")
+        if dbdt is not None:
+            raise ValueError("Please provide other velocity components.")
+        if vr is not None:
+            raise ValueError("Please provide other velocity components.")
+
+        dldt = 0
+        dbdt = 0
+        vr = 0
+
+    else:
+
+        onlypos = False
+
+    r = r * kpc_to_km
+    phi = lon * (np.pi / 180)
+    theta = np.pi * 0.5 - b * (np.pi / 180)
+
+    vphi = dldt * masyr_to_kms
+    vtheta = -dbdt * masyr_to_kms
+
+    x, y, z, vx, vy, vz = sph_to_cart(r, phi, theta, vr, vphi, vtheta)
+
+    x = -x / kpc_to_km + x_sun
+    y = y / kpc_to_km - y_sun
+    z = z / kpc_to_km - z_sun
+
+    vx = -vx + vx_sun
+    vy = vy + vy_sun
+    vz = vz + vz_sun
+
+    if onlypos is True:
+        return x, y, z
+    else:
+        return x, y, z, vx, vy, vz
