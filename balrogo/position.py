@@ -756,7 +756,7 @@ def likelihood_esersic(params, x, y, x0, y0):
     xp = (x - x0) * np.cos(theta) + (y - y0) * np.sin(theta)
     yp = -(x - x0) * np.sin(theta) + (y - y0) * np.cos(theta)
 
-    m = (xp / re_a) * (xp / re_a) + (yp / re_b) * (yp / re_b)
+    m = np.sqrt((xp / re_a) * (xp / re_a) + (yp / re_b) * (yp / re_b))
 
     N_tot = np.pi * re_a * re_b
 
