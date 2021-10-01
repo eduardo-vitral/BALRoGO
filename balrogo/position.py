@@ -753,10 +753,10 @@ def likelihood_esersic(params, x, y, x0, y0):
     re_b = 10 ** params[2]
     theta = params[3]
 
-    xp = (x - x0) * np.cos(theta) + (y - y0) * np.sin(theta)
-    yp = -(x - x0) * np.sin(theta) + (y - y0) * np.cos(theta)
+    xnew = (x - x0) * np.cos(theta) + (y - y0) * np.sin(theta)
+    ynew = -(x - x0) * np.sin(theta) + (y - y0) * np.cos(theta)
 
-    m = np.sqrt((xp / re_a) * (xp / re_a) + (yp / re_b) * (yp / re_b))
+    m = np.sqrt((xnew / re_a) * (xnew / re_a) + (ynew / re_b) * (ynew / re_b))
 
     N_tot = np.pi * re_a * re_b
 
@@ -1935,7 +1935,7 @@ def ellipse_likelihood(x=None, y=None, model="sersic", x0=None, y0=None, hybrid=
     if model not in ["sersic"]:
         raise ValueError("Does not recognize surface density model.")
 
-    if (x is None and y is None) or (x is None):
+    if x is None or y is None:
         raise ValueError("Please provide the data to be fitted.")
 
     if x0 is None or y0 is None:
@@ -1947,6 +1947,24 @@ def ellipse_likelihood(x=None, y=None, model="sersic", x0=None, y0=None, hybrid=
 
     hmr = np.log10(np.nanmean(np.asarray([np.nanstd(x), np.nanstd(y)])))
 
+    # Transforms data in radians
+    x = x * (np.pi / 180)
+    y = y * (np.pi / 180)
+
+    x0 = x0 * (np.pi / 180)
+    y0 = y0 * (np.pi / 180)
+
+    # projects the data
+    xp = np.sin(x - x0) * np.cos(y)
+    yp = np.cos(y0) * np.sin(y) - np.sin(y0) * np.cos(y) * np.cos(x - x0)
+
+    # Transforms data back to degree
+    xp = xp * (180 / np.pi)
+    yp = yp * (180 / np.pi)
+
+    x0 = x0 * (180 / np.pi)
+    y0 = y0 * (180 / np.pi)
+
     if model == "sersic":
         bounds = [
             (0.5, 10),
@@ -1955,11 +1973,11 @@ def ellipse_likelihood(x=None, y=None, model="sersic", x0=None, y0=None, hybrid=
             (-np.pi / 2, np.pi / 2),
         ]
         mle_model = differential_evolution(
-            lambda c: likelihood_esersic(c, x, y, x0, y0), bounds
+            lambda c: likelihood_esersic(c, xp, yp, x0, y0), bounds
         )
         results = mle_model.x
         hfun = ndt.Hessian(
-            lambda c: likelihood_esersic(c, x, y, x0, y0), full_output=True
+            lambda c: likelihood_esersic(c, xp, yp, x0, y0), full_output=True
         )
 
     hessian_ndt, info = hfun(results)
