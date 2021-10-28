@@ -753,8 +753,8 @@ def likelihood_esersic(params, x, y, x0, y0):
     re_b = 10 ** params[2]
     theta = params[3]
 
-    xnew = (x - x0) * np.cos(theta) + (y - y0) * np.sin(theta)
-    ynew = -(x - x0) * np.sin(theta) + (y - y0) * np.cos(theta)
+    xnew = (x) * np.cos(theta) + (y) * np.sin(theta)
+    ynew = -(x) * np.sin(theta) + (y) * np.cos(theta)
 
     m = np.sqrt((xnew / re_a) * (xnew / re_a) + (ynew / re_b) * (ynew / re_b))
 
