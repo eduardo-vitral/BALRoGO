@@ -1878,7 +1878,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
 
     """
 
-    if model not in ["sersic", "plummer", "kazantzidis", "gplummer"]:
+    if model not in ["sersic", "plummer", "kazantzidis", "gplummer","king62"]:
         raise ValueError("Does not recognize surface density model.")
 
     if (x is None and y is None) or (x is None):
@@ -1980,6 +1980,7 @@ def mcmc(
              - 'kazantzidis'
              - 'plummer'
              - 'gplummer'
+             - 'king62'
         The default is 'plummer'.
     nwalkers : int, optional
         Number of Markov chains. The default is None.
@@ -2015,6 +2016,7 @@ def mcmc(
             - 'kazantzidis'
             - 'plummer'
             - 'gplummer'
+            - 'king62'
         No data is provided.
 
     Returns
@@ -2051,7 +2053,8 @@ def mcmc(
                 ini = np.asarray([2, ini[0], ini[1]])
             if model == "gplummer":
                 ini = np.asarray([1, ini[0], ini[1]])
-
+            if model == "king62":
+                ini = np.asarray([1, ini[0], ini[1]])
     ndim = len(ini)  # number of dimensions.
     if nwalkers is None or nwalkers < 2 * ndim:
         nwalkers = int(2 * ndim + 1)
@@ -2060,7 +2063,7 @@ def mcmc(
         bounds = 3 * var
 
     if hybrid is False:
-        if model == "sersic" or model == "gplummer":
+        if model == "sersic" or model == "gplummer" or model == "king62":
             ini[2] = -50
         else:
             ini[1] = -50
@@ -2078,6 +2081,9 @@ def mcmc(
 
     elif model == "gplummer":
         func = lnprob_gp
+        
+    elif model == "king62":
+        func = lnprob_k62
 
     if use_pool:
 
