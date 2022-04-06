@@ -25,8 +25,8 @@ black = { version = "*", allow-prereleases = true }
 flake8-black = "^0.2.1"
 pytest-cov = "^2.10.1"
 toml = "^0.10.2"
-sphinx = "^3.5.4"
-sphinx-rtd-theme = "^0.5.0"
+sphinx = "^4.2.0"
+sphinx-rtd-theme = "^1.0.0"
 m2r2 = "^0.2.7"
 
 [build-system]
