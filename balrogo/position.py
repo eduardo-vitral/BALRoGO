@@ -1878,7 +1878,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
 
     """
 
-    if model not in ["sersic", "plummer", "kazantzidis", "gplummer","king62"]:
+    if model not in ["sersic", "plummer", "kazantzidis", "gplummer", "king62"]:
         raise ValueError("Does not recognize surface density model.")
 
     if (x is None and y is None) or (x is None):
@@ -2081,7 +2081,7 @@ def mcmc(
 
     elif model == "gplummer":
         func = lnprob_gp
-        
+
     elif model == "king62":
         func = lnprob_k62
 
