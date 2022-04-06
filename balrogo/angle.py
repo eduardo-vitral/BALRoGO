@@ -57,7 +57,7 @@ vy_sun = 245.6
 vz_sun = 7.78
 
 # Multuplying factor to pass from kpc to km
-kpc_to_km = 3.086 * 10 ** 16
+kpc_to_km = 3.086 * 10**16
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
@@ -1115,8 +1115,8 @@ def cart_to_lb(x, y, z, vx=None, vy=None, vz=None):
     lon = phi * (180 / np.pi)
     b = (np.pi * 0.5 - theta) * (180 / np.pi)
 
-    dldt = (vphi / r) * (3600 * 1000 * 180 / np.pi) * (3.154 * 10 ** 7)
-    dbdt = (-vtheta / r) * (3600 * 1000 * 180 / np.pi) * (3.154 * 10 ** 7)
+    dldt = (vphi / r) * (3600 * 1000 * 180 / np.pi) * (3.154 * 10**7)
+    dbdt = (-vtheta / r) * (3600 * 1000 * 180 / np.pi) * (3.154 * 10**7)
     r = r / kpc_to_km
 
     if onlypos is True:

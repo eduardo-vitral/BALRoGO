@@ -194,7 +194,7 @@ def center_iterative(x, y):
     while many_tracers is True:
 
         idx = np.where(
-            angle.sky_distance_deg(x, y, center[0], center[1]) < (0.9 ** count) * sigma
+            angle.sky_distance_deg(x, y, center[0], center[1]) < (0.9**count) * sigma
         )
 
         bins_x = good_bin(x[idx])
@@ -579,13 +579,13 @@ def prob(r, params, model="plummer"):
     X = r / a
 
     if model == "plummer":
-        sd = sd_plummer(X) * nsys / (np.pi * a ** 2)
+        sd = sd_plummer(X) * nsys / (np.pi * a**2)
     elif model == "kazantzidis":
-        sd = sd_kazantzidis(X) * nsys / (np.pi * a ** 2)
+        sd = sd_kazantzidis(X) * nsys / (np.pi * a**2)
     elif model == "sersic":
-        sd = sd_sersic(n, X) * nsys / (np.pi * a ** 2)
+        sd = sd_sersic(n, X) * nsys / (np.pi * a**2)
 
-    sd_fs = nilop / (np.pi * (Xmax ** 2 - Xmin ** 2))
+    sd_fs = nilop / (np.pi * (Xmax**2 - Xmin**2))
 
     probability = sd / (sd + sd_fs)
 
@@ -625,9 +625,9 @@ def b(n):
         2 * n
         - 1 / 3
         + 4 / (405 * n)
-        + 46 / (25515 * n ** 2)
-        + 131 / (1148175 * n ** 3)
-        - 2194697 / (30690717750 * n ** 4)
+        + 46 / (25515 * n**2)
+        + 131 / (1148175 * n**3)
+        - 2194697 / (30690717750 * n**4)
     )
     return b
 
@@ -715,7 +715,7 @@ def likelihood_sersic(params, Ri):
 
     N_sys_tot = n_sersic(n, Xmax) - n_sersic(n, Xmin)
 
-    SD = sd_sersic(n, X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_sersic(n, X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -871,13 +871,13 @@ def sd_gplummer(gam, X):
         * (-3 + X * X + gam)
         * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
     )
-    term2 = (-17 + X ** 4 - X * X * (gam - 8) - gam * (gam - 9)) * hyp2f1(
+    term2 = (-17 + X**4 - X * X * (gam - 8) - gam * (gam - 9)) * hyp2f1(
         1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
     )
     term3 = (gam - 3 - X * X) * (term1 + term2)
 
     num = -(gam - 3) * (X * X * (gam - 4) * (gam - 2) + term3)
-    den = 2 * X ** 4 * (1 + X * X) * (gam - 4) * (gam - 2)
+    den = 2 * X**4 * (1 + X * X) * (gam - 4) * (gam - 2)
 
     sd = num / den
 
@@ -908,7 +908,7 @@ def n_gplummer(gam, X):
     term2 = (
         (1 + X * X) * (X * X + gam - 3) * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
     )
-    term3 = (17 - X ** 4 + X * X * (gam - 8) + gam * (gam - 9)) * hyp2f1(
+    term3 = (17 - X**4 + X * X * (gam - 8) + gam * (gam - 9)) * hyp2f1(
         1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
     )
 
@@ -950,7 +950,7 @@ def likelihood_gplummer(params, Ri):
 
     N_sys_tot = n_gplummer(gam, Xmax) - n_gplummer(gam, Xmin)
 
-    SD = sd_gplummer(gam, X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_gplummer(gam, X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1002,6 +1002,203 @@ def lnprob_gp(params, Ri, guess, bounds):
     Parameters
     ----------
     Parameters to be fitted: gPlummer inner slope, gPlummer characteristic radius a and
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    Ri : array_like
+        Array containing the ensemble of projected radii.
+    guess : array_like
+        Array containing the initial guess of the parameters.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+
+
+    Returns
+    -------
+    log-prior probability : float
+        log-probability of fit parameters.
+
+    """
+
+    lp = lnprior_s(params, guess, bounds)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp - likelihood_sersic(params, Ri)
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"King 1962 profile functions"
+# ---------------------------------------------------------------------------
+
+###############################################################################
+#
+# Functions concerning the general King 1962 profile.
+#
+###############################################################################
+
+
+def sd_king62(Xt, X):
+    """
+    King 1962 surface density, normalized according to the convention:
+
+    SD(X = R/rc) = SD_real(R) * pi * rc^2 / N_infinty
+
+    Parameters
+    ----------
+    Xt : array_like, float
+        Concentration.
+    X : array_like (same shape as gam), float
+        Projected radius X = R/rc.
+
+    Returns
+    -------
+    SD : array_like (same shape as Xt), float
+        Normalized surface density profile.
+
+    """
+
+    if np.isscalar(X):
+        X = np.asarray([X])
+
+    idx_nvalid = np.where(X > Xt)
+
+    X = X * X
+    Xt = Xt * Xt
+
+    num = 1 / np.sqrt(1 + X) - 1 / np.sqrt(1 + Xt)
+    num = num * num
+    den = np.log(1 + Xt) - (3 * np.sqrt(1 + Xt) - 1) * (np.sqrt(1 + Xt) - 1) / (1 + Xt)
+
+    sd = num / den
+
+    sd[idx_nvalid] = 0
+
+    return sd
+
+
+def n_king62(Xt, X):
+    """
+    King 1962 projected number, normalized according to the convention:
+
+    N(X = R/rc) = N(R) / N_infinty
+
+    Parameters
+    ----------
+    Xt : array_like, float
+        Concentration.
+    X : array_like (same shape as gam), float
+        Projected radius X = R/rc.
+
+    Returns
+    -------
+    N : array_like (same shape as Xt), float
+        King 1962 projected number.
+
+    """
+
+    if np.isscalar(X):
+        X = np.asarray([X])
+
+    idx_nvalid = np.where(X > Xt)
+
+    X = X * X
+    Xt = Xt * Xt
+
+    num = np.log(1 + X) - 4 * (np.sqrt(1 + X) - 1) / np.sqrt(1 + Xt) + X / (1 + Xt)
+    den = np.log(1 + Xt) - (3 * np.sqrt(1 + Xt) - 1) * (np.sqrt(1 + Xt) - 1) / (1 + Xt)
+
+    N = num / den
+
+    N[idx_nvalid] = 1
+
+    return N
+
+
+def likelihood_king62(params, Ri):
+    """
+    Likelihood function of the King 1962 profile plus a constant contribution
+    from fore/background tracers.
+
+    Parameters
+    ----------
+    Parameters to be fitted: core radius, concentration c = log10(rt/rc)
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    Ri : array_like
+        Array containing the ensemble of projected radii.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+    """
+    Xt = 10 ** params[0]
+    rc = 10 ** params[1]
+
+    if params[2] < -10:
+        norm = 0
+    else:
+        norm = 10 ** params[2]
+
+    Xmax = np.amax(Ri) / rc
+    Xmin = np.amin(Ri) / rc
+    X = Ri / rc
+
+    N_sys_tot = n_king62(Xt, Xmax) - n_king62(Xt, Xmin)
+
+    SD = sd_king62(Xt, X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
+
+    Ntot = N_sys_tot * (1 + norm)
+
+    fi = 2 * (X / rc) * SD / Ntot
+
+    idx_valid = np.logical_not(np.isnan(np.log(fi)))
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
+    return L
+
+
+def lnprior_k62(params, guess, bounds):
+    """
+    Prior assumptions on the parameters.
+
+    Parameters
+    ----------
+    Parameters to be fitted: core radius, concentration c = log10(rt/rc)
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    guess : array_like
+        Array containing the initial guess of the parameters.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+
+
+    Returns
+    -------
+    log-prior probability : float
+        0, if the parameters are within the prior range,
+        - Infinity otherwise.
+
+    """
+
+    if (
+        (guess[0] - bounds[0] <= params[0] <= guess[0] + bounds[0])
+        and (guess[1] - bounds[1] <= params[1] <= guess[1] + bounds[1])
+        and (guess[2] - bounds[2] <= params[2] <= guess[2] + bounds[2])
+    ):
+        return 0.0
+    return -np.inf
+
+
+def lnprob_k62(params, Ri, guess, bounds):
+    """
+    log-probability of fit parameters.
+
+    Parameters
+    ----------
+    Parameters to be fitted: core radius, concentration c = log10(rt/rc)
                              log-ratio of galactic objects and Milky
                              Way stars.
     Ri : array_like
@@ -1113,7 +1310,7 @@ def likelihood_kazantzidis(params, Ri):
 
     N_sys_tot = n_kazantizidis(Xmax) - n_kazantizidis(Xmin)
 
-    SD = sd_kazantzidis(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_kazantzidis(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1271,11 +1468,11 @@ def n_plummer_angle(R, Rmax, d, a):
         term1 = -a * a * np.arccos(arg1) / (np.pi * (a * a + R * R))
 
         arg2 = np.sqrt(
-            -(d ** 4) - (R * R - Rmax * Rmax) ** 2 + 2 * d * d * (R * R + Rmax * Rmax)
+            -(d**4) - (R * R - Rmax * Rmax) ** 2 + 2 * d * d * (R * R + Rmax * Rmax)
         )
 
         arg3 = -np.sqrt(
-            a ** 4 + (d * d - Rmax * Rmax) ** 2 + 2 * a * a * (d * d + Rmax * Rmax)
+            a**4 + (d * d - Rmax * Rmax) ** 2 + 2 * a * a * (d * d + Rmax * Rmax)
         )
 
         arg4 = (d * d - Rmax * Rmax) ** 2 - R * R * (d * d + Rmax * Rmax)
@@ -1372,7 +1569,7 @@ def likelihood_plummer(params, Ri):
 
     N_sys_tot = n_plummer(Xmax) - n_plummer(Xmin)
 
-    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1426,7 +1623,7 @@ def likelihood_plummer_freec(params, x, y):
 
     N_sys_tot = n_plummer(Xmax) - n_plummer(Xmin)
 
-    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1493,7 +1690,7 @@ def likelihood_plummer_center(params, x, y, ra0, dec0, rmax):
         Xmin * a, rmax, d, a
     )
 
-    SD = sd_plummer(X) + norm * N_sys_tot / (rmax ** 2)
+    SD = sd_plummer(X) + norm * N_sys_tot / (rmax**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1651,6 +1848,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
              - 'kazantzidis'
              - 'plummer'
              - 'gplummer'
+             - 'king62'
         The default is 'plummer'.
     x0 : float, optional
         Peak of data in x-direction. The default is None.
@@ -1668,6 +1866,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
             - 'kazantzidis'
             - 'plummer'
             - 'gplummer'
+            - 'king62'
         No data is provided.
 
     Returns
@@ -1730,6 +1929,13 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
         mle_model = differential_evolution(lambda c: likelihood_gplummer(c, ri), bounds)
         results = mle_model.x
         hfun = ndt.Hessian(lambda c: likelihood_gplummer(c, ri), full_output=True)
+
+    elif model == "king62":
+        conc = np.log10(np.nanmax(ri)) - hmr
+        bounds = [(0, max(conc + 2, 3)), (hmr - 3, hmr + 1), (norm - 2, norm + 2)]
+        mle_model = differential_evolution(lambda c: likelihood_king62(c, ri), bounds)
+        results = mle_model.x
+        hfun = ndt.Hessian(lambda c: likelihood_king62(c, ri), full_output=True)
 
     hessian_ndt, info = hfun(results)
     if hybrid is False:

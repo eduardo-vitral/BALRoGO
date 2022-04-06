@@ -154,12 +154,12 @@ def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
     cosda = np.cos(a - a0)
 
     dentheta = np.sqrt(
-        cosd ** 2 * sinda ** 2 + (cosd0 * sind - cosda * cosd * sind0) ** 2
+        cosd**2 * sinda**2 + (cosd0 * sind - cosda * cosd * sind0) ** 2
     )
 
     dvdpma = (cosd0 * sinda * (cosda * cosd * cosd0 + sind * sind0)) / dentheta
     dvdpmd = (
-        -cosd * sinda ** 2 * sind
+        -cosd * sinda**2 * sind
         + (cosd0 * sind - cosda * cosd * sind0) * (cosd * cosd0 + cosda * sind * sind0)
     ) / dentheta
     dvdpma0 = -cosd * sinda * (cosda * cosd * cosd0 + sind * sind0) / dentheta
@@ -637,7 +637,7 @@ def perc_bins(x, y, ey, dimy, bootp=True, logx=True, nnodes=5):
     for i in range(0, nnodes):
 
         z = 100 ** (1 / nnodes)
-        qi = max(0, 0.01 * z ** i)
+        qi = max(0, 0.01 * z**i)
         qf = min(0.01 * z ** (i + 1), 1)
 
         ri = position.quantile(x, qi)
