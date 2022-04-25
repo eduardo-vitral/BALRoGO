@@ -30,6 +30,28 @@ from functools import partial
 from scipy.optimize import curve_fit
 import uncertainties.unumpy as unp
 import uncertainties as unc
+import numdifftools as ndt
+from scipy.optimize import differential_evolution
+import emcee
+from multiprocessing import Pool
+from multiprocessing import cpu_count
+
+ncpu = cpu_count()
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ------------------------------------------------------------------------------
+"Global variables"
+# ------------------------------------------------------------------------------
+
+# Gravitational constant, in N m^2 kg^-2
+G = 6.67430 * 1e-11
+
+# Multuplying factor to pass from solar mass to kg
+msun_to_kg = 1.98847 * 1e30
+
+# Multuplying factor to pass from kpc to km
+kpc_to_km = 3.086 * 10**16
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
@@ -1229,6 +1251,40 @@ def dispersion(
     return r, disp, err
 
 
+def disp_plummer(r, d0, a=2, b=0.25):
+    """
+    Returns the normalized velocity dispersion profile for an anisotropic
+    Plummer model. Uses a generalized form of the relation from Dejonghe 1987.
+
+    The normalization is such data dd = dd_real / SQRT(G * Mtot / a)
+
+    Where G is the gravitational constant, a the Plummer scale radius
+    and Mtot the total mas of the system.
+
+    Parameters
+    ----------
+    r : array_like, float
+        r-axis, normalized by the Plummer scale radius.
+    d0 : float
+        Velocity dispersion at r = 0.
+    a : float, optional
+        Exponent from radial term. The default is 2.
+    b : float, optional
+        Exponent from denominator. The default is 0.25.
+
+
+    Returns
+    -------
+    dd : array_like, float
+        Velocity dispersion.
+
+    """
+
+    dd = d0 / (1 + r**a) ** b
+
+    return dd
+
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
 "General functions"
@@ -1285,6 +1341,33 @@ def bootstrap(array):
     unc = np.std(sig)
 
     return unc
+
+
+def lgaussian(x, mu, sig):
+    """
+    Natural logarithrm of the Gausian function.
+
+    Parameters
+    ----------
+    x : array_like, float
+        Random variable.
+    mu : float
+        Gaussian mean.
+    sig : float
+        Gaussian standard deviation.
+
+    Returns
+    -------
+    lg: array_like, float
+        Logarithm of the Gaussian function.
+
+    """
+
+    arg = (x - mu) / sig
+
+    lg = -0.5 * arg * arg - 0.5 * np.log(2 * np.pi) - np.log(sig)
+
+    return lg
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1754,6 +1837,343 @@ def get_betasym(
     )
 
     return r, beta_sym, ebeta_sym
+
+
+def likelihood_om(params, w):
+    """
+    Likelihood function of the velocity anisotropy for the model from
+    Osipkov 1979; Merritt 1985.
+
+    Parameters
+    ----------
+    params: array_lie
+        Parameters to be fitted, the logarithm of the anisotropy radius and
+        the anisotropy value at infinity, and the radial velocity dispersion
+        at r = 0.
+    w : array_like
+        Array containing the ensemble of data, i.e., r, vr, vphi and vtheta.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+
+    """
+
+    ra = 10 ** params[0]
+    b0 = params[1] / (1 + 0.5 * params[1])
+    bi = params[2] / (1 + 0.5 * params[2])
+    d0 = 10 ** params[3]
+    rp = 10 ** params[4]
+
+    r, vr, vt1, vt2 = w
+
+    beta = bgOM(r, ra, b0, bi)
+
+    dr = disp_plummer(r / rp, d0, params[5], params[6])
+
+    lGr = lgaussian(vr, np.nanmean(vr), dr)
+    lGt1 = lgaussian(vt1, np.nanmean(vt1), dr * np.sqrt(1 - beta))
+    lGt2 = lgaussian(vt2, np.nanmean(vt2), dr * np.sqrt(1 - beta))
+
+    lf = lGr + lGt1 + lGt2
+
+    idx_valid = np.logical_not(np.isnan(lf))
+
+    L = -np.sum(lf[idx_valid])
+
+    return L
+
+
+def fit_beta_bayes(r, vr, vphi, vtheta, model="OM"):
+    """
+    Performs a Bayesian fit of the velocity anisotropy.
+
+    Parameters
+    ----------
+    r : array_like
+        r-axis.
+    vr : array_like
+        r-axis velocity.
+    vphi : array_like
+        phi-angle velocity.
+    vtheta : array_like
+        theta-angle velocity.
+    model : string, optional
+        Velocity anisotropy model. The default is 'OM'.
+
+    Raises
+    ------
+    ValueError
+        Velocity anisotropy model is not one of the following:
+            - 'OM'
+        No data is provided.
+
+    Returns
+    -------
+    results : array
+        Best fit parameters of the velocity anisotropy model.
+    var : array
+        Uncertainty of the fits.
+
+
+    """
+
+    if model not in ["OM"]:
+        raise ValueError("Does not recognize  velocity anisotropy model.")
+
+    size_data = len(r)
+
+    wi = np.vstack([r, vr, vphi, vtheta])
+
+    for i in range(np.shape(wi)[0]):
+        if len(wi[i]) != size_data:
+            raise ValueError("The arrays do not have the same length.")
+
+    # Defines initial guesses for the parameters (i.e., r_a and beta_inf).
+    lra = np.log10(np.nanmedian(r) / 1.305)
+    ld = np.log10(np.nanstd(vr))
+
+    if model == "OM":
+        bounds = [
+            (
+                max(lra - 2, np.nanquantile(np.log10(r), 0.05)),
+                min(lra + 2, np.nanquantile(np.log10(r), 0.95)),
+            ),
+            (-1.99, 1.999),
+            (-1.99, 1.999),
+            (ld - 0.3, ld + 0.3),
+            (
+                max(lra - 2, np.nanquantile(np.log10(r), 0.05)),
+                min(lra + 2, np.nanquantile(np.log10(r), 0.95)),
+            ),
+            (1, 8),
+            (0.05, 2),
+        ]
+        mle_model = differential_evolution(lambda c: likelihood_om(c, wi), bounds)
+        results = mle_model.x
+        hfun = ndt.Hessian(lambda c: likelihood_om(c, wi), full_output=True)
+
+    hessian_ndt, info = hfun(results)
+    var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+    return results, var
+
+
+def likelihood_prior_beta(params, bounds, gauss):
+    """
+    This function sets the prior probabilities for the MCMC.
+
+    Parameters
+    ----------
+    params : array_like
+        Array containing the fitted values.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Gaussian priors.
+    Returns
+    -------
+    log-prior probability: float
+        0, if the values are inside the prior limits
+        - Infinity, if one of the values are outside the prior limits.
+
+    """
+
+    if (
+        (bounds[0, 0] < params[0] < bounds[0, 1])
+        and (bounds[1, 0] < params[1] < bounds[1, 1])
+        and (bounds[2, 0] < params[2] < bounds[2, 1])
+        and (bounds[3, 0] < params[3] < bounds[3, 1])
+        and (bounds[4, 0] < params[4] < bounds[4, 1])
+        and (bounds[5, 0] < params[5] < bounds[5, 1])
+        and (bounds[6, 0] < params[6] < bounds[6, 1])
+    ):
+        lprior = 0
+        for i in range(len(params)):
+            if gauss[i, 1] > 0:
+                nutmp = (params[i] - gauss[i, 0]) / gauss[i, 1]
+                lprior = lprior - 0.5 * nutmp * nutmp
+        return lprior
+    else:
+        return -np.inf
+
+
+def likelihood_prob_beta(params, w, bounds, gauss):
+    """
+    This function gets the prior probability for MCMC.
+
+    Parameters
+    ----------
+    params: array_lie
+        Parameters to be fitted, the logarithm of the anisotropy radius and
+        the anisotropy value at infinity, and the radial velocity dispersion
+        at r = 0.
+    w : array_like
+        Array containing the ensemble of data, i.e., r, vr, vphi and vtheta.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Gaussian priors.
+
+    Returns
+    -------
+    log probability: float
+        log-probability for the respective params.
+    """
+
+    lp = likelihood_prior_beta(params, bounds, gauss)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp - likelihood_om(params, w)
+
+
+def mcmc_anisotropy(
+    r,
+    vr,
+    vphi,
+    vtheta,
+    model="OM",
+    nwalkers=None,
+    steps=1000,
+    ini=None,
+    bounds=None,
+    gaussp=False,
+    use_pool=False,
+):
+    """
+    MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
+
+    Parameters
+    ----------
+    r : array_like
+        r-axis.
+    vr : array_like
+        r-axis velocity.
+    vphi : array_like
+        phi-angle velocity.
+    vtheta : array_like
+        theta-angle velocity.
+    model : string, optional
+        Velocity anisotropy model. The default is 'OM'.
+    nwalkers : int, optional
+        Number of Markov chains. The default is None.
+    steps : int, optional
+        Number of steps for each chain. The default is 1000.
+    ini : array_like, optional
+        Array containing the initial guess of the parameters.
+        The order of parameters should be the same returned by the method
+        "likelihood_om".
+        The default is None.
+    bounds : array_like, optional
+        Array containing the allowed range of variation for the parameters.
+        The order of parameters should be the same returned by the method
+        "likelihood_om".
+        The default is None.
+    gaussp : boolean, optional
+        "True", if the user wishes Gaussian priors to be considered.
+        The default is False.
+    use_pool : boolean, optional
+        "True", if the user whises to use full CPU power of the machine.
+        The default is False.
+
+    Raises
+    ------
+    ValueError
+        Velocity anisotropy model is not one of the following:
+            - 'OM'
+        No data is provided.
+
+    Returns
+    -------
+    chain : array_like
+        Set of chains from the MCMC.
+
+    """
+
+    if model not in ["OM"]:
+        raise ValueError("Does not recognize  velocity anisotropy model.")
+
+    size_data = len(r)
+
+    wi = np.vstack([r, vr, vphi, vtheta])
+
+    for i in range(np.shape(wi)[0]):
+        if len(wi[i]) != size_data:
+            raise ValueError("The arrays do not have the same length.")
+
+    # Defines initial guesses for the parameters (i.e., r_a and beta_inf).
+    lra = np.log10(np.nanmedian(r) / 1.305)
+    ld = np.log10(np.nanstd(vr))
+
+    if model == "OM":
+        if bounds is None:
+            bounds = [
+                (
+                    max(lra - 2, np.nanquantile(np.log10(r), 0.05)),
+                    min(lra + 2, np.nanquantile(np.log10(r), 0.95)),
+                ),
+                (-1.99, 1.999),
+                (-1.99, 1.999),
+                (ld - 0.3, ld + 0.3),
+                (
+                    max(lra - 2, np.nanquantile(np.log10(r), 0.05)),
+                    min(lra + 2, np.nanquantile(np.log10(r), 0.95)),
+                ),
+                (1, 8),
+                (0.05, 2),
+            ]
+
+            mle_model = differential_evolution(lambda c: likelihood_om(c, wi), bounds)
+            results = mle_model.x
+            hfun = ndt.Hessian(lambda c: likelihood_om(c, wi), full_output=True)
+
+            hessian_ndt, info = hfun(results)
+            var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+            ini = np.asarray(results)
+            bounds = np.asarray(bounds)
+
+            if ini is None:
+                ini = np.asarray(results)
+
+    ndim = len(ini)  # number of dimensions.
+    if gaussp is True:
+        gaussp = np.zeros((ndim, 2))
+        for i in range(ndim):
+            if np.logical_not(np.isnan(var[i])):
+                gaussp[i, 0] = ini[i]
+                gaussp[i, 1] = var[i]
+    else:
+        gaussp = np.zeros((ndim, 2))
+
+    if nwalkers is None or nwalkers < 2 * ndim:
+        nwalkers = int(2 * ndim + 1)
+
+    pos = [ini + 1e-3 * ini * np.random.randn(ndim) for i in range(nwalkers)]
+
+    if use_pool:
+
+        with Pool() as pool:
+            sampler = emcee.EnsembleSampler(
+                nwalkers,
+                ndim,
+                likelihood_prob_beta,
+                args=(wi, bounds, gaussp),
+                pool=pool,
+            )
+            sampler.run_mcmc(pos, steps)
+    else:
+
+        sampler = emcee.EnsembleSampler(
+            nwalkers, ndim, likelihood_prob_beta, args=(wi, bounds, gaussp)
+        )
+        sampler.run_mcmc(pos, steps)
+
+    chain = sampler.chain
+
+    return chain
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
