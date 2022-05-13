@@ -18,10 +18,13 @@ Created on 2020
 ###############################################################################
 
 from . import angle
+
 import numpy as np
 from skimage.feature import peak_local_max
 from scipy.optimize import differential_evolution
 from scipy.special import gamma, gammainc, kn, hyp2f1
+from scipy.interpolate import PchipInterpolator
+from scipy.signal import find_peaks
 
 import numdifftools as ndt
 import emcee
@@ -846,6 +849,40 @@ def lnprob_s(params, Ri, guess, bounds):
 ###############################################################################
 
 
+def m_gplummer(gam, bet, x):
+    """
+    gPlummer mass profile, normalized according to the convention:
+
+    M(X = R/a) = M_real(R) / N_infinty
+
+    Parameters
+    ----------
+    gam : array_like, float
+        Inner slope.
+    bet : array_like, float
+        Outer slope.
+    x : array_like (same shape as gam), float
+        Radius x = r/a.
+
+    Returns
+    -------
+    M : array_like (same shape as gam), float
+        Normalized mass profile.
+
+    """
+
+    term1 = -2 * x ** (3 - gam) * gamma(0.5 * (bet - gam))
+    term2 = hyp2f1(
+        0.5 * (3 - gam), 0.5 * (bet - gam), 0.5 * (5 - gam), -x * x
+    )  # 2F1(a,b;c;z)
+    num = term1 * term2
+    den = (gam - 3) * gamma(0.5 * (bet - 3)) * gamma(0.5 * (3 - gam))
+
+    m = num / den
+
+    return m
+
+
 def sd_gplummer(gam, X):
     """
     gPlummer surface density, normalized according to the convention:
@@ -882,6 +919,39 @@ def sd_gplummer(gam, X):
     sd = num / den
 
     return sd
+
+
+def vd_gplummer(gam, bet, x):
+    """
+    gPlummer volume density, normalized according to the convention:
+
+    VD(X = R/a) = VD_real(R) 4 * pi * a^3 / N_infinty
+
+    Parameters
+    ----------
+    gam : array_like, float
+        Inner slope.
+    bet : array_like, float
+        Outer slope
+    x : array_like (same shape as gam), float
+        Radius x = r/a.
+
+    Returns
+    -------
+    VD : array_like (same shape as gam), float
+        Normalized volume density profile.
+
+    """
+
+    num = (
+        2 * x ** (-gam) * (1 + x * x) ** (0.5 * (gam - bet)) * gamma(0.5 * (bet - gam))
+    )
+
+    den = gamma(0.5 * (bet - 3)) * gamma(0.5 * (3 - gam))
+
+    vd = num / den
+
+    return vd
 
 
 def n_gplummer(gam, X):
@@ -963,6 +1033,60 @@ def likelihood_gplummer(params, Ri):
     return L
 
 
+def likelihood_gplummer_dens(params, ri, shells=True):
+    """
+    Likelihood function of the gPlummer density profile.
+
+    Parameters
+    ----------
+    Parameters to be fitted: gPlummer inner slope, gPlummer outer slope,
+                             gPlummer characteristic radius a and
+                             an eventual shell mass fraction.
+    ri : array_like
+        Array containing the ensemble of projected radii.
+    shells : boolean, optional
+        True if the user wishes to consider two mass shells.
+        The default is True.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+    """
+
+    gam = params[0]
+    bet = params[1]
+    a = 10 ** params[2]
+    if shells is True:
+        gam2 = params[3]
+        bet2 = params[4]
+        a2 = 10 ** params[5]
+        frac = 10 ** params[6]
+
+        gam = np.asarray([gam, gam2])
+        bet = np.asarray([bet, bet2])
+        a = np.asarray([a, a2])
+        frac = np.asarray([frac, 1 - frac])
+    else:
+        frac = 1
+        gam = np.asarray([gam])
+        bet = np.asarray([bet])
+        a = np.asarray([a])
+        frac = np.asarray([frac])
+
+    fi = 0
+    for i in range(len(gam)):
+        dens = (ri / a[i]) * (ri / a[i]) * vd_gplummer(gam[i], bet[i], ri / a[i]) / a[i]
+        fi = fi + frac[i] * dens
+
+    idx_valid = np.logical_not(np.isnan(np.log(fi)))
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
+    return L
+
+
 def lnprior_gp(params, guess, bounds):
     """
     Prior assumptions on the parameters.
@@ -995,6 +1119,45 @@ def lnprior_gp(params, guess, bounds):
     return -np.inf
 
 
+def lnprior_gp_dens(params, bounds, gauss):
+    """
+    This function sets the prior probabilities for the MCMC.
+
+    Parameters
+    ----------
+    params : array_like
+        Array containing the fitted values.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Gaussian priors.
+    Returns
+    -------
+    log-prior probability: float
+        0, if the values are inside the prior limits
+        - Infinity, if one of the values are outside the prior limits.
+
+    """
+
+    if (
+        (bounds[0, 0] < params[0] < bounds[0, 1])
+        and (bounds[1, 0] < params[1] < bounds[1, 1])
+        and (bounds[2, 0] < params[2] < bounds[2, 1])
+        and (bounds[3, 0] < params[3] < bounds[3, 1])
+        and (bounds[4, 0] < params[4] < bounds[4, 1])
+        and (bounds[5, 0] < params[5] < bounds[5, 1])
+        and (bounds[6, 0] < params[6] < bounds[6, 1])
+    ):
+        lprior = 0
+        for i in range(len(params)):
+            if gauss[i, 1] > 0:
+                nutmp = (params[i] - gauss[i, 0]) / gauss[i, 1]
+                lprior = lprior - 0.5 * nutmp * nutmp
+        return lprior
+    else:
+        return -np.inf
+
+
 def lnprob_gp(params, Ri, guess, bounds):
     """
     log-probability of fit parameters.
@@ -1019,10 +1182,39 @@ def lnprob_gp(params, Ri, guess, bounds):
 
     """
 
-    lp = lnprior_s(params, guess, bounds)
+    lp = lnprior_gp(params, guess, bounds)
     if not np.isfinite(lp):
         return -np.inf
-    return lp - likelihood_sersic(params, Ri)
+    return lp - likelihood_gplummer(params, Ri)
+
+
+def lnprob_gp_dens(params, ri, bounds, gauss, shells):
+    """
+    log-probability of fit parameters.
+
+    Parameters
+    ----------
+    Parameters to be fitted: gPlummer inner slope, gPlummer characteristic radius a and
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    Ri : array_like
+        Array containing the ensemble of projected radii.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Gaussian priors.
+
+    Returns
+    -------
+    log-prior probability : float
+        log-probability of fit parameters.
+
+    """
+
+    lp = lnprior_gp_dens(params, bounds, gauss)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp - likelihood_gplummer_dens(params, ri, shells=shells)
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1216,10 +1408,10 @@ def lnprob_k62(params, Ri, guess, bounds):
 
     """
 
-    lp = lnprior_s(params, guess, bounds)
+    lp = lnprior_k62(params, guess, bounds)
     if not np.isfinite(lp):
         return -np.inf
-    return lp - likelihood_sersic(params, Ri)
+    return lp - likelihood_king62(params, Ri)
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1232,6 +1424,56 @@ def lnprob_k62(params, Ri, guess, bounds):
 # Functions concerning the Kazantzidis profile (Kazantzidis et al. 2004).
 #
 ###############################################################################
+
+
+def m_kazantzidis(gam, x):
+    """
+    Kazantzidis mass profile, normalized according to the convention:
+
+    M(X = R/a) = M_real(R) / N_infinty
+
+    Parameters
+    ----------
+    gam : array_like, float
+        Inner slope.
+    x : array_like (same shape as gam), float
+        Radius x = r/a.
+
+    Returns
+    -------
+    M : array_like (same shape as gam), float
+        Normalized mass profile.
+
+    """
+
+    m = gammainc(3 - gam, x)
+
+    return m
+
+
+def vd_kazantzidis(gam, x):
+    """
+    Kazantzidis volume density, normalized according to the convention:
+
+    VD(X = R/a) = VD_real(R) 4 * pi * a^3 / N_infinty
+
+    Parameters
+    ----------
+    gam : array_like, float
+        Inner slope.
+    x : array_like (same shape as gam), float
+        Radius x = r/a.
+
+    Returns
+    -------
+    VD : array_like (same shape as gam), float
+        Normalized volume density profile.
+
+    """
+
+    vd = x ** (-gam) * np.exp(-x) / gamma(3 - gam)
+
+    return vd
 
 
 def sd_kazantzidis(X):
@@ -1280,7 +1522,7 @@ def n_kazantizidis(X):
 
 def likelihood_kazantzidis(params, Ri):
     """
-    Likelihood function of the Sersic profile plus a constant contribution
+    Likelihood function of the Kazantzidis profile plus a constant contribution
     from fore/background tracers.
 
     Parameters
@@ -1315,6 +1557,56 @@ def likelihood_kazantzidis(params, Ri):
     Ntot = N_sys_tot * (1 + norm)
 
     fi = 2 * (X / a) * SD / Ntot
+
+    idx_valid = np.logical_not(np.isnan(np.log(fi)))
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
+    return L
+
+
+def likelihood_kazantzidis_dens(params, ri, shells=True):
+    """
+    Likelihood function of the Kazantzidis density profile.
+
+    Parameters
+    ----------
+    Parameters to be fitted: Kazantzidis characteristic radius a and
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    ri : array_like
+        Array containing the ensemble of projected radii.
+    shells : boolean, optional
+        True if the user wishes to consider two mass shells.
+        The default is True.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+    """
+
+    gam = params[0]
+    a = 10 ** params[1]
+    if shells is True:
+        gam2 = params[2]
+        a2 = 10 ** params[3]
+        frac = 10 ** params[4]
+
+        gam = np.asarray([gam, gam2])
+        a = np.asarray([a, a2])
+        frac = np.asarray([frac, 1 - frac])
+    else:
+        frac = 1
+        gam = np.asarray([gam])
+        a = np.asarray([a])
+        frac = np.asarray([frac])
+
+    fi = 0
+    for i in range(len(gam)):
+        dens = (ri / a[i]) * (ri / a[i]) * vd_kazantzidis(gam[i], ri / a[i]) / a[i]
+        fi = fi + frac[i] * dens
 
     idx_valid = np.logical_not(np.isnan(np.log(fi)))
 
@@ -1379,6 +1671,71 @@ def lnprob_k(params, Ri, guess, bounds):
     if not np.isfinite(lp):
         return -np.inf
     return lp - likelihood_kazantzidis(params, Ri)
+
+
+def lnprob_k_dens(params, ri, bounds, gauss, shells):
+    """
+    Kazantzidis log-probability of fit parameters.
+
+    Parameters
+    ----------
+    Parameters to be fitted
+
+    ri : array_like
+        Array containing the ensemble of projected radii.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Gaussian priors.
+
+    Returns
+    -------
+    log-prior probability : float
+        log-probability of fit parameters.
+
+    """
+
+    lp = lnprior_k_dens(params, bounds, gauss)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp - likelihood_kazantzidis_dens(params, ri, shells=shells)
+
+
+def lnprior_k_dens(params, bounds, gauss):
+    """
+    This function sets the prior probabilities for the MCMC.
+
+    Parameters
+    ----------
+    params : array_like
+        Array containing the fitted values.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Gaussian priors.
+    Returns
+    -------
+    log-prior probability: float
+        0, if the values are inside the prior limits
+        - Infinity, if one of the values are outside the prior limits.
+
+    """
+
+    if (
+        (bounds[0, 0] < params[0] < bounds[0, 1])
+        and (bounds[1, 0] < params[1] < bounds[1, 1])
+        and (bounds[2, 0] < params[2] < bounds[2, 1])
+        and (bounds[3, 0] < params[3] < bounds[3, 1])
+        and (bounds[4, 0] < params[4] < bounds[4, 1])
+    ):
+        lprior = 0
+        for i in range(len(params)):
+            if gauss[i, 1] > 0:
+                nutmp = (params[i] - gauss[i, 0]) / gauss[i, 1]
+                lprior = lprior - 0.5 * nutmp * nutmp
+        return lprior
+    else:
+        return -np.inf
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1764,6 +2121,181 @@ def lnprob_p(params, Ri, guess, bounds):
     return lp - likelihood_plummer(params, Ri)
 
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"DM profile functions"
+# ---------------------------------------------------------------------------
+
+###############################################################################
+#
+# Functions used for dark matter profiles.
+#
+###############################################################################
+
+
+def m_dm(a, x):
+    """
+    Mass profile, normalized according to the convention:
+
+    M(X = R/a) = M_real(R) / N_infinty
+
+    Parameters
+    ----------
+    a : array_like, float
+        Inner slope.
+    x : array_like (same shape as gam), float
+        Radius x = r/a.
+
+    Returns
+    -------
+    M : array_like (same shape as a), float
+        Normalized mass profile.
+
+    """
+
+    m = x**a / (1 + x**a)
+
+    return m
+
+
+def vd_dm(a, x):
+    """
+    Volume density, normalized according to the convention:
+
+    VD(X = R/a) = VD_real(R) 4 * pi * a^3 / N_infinty
+
+    Parameters
+    ----------
+    a : array_like, float
+        Inner slope.
+    x : array_like (same shape as gam), float
+        Radius x = r/a.
+
+    Returns
+    -------
+    VD : array_like (same shape as gam), float
+        Normalized volume density profile.
+
+    """
+
+    vd = a * x ** (a - 3) / (1 + x**a) ** 2
+
+    return vd
+
+
+def likelihood_dm_dens(params, ri, shells=True):
+    """
+    Likelihood function of the density profile.
+
+    Parameters
+    ----------
+    Parameters to be fitted
+    ri : array_like
+        Array containing the ensemble of projected radii.
+    shells : boolean, optional
+        True if the user wishes to consider two mass shells.
+        The default is True.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+    """
+
+    a = params[0]
+    ra = 10 ** params[1]
+    if shells is True:
+        a2 = params[2]
+        ra2 = 10 ** params[3]
+        frac = 10 ** params[4]
+
+        a = np.asarray([a, a2])
+        ra = np.asarray([ra, ra2])
+        frac = np.asarray([frac, 1 - frac])
+    else:
+        frac = 1
+        a = np.asarray([a])
+        ra = np.asarray([ra])
+        frac = np.asarray([frac])
+
+    fi = 0
+    for i in range(len(a)):
+        dens = (ri / ra[i]) * (ri / ra[i]) * vd_dm(a[i], ri / ra[i]) / ra[i]
+        fi = fi + frac[i] * dens
+
+    idx_valid = np.logical_not(np.isnan(np.log(fi)))
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
+    return L
+
+
+def lnprob_dm_dens(params, ri, bounds, gauss, shells):
+    """
+    log-probability of fit parameters.
+
+    Parameters
+    ----------
+    Parameters to be fitted
+
+    ri : array_like
+        Array containing the ensemble of projected radii.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Gaussian priors.
+
+    Returns
+    -------
+    log-prior probability : float
+        log-probability of fit parameters.
+
+    """
+
+    lp = lnprior_dm_dens(params, bounds, gauss)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp - likelihood_dm_dens(params, ri, shells=shells)
+
+
+def lnprior_dm_dens(params, bounds, gauss):
+    """
+    This function sets the prior probabilities for the MCMC.
+
+    Parameters
+    ----------
+    params : array_like
+        Array containing the fitted values.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Gaussian priors.
+    Returns
+    -------
+    log-prior probability: float
+        0, if the values are inside the prior limits
+        - Infinity, if one of the values are outside the prior limits.
+
+    """
+
+    if (
+        (bounds[0, 0] < params[0] < bounds[0, 1])
+        and (bounds[1, 0] < params[1] < bounds[1, 1])
+        and (bounds[2, 0] < params[2] < bounds[2, 1])
+        and (bounds[3, 0] < params[3] < bounds[3, 1])
+        and (bounds[4, 0] < params[4] < bounds[4, 1])
+    ):
+        lprior = 0
+        for i in range(len(params)):
+            if gauss[i, 1] > 0:
+                nutmp = (params[i] - gauss[i, 0]) / gauss[i, 1]
+                lprior = lprior - 0.5 * nutmp * nutmp
+        return lprior
+    else:
+        return -np.inf
+
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
 "General functions"
@@ -1823,6 +2355,46 @@ def good_bin(x):
     bins = int((np.amax(x) - np.amin(x)) / (min(q_m, q_p) / 4))
 
     return bins
+
+
+def get_saddle(f):
+    """
+    Finds most extreme saddle point.
+
+    Parameters
+    ----------
+    f : array_like
+        Function to consider.
+
+    Returns
+    -------
+    Argument of saddle point.
+
+    """
+
+    peaks, _ = find_peaks(f)
+
+    valididx = np.arange(int(0.2 * len(f)), int(0.8 * len(f)))
+    validpeak = peaks[
+        np.intersect1d(
+            np.where(peaks > np.nanmin(valididx)), np.where(peaks < np.nanmax(valididx))
+        )
+    ]
+    size = len(validpeak)
+    if size < 2:
+        return validpeak
+
+    peak1 = np.nanargmax(f[peaks])
+    faux = np.copy(f)
+    faux[peaks[peak1]] = -faux[peaks[peak1]]
+    peak2 = np.nanargmax(faux[peaks])
+
+    peaks = peaks[np.asarray([peak1, peak2])]
+    peaks2 = np.arange(np.nanmin(peaks), np.nanmax(peaks))
+
+    arg = np.nanargmin(f[peaks2]) + np.nanmin(peaks2)
+
+    return arg
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2201,3 +2773,440 @@ def ellipse_likelihood(x=None, y=None, model="sersic", x0=None, y0=None, hybrid=
     var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
     return results, var
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"Mass profile fitting"
+# ---------------------------------------------------------------------------
+
+
+def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=True):
+    """
+    Calls a maximum likelihood fit of the mass profile paramters of
+    a radial distribution.
+
+    Parameters
+    ----------
+    x : array_like, optional
+        Data in x-direction. The default is None.
+    y : array_like, optional
+        Data in x-direction. The default is None.
+    model : string, optional
+        Mass model to be considered. Available options are:
+             - 'gplummer'
+             - 'kazantzidis'
+             - 'dm'
+        The default is 'gplummer'.
+    x0 : float, optional
+        Peak of data in x-direction. The default is None.
+    y0 : TYPE, optional
+        Peak of data in y-direction. The default is None.
+    shells : boolean, optional
+        True if the user wishes to consider two mass shells.
+        The default is True.
+
+    Raises
+    ------
+    ValueError
+        Surface density model is not one of the following:
+            - 'gplummer'
+            - 'kazantzidis'
+        No data is provided.
+
+    Returns
+    -------
+    results : array
+        Best fit parameters of the surface density model.
+    var : array
+        Uncertainty of the fits.
+
+    """
+
+    if model not in ["gplummer", "kazantzidis", "dm"]:
+        raise ValueError("Does not recognize surface density model.")
+
+    if (x is None and y is None) or (x is None):
+        raise ValueError("Please provide the data to be fitted.")
+
+    if y is None:
+        ri = x
+    else:
+
+        if x0 is None or y0 is None:
+
+            center, unc = find_center(x, y)
+            if x0 is None:
+                x0 = center[0]
+            if y0 is None:
+                y0 = center[1]
+        ri = np.asarray([angle.sky_distance_deg(x, y, x0, y0)])
+
+    if shells is True:
+        mcum = np.cumsum(np.ones(len(ri)))
+
+        pold = 20
+        lr = np.log10(ri)
+        lm = np.log10(mcum)
+
+        rp = np.logspace(lr[0], lr[-1], 1000)
+        mp = PchipInterpolator(ri, lm)(rp)
+
+        mfit = np.polyfit(np.log10(rp), mp, pold)
+
+        lx = np.log10(rp)
+        x = 10**lx
+
+        ly = 0
+        for j in range(pold + 1):
+            ly = ly + mfit[j] * lx ** (pold - j)
+        y = 10**ly
+
+        dlydlx = 0
+        for j in range(pold):
+            dlydlx = dlydlx + mfit[j] * (pold - j) * lx ** (pold - j - 1)
+        dydx = dlydlx * y / x
+
+        argsaddle = get_saddle(dydx)
+
+        idx_in = np.where(ri <= x[argsaddle])
+        idx_out = np.where(ri > x[argsaddle])
+
+        hmr_in = np.log10(np.nanquantile(ri[idx_in], 0.5))
+        hmr_out = np.log10(np.nanquantile(ri[idx_out], 0.5))
+        frac = np.log10(len(idx_in[0]) / len(ri))
+
+        dly = ly[argsaddle - 100] - ly[0]
+        dlx = lx[argsaddle - 100] - lx[0]
+        slope_in = dly / dlx
+        gam_in = 3 - slope_in
+
+        if model == "gplummer":
+            bounds = [
+                (max(gam_in - 0.5, 0), min(gam_in + 0.5, 3)),
+                (3, 7),
+                (hmr_in - 2, hmr_in + 2),
+                (max(gam_in - 0.5, 0), min(gam_in + 0.5, 3)),
+                (3, 7),
+                (hmr_out - 2, hmr_out + 2),
+                (frac - 0.5, frac + 0.5),
+            ]
+        elif model == "kazantzidis":
+            bounds = [
+                (0, 3),
+                (hmr_in - 2, hmr_in + 2),
+                (0, 3),
+                (hmr_out - 2, hmr_out + 2),
+                (frac - 0.5, frac + 0.5),
+            ]
+        elif model == "dm":
+            bounds = [
+                (max(slope_in - 0.5, 1), min(slope_in + 0.5, 3)),
+                (hmr_in - 2, hmr_in + 2),
+                (1, 5),
+                (hmr_out - 2, hmr_out + 2),
+                (frac - 0.5, frac + 0.5),
+            ]
+    else:
+        hmr = np.log10(np.nanquantile(ri, 0.5))
+        bounds = [(0, 2), (hmr - 2, hmr + 2)]
+
+    if model == "gplummer":
+        mle_model = differential_evolution(
+            lambda c: likelihood_gplummer_dens(c, ri, shells=shells), bounds
+        )
+        results = mle_model.x
+        hfun = ndt.Hessian(
+            lambda c: likelihood_gplummer_dens(c, ri, shells=shells), full_output=True
+        )
+    elif model == "kazantzidis":
+        mle_model = differential_evolution(
+            lambda c: likelihood_kazantzidis_dens(c, ri, shells=shells), bounds
+        )
+        results = mle_model.x
+        hfun = ndt.Hessian(
+            lambda c: likelihood_kazantzidis_dens(c, ri, shells=shells),
+            full_output=True,
+        )
+    elif model == "dm":
+        mle_model = differential_evolution(
+            lambda c: likelihood_dm_dens(c, ri, shells=shells), bounds
+        )
+        results = mle_model.x
+        hfun = ndt.Hessian(
+            lambda c: likelihood_dm_dens(c, ri, shells=shells), full_output=True
+        )
+
+    hessian_ndt, info = hfun(results)
+
+    var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+    return results, var
+
+
+def mcmc_mass(
+    r,
+    model="gplummer",
+    nwalkers=None,
+    steps=1000,
+    ini=None,
+    bounds=None,
+    gaussp=False,
+    use_pool=False,
+    shells=True,
+    values=None,
+):
+    """
+    MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
+
+    Parameters
+    ----------
+    r : array_like
+        r-axis.
+    model : string, optional
+        Velocity anisotropy model. The default is 'gplummer'.
+    nwalkers : int, optional
+        Number of Markov chains. The default is None.
+    steps : int, optional
+        Number of steps for each chain. The default is 1000.
+    ini : array_like, optional
+        Array containing the initial guess of the parameters.
+        The order of parameters should be the same returned by the method
+        "likelihood_gplummer".
+        The default is None.
+    bounds : array_like, optional
+        Array containing the allowed range of variation for the parameters.
+        The order of parameters should be the same returned by the method
+        "likelihood_2gplummer".
+        The default is None.
+    gaussp : boolean, optional
+        "True", if the user wishes Gaussian priors to be considered.
+        The default is False.
+    use_pool : boolean, optional
+        "True", if the user whises to use full CPU power of the machine.
+        The default is False.
+    shells : boolean, optional
+        True if the user wishes to consider two mass shells.
+        The default is True.
+    values : array_like, optional
+        Array containing some of the parameters already fitted. If not fitted,
+        they are filled with np.nan.
+        The default is None.
+
+
+    Raises
+    ------
+    ValueError
+        Velocity anisotropy model is not one of the following:
+            - 'gplummer'
+        No data is provided.
+
+    Returns
+    -------
+    chain : array_like
+        Set of chains from the MCMC.
+
+    """
+
+    if model not in ["gplummer", "kazantzidis", "dm"]:
+        raise ValueError("Does not recognize  velocity anisotropy model.")
+
+    if r is None:
+        raise ValueError("Please provide the data to be fitted.")
+
+    if bounds is None:
+        if shells is True:
+            mcum = np.cumsum(np.ones(len(r)))
+
+            pold = 20
+            lr = np.log10(r)
+            lm = np.log10(mcum)
+
+            rp = np.logspace(lr[0], lr[-1], 1000)
+            mp = PchipInterpolator(r, lm)(rp)
+
+            mfit = np.polyfit(np.log10(rp), mp, pold)
+
+            lx = np.log10(rp)
+            x = 10**lx
+
+            ly = 0
+            for j in range(pold + 1):
+                ly = ly + mfit[j] * lx ** (pold - j)
+            y = 10**ly
+
+            dlydlx = 0
+            for j in range(pold):
+                dlydlx = dlydlx + mfit[j] * (pold - j) * lx ** (pold - j - 1)
+            dydx = dlydlx * y / x
+
+            argsaddle = get_saddle(dydx)
+
+            idx_in = np.where(r <= x[argsaddle])
+            idx_out = np.where(r > x[argsaddle])
+
+            hmr_in = np.log10(np.nanquantile(r[idx_in], 0.5))
+            hmr_out = np.log10(np.nanquantile(r[idx_out], 0.5))
+            frac = np.log10(len(idx_in[0]) / len(r))
+
+            dly = ly[argsaddle - 100] - ly[0]
+            dlx = lx[argsaddle - 100] - lx[0]
+            slope_in = dly / dlx
+            gam_in = 3 - slope_in
+
+            if model == "gplummer":
+                bounds = [
+                    (max(gam_in - 0.5, 0), min(gam_in + 0.5, 3)),
+                    (3, 7),
+                    (hmr_in - 2, hmr_in + 2),
+                    (0, 3),
+                    (3, 7),
+                    (hmr_out - 2, hmr_out + 2),
+                    (frac - 0.5, frac + 0.5),
+                ]
+            elif model == "kazantzidis":
+                bounds = [
+                    (0, 3),
+                    (hmr_in - 2, hmr_in + 2),
+                    (0, 3),
+                    (hmr_out - 2, hmr_out + 2),
+                    (frac - 0.5, frac + 0.5),
+                ]
+            elif model == "dm":
+                bounds = [
+                    (max(slope_in - 0.5, 1), min(slope_in + 0.5, 3)),
+                    (hmr_in - 2, hmr_in + 2),
+                    (1, 5),
+                    (hmr_out - 2, hmr_out + 2),
+                    (frac - 0.5, frac + 0.5),
+                ]
+
+        else:
+            hmr = np.log10(np.nanquantile(r, 0.5))
+            bounds = [(0, 2), (hmr - 2, hmr + 2)]
+
+        if values is None:
+            values = np.zeros(len(bounds))
+            values[:] = np.nan
+
+        for i in range(len(values)):
+            if np.logical_not(np.isnan(values[i])):
+                bounds[i] = (
+                    values[i] - 1e-6 * np.abs(values[i]),
+                    values[i] + 1e-6 * np.abs(values[i]),
+                )
+
+        if model == "gplummer":
+            mle_model = differential_evolution(
+                lambda c: likelihood_gplummer_dens(c, r, shells=shells), bounds
+            )
+            results = mle_model.x
+            hfun = ndt.Hessian(
+                lambda c: likelihood_gplummer_dens(c, r, shells=shells),
+                full_output=True,
+            )
+        elif model == "kazantzidis":
+            mle_model = differential_evolution(
+                lambda c: likelihood_kazantzidis_dens(c, r, shells=shells), bounds
+            )
+            results = mle_model.x
+            hfun = ndt.Hessian(
+                lambda c: likelihood_kazantzidis_dens(c, r, shells=shells),
+                full_output=True,
+            )
+        elif model == "dm":
+            mle_model = differential_evolution(
+                lambda c: likelihood_dm_dens(c, r, shells=shells), bounds
+            )
+            results = mle_model.x
+            hfun = ndt.Hessian(
+                lambda c: likelihood_dm_dens(c, r, shells=shells), full_output=True
+            )
+
+        hessian_ndt, info = hfun(results)
+        for i in range(len(values) - 1, -1, -1):
+            if np.logical_not(np.isnan(values[i])):
+                hessian_ndt = np.delete(hessian_ndt, i, axis=1)
+                hessian_ndt = np.delete(hessian_ndt, i, axis=0)
+                results[i] = values[i]
+        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+        for i in range(len(values) - 1, -1, -1):
+            if np.logical_not(np.isnan(values[i])):
+                var = np.insert(var, i, 1e-6 * np.abs(values[i]))
+        ini = np.asarray(results)
+        bounds = np.asarray(bounds)
+
+        if ini is None:
+            ini = np.asarray(results)
+
+    ndim = len(ini)  # number of dimensions.
+    if gaussp is True:
+        gaussp = np.zeros((ndim, 2))
+        for i in range(ndim):
+            if np.logical_not(np.isnan(var[i])):
+                gaussp[i, 0] = ini[i]
+                gaussp[i, 1] = var[i]
+    else:
+        gaussp = np.zeros((ndim, 2))
+
+    if nwalkers is None or nwalkers < 2 * ndim:
+        nwalkers = int(2 * ndim + 1)
+
+    pos = [ini + 1e-3 * ini * np.random.randn(ndim) for i in range(nwalkers)]
+    for i in range(len(values)):
+        if np.logical_not(np.isnan(values[i])):
+            for j in range(nwalkers):
+                pos[j][i] = ini[i] + ini[i] * 1e-8 * np.random.randn(1)
+
+    if use_pool:
+
+        with Pool() as pool:
+            if model == "gplummer":
+                sampler = emcee.EnsembleSampler(
+                    nwalkers,
+                    ndim,
+                    lnprob_gp_dens,
+                    args=(r, bounds, gaussp, shells),
+                    pool=pool,
+                )
+                sampler.run_mcmc(pos, steps)
+
+            elif model == "kazantzidis":
+                sampler = emcee.EnsembleSampler(
+                    nwalkers,
+                    ndim,
+                    lnprob_k_dens,
+                    args=(r, bounds, gaussp, shells),
+                    pool=pool,
+                )
+                sampler.run_mcmc(pos, steps)
+
+            elif model == "dm":
+                sampler = emcee.EnsembleSampler(
+                    nwalkers,
+                    ndim,
+                    lnprob_dm_dens,
+                    args=(r, bounds, gaussp, shells),
+                    pool=pool,
+                )
+                sampler.run_mcmc(pos, steps)
+    else:
+        if model == "gplummer":
+            sampler = emcee.EnsembleSampler(
+                nwalkers, ndim, lnprob_gp_dens, args=(r, bounds, gaussp, shells)
+            )
+            sampler.run_mcmc(pos, steps)
+        elif model == "kazantzidis":
+            sampler = emcee.EnsembleSampler(
+                nwalkers, ndim, lnprob_k_dens, args=(r, bounds, gaussp, shells)
+            )
+            sampler.run_mcmc(pos, steps)
+        elif model == "dm":
+            sampler = emcee.EnsembleSampler(
+                nwalkers, ndim, lnprob_dm_dens, args=(r, bounds, gaussp, shells)
+            )
+            sampler.run_mcmc(pos, steps)
+
+    chain = sampler.chain
+
+    return chain
