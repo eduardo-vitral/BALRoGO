@@ -2296,6 +2296,181 @@ def lnprior_dm_dens(params, bounds, gauss):
         return -np.inf
 
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"Einasto profile functions"
+# ---------------------------------------------------------------------------
+
+###############################################################################
+#
+# Functions used for dark matter profiles.
+#
+###############################################################################
+
+
+def m_einasto(n, x):
+    """
+    Mass profile, normalized according to the convention:
+
+    M(X = R/a) = M_real(R) / N_infinty
+
+    Parameters
+    ----------
+    n : array_like, float
+        Einasto index.
+    x : array_like (same shape as gam), float
+        Radius x = r/a.
+
+    Returns
+    -------
+    M : array_like (same shape as a), float
+        Normalized mass profile.
+
+    """
+
+    m = gammainc(3 * n, x ** (1 / n))
+
+    return m
+
+
+def vd_einasto(n, x):
+    """
+    Volume density, normalized according to the convention:
+
+    VD(X = R/a) = VD_real(R) 4 * pi * a^3 / N_infinty
+
+    Parameters
+    ----------
+    n : array_like, float
+        Einasto index.
+    x : array_like (same shape as gam), float
+        Radius x = r/a.
+
+    Returns
+    -------
+    VD : array_like (same shape as gam), float
+        Normalized volume density profile.
+
+    """
+
+    vd = np.exp(-(x ** (1 / n))) / (n * gamma(3 * n))
+
+    return vd
+
+
+def likelihood_einasto_dens(params, ri, shells=True):
+    """
+    Likelihood function of the density profile.
+
+    Parameters
+    ----------
+    Parameters to be fitted
+    ri : array_like
+        Array containing the ensemble of projected radii.
+    shells : boolean, optional
+        True if the user wishes to consider two mass shells.
+        The default is True.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+    """
+
+    n = params[0]
+    ra = 10 ** params[1]
+    if shells is True:
+        n2 = params[2]
+        ra2 = 10 ** params[3]
+        frac = 10 ** params[4]
+
+        n = np.asarray([n, n2])
+        ra = np.asarray([ra, ra2])
+        frac = np.asarray([frac, 1 - frac])
+    else:
+        frac = 1
+        n = np.asarray([n])
+        ra = np.asarray([ra])
+        frac = np.asarray([frac])
+
+    fi = 0
+    for i in range(len(n)):
+        dens = (ri / ra[i]) * (ri / ra[i]) * vd_einasto(n[i], ri / ra[i]) / ra[i]
+        fi = fi + frac[i] * dens
+
+    idx_valid = np.logical_not(np.isnan(np.log(fi)))
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
+    return L
+
+
+def lnprob_einasto_dens(params, ri, bounds, gauss, shells):
+    """
+    log-probability of fit parameters.
+
+    Parameters
+    ----------
+    Parameters to be fitted
+
+    ri : array_like
+        Array containing the ensemble of projected radii.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Gaussian priors.
+
+    Returns
+    -------
+    log-prior probability : float
+        log-probability of fit parameters.
+
+    """
+
+    lp = lnprior_einasto_dens(params, bounds, gauss)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp - likelihood_einasto_dens(params, ri, shells=shells)
+
+
+def lnprior_einasto_dens(params, bounds, gauss):
+    """
+    This function sets the prior probabilities for the MCMC.
+
+    Parameters
+    ----------
+    params : array_like
+        Array containing the fitted values.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Gaussian priors.
+    Returns
+    -------
+    log-prior probability: float
+        0, if the values are inside the prior limits
+        - Infinity, if one of the values are outside the prior limits.
+
+    """
+
+    if (
+        (bounds[0, 0] < params[0] < bounds[0, 1])
+        and (bounds[1, 0] < params[1] < bounds[1, 1])
+        and (bounds[2, 0] < params[2] < bounds[2, 1])
+        and (bounds[3, 0] < params[3] < bounds[3, 1])
+        and (bounds[4, 0] < params[4] < bounds[4, 1])
+    ):
+        lprior = 0
+        for i in range(len(params)):
+            if gauss[i, 1] > 0:
+                nutmp = (params[i] - gauss[i, 0]) / gauss[i, 1]
+                lprior = lprior - 0.5 * nutmp * nutmp
+        return lprior
+    else:
+        return -np.inf
+
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
 "General functions"
@@ -2797,6 +2972,7 @@ def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=T
              - 'gplummer'
              - 'kazantzidis'
              - 'dm'
+             - 'einasto'
         The default is 'gplummer'.
     x0 : float, optional
         Peak of data in x-direction. The default is None.
@@ -2823,7 +2999,7 @@ def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=T
 
     """
 
-    if model not in ["gplummer", "kazantzidis", "dm"]:
+    if model not in ["gplummer", "kazantzidis", "dm", "einasto"]:
         raise ValueError("Does not recognize surface density model.")
 
     if (x is None and y is None) or (x is None):
@@ -2907,6 +3083,14 @@ def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=T
                 (hmr_out - 2, hmr_out + 2),
                 (frac - 0.5, frac + 0.5),
             ]
+        elif model == "einasto":
+            bounds = [
+                (0.5, 10),
+                (hmr_in - 2, hmr_in + 2),
+                (0.5, 10),
+                (hmr_out - 2, hmr_out + 2),
+                (frac - 0.5, frac + 0.5),
+            ]
     else:
         hmr = np.log10(np.nanquantile(ri, 0.5))
         bounds = [(0, 2), (hmr - 2, hmr + 2)]
@@ -2935,6 +3119,14 @@ def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=T
         results = mle_model.x
         hfun = ndt.Hessian(
             lambda c: likelihood_dm_dens(c, ri, shells=shells), full_output=True
+        )
+    elif model == "einasto":
+        mle_model = differential_evolution(
+            lambda c: likelihood_einasto_dens(c, ri, shells=shells), bounds
+        )
+        results = mle_model.x
+        hfun = ndt.Hessian(
+            lambda c: likelihood_einasto_dens(c, ri, shells=shells), full_output=True
         )
 
     hessian_ndt, info = hfun(results)
@@ -2999,6 +3191,9 @@ def mcmc_mass(
     ValueError
         Velocity anisotropy model is not one of the following:
             - 'gplummer'
+            - 'kazantzidis'
+            - 'dm'
+            - 'einasto'
         No data is provided.
 
     Returns
@@ -3008,7 +3203,7 @@ def mcmc_mass(
 
     """
 
-    if model not in ["gplummer", "kazantzidis", "dm"]:
+    if model not in ["gplummer", "kazantzidis", "dm", "einasto"]:
         raise ValueError("Does not recognize  velocity anisotropy model.")
 
     if r is None:
@@ -3080,6 +3275,14 @@ def mcmc_mass(
                     (hmr_out - 2, hmr_out + 2),
                     (frac - 0.5, frac + 0.5),
                 ]
+            elif model == "einasto":
+                bounds = [
+                    (0.5, 10),
+                    (hmr_in - 2, hmr_in + 2),
+                    (0.5, 10),
+                    (hmr_out - 2, hmr_out + 2),
+                    (frac - 0.5, frac + 0.5),
+                ]
 
         else:
             hmr = np.log10(np.nanquantile(r, 0.5))
@@ -3121,6 +3324,14 @@ def mcmc_mass(
             results = mle_model.x
             hfun = ndt.Hessian(
                 lambda c: likelihood_dm_dens(c, r, shells=shells), full_output=True
+            )
+        elif model == "einasto":
+            mle_model = differential_evolution(
+                lambda c: likelihood_einasto_dens(c, r, shells=shells), bounds
+            )
+            results = mle_model.x
+            hfun = ndt.Hessian(
+                lambda c: likelihood_einasto_dens(c, r, shells=shells), full_output=True
             )
 
         hessian_ndt, info = hfun(results)
@@ -3190,6 +3401,15 @@ def mcmc_mass(
                     pool=pool,
                 )
                 sampler.run_mcmc(pos, steps)
+            elif model == "einasto":
+                sampler = emcee.EnsembleSampler(
+                    nwalkers,
+                    ndim,
+                    lnprob_einasto_dens,
+                    args=(r, bounds, gaussp, shells),
+                    pool=pool,
+                )
+                sampler.run_mcmc(pos, steps)
     else:
         if model == "gplummer":
             sampler = emcee.EnsembleSampler(
@@ -3204,6 +3424,11 @@ def mcmc_mass(
         elif model == "dm":
             sampler = emcee.EnsembleSampler(
                 nwalkers, ndim, lnprob_dm_dens, args=(r, bounds, gaussp, shells)
+            )
+            sampler.run_mcmc(pos, steps)
+        elif model == "einasto":
+            sampler = emcee.EnsembleSampler(
+                nwalkers, ndim, lnprob_einasto_dens, args=(r, bounds, gaussp, shells)
             )
             sampler.run_mcmc(pos, steps)
 
