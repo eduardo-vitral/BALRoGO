@@ -211,7 +211,7 @@ def clean_gaia(
         c34 = epmra * epmdec * corrpm
         c44 = epmdec * epmdec
         err = np.sqrt(
-            0.5 * (c33 + c44) + 0.5 * np.sqrt((c44 - c33) ** 2 + 4 * c34**2)
+            0.5 * (c33 + c44) + 0.5 * np.sqrt((c44 - c33) ** 2 + 4 * c34 ** 2)
         )
 
         idx_err = np.where(err < err_lim)
@@ -238,14 +238,14 @@ def clean_gaia(
         c34 = epmra * epmdec * corrpm
         c44 = epmdec * epmdec
         err = np.sqrt(
-            0.5 * (c33 + c44) + 0.5 * np.sqrt((c44 - c33) ** 2 + 4 * c34**2)
+            0.5 * (c33 + c44) + 0.5 * np.sqrt((c44 - c33) ** 2 + 4 * c34 ** 2)
         )
 
         idx_err = np.where(err < err_lim)
         idx = np.intersect1d(idx, idx_err)
 
-        idx_noiseE1 = np.where(1.0 + 0.015 * br_mag**2 < br_excess)
-        idx_noiseE2 = np.where(br_excess < 1.3 + 0.06 * br_mag**2)
+        idx_noiseE1 = np.where(1.0 + 0.015 * br_mag ** 2 < br_excess)
+        idx_noiseE2 = np.where(br_excess < 1.3 + 0.06 * br_mag ** 2)
         idx_noise1 = np.intersect1d(idx_noiseE1, idx_noiseE2)
         idx_noise2 = np.where(u < 1.2 * np.maximum(1, np.exp(-0.2 * (g_mag - 19.5))))
 

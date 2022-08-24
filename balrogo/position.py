@@ -197,7 +197,7 @@ def center_iterative(x, y):
     while many_tracers is True:
 
         idx = np.where(
-            angle.sky_distance_deg(x, y, center[0], center[1]) < (0.9**count) * sigma
+            angle.sky_distance_deg(x, y, center[0], center[1]) < (0.9 ** count) * sigma
         )
 
         bins_x = good_bin(x[idx])
@@ -582,13 +582,13 @@ def prob(r, params, model="plummer"):
     X = r / a
 
     if model == "plummer":
-        sd = sd_plummer(X) * nsys / (np.pi * a**2)
+        sd = sd_plummer(X) * nsys / (np.pi * a ** 2)
     elif model == "kazantzidis":
-        sd = sd_kazantzidis(X) * nsys / (np.pi * a**2)
+        sd = sd_kazantzidis(X) * nsys / (np.pi * a ** 2)
     elif model == "sersic":
-        sd = sd_sersic(n, X) * nsys / (np.pi * a**2)
+        sd = sd_sersic(n, X) * nsys / (np.pi * a ** 2)
 
-    sd_fs = nilop / (np.pi * (Xmax**2 - Xmin**2))
+    sd_fs = nilop / (np.pi * (Xmax ** 2 - Xmin ** 2))
 
     probability = sd / (sd + sd_fs)
 
@@ -628,9 +628,9 @@ def b(n):
         2 * n
         - 1 / 3
         + 4 / (405 * n)
-        + 46 / (25515 * n**2)
-        + 131 / (1148175 * n**3)
-        - 2194697 / (30690717750 * n**4)
+        + 46 / (25515 * n ** 2)
+        + 131 / (1148175 * n ** 3)
+        - 2194697 / (30690717750 * n ** 4)
     )
     return b
 
@@ -718,7 +718,7 @@ def likelihood_sersic(params, Ri):
 
     N_sys_tot = n_sersic(n, Xmax) - n_sersic(n, Xmin)
 
-    SD = sd_sersic(n, X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
+    SD = sd_sersic(n, X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -908,13 +908,13 @@ def sd_gplummer(gam, X):
         * (-3 + X * X + gam)
         * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
     )
-    term2 = (-17 + X**4 - X * X * (gam - 8) - gam * (gam - 9)) * hyp2f1(
+    term2 = (-17 + X ** 4 - X * X * (gam - 8) - gam * (gam - 9)) * hyp2f1(
         1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
     )
     term3 = (gam - 3 - X * X) * (term1 + term2)
 
     num = -(gam - 3) * (X * X * (gam - 4) * (gam - 2) + term3)
-    den = 2 * X**4 * (1 + X * X) * (gam - 4) * (gam - 2)
+    den = 2 * X ** 4 * (1 + X * X) * (gam - 4) * (gam - 2)
 
     sd = num / den
 
@@ -978,7 +978,7 @@ def n_gplummer(gam, X):
     term2 = (
         (1 + X * X) * (X * X + gam - 3) * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
     )
-    term3 = (17 - X**4 + X * X * (gam - 8) + gam * (gam - 9)) * hyp2f1(
+    term3 = (17 - X ** 4 + X * X * (gam - 8) + gam * (gam - 9)) * hyp2f1(
         1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
     )
 
@@ -1020,7 +1020,7 @@ def likelihood_gplummer(params, Ri):
 
     N_sys_tot = n_gplummer(gam, Xmax) - n_gplummer(gam, Xmin)
 
-    SD = sd_gplummer(gam, X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
+    SD = sd_gplummer(gam, X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1239,7 +1239,7 @@ def sd_king62(Xt, X):
     ----------
     Xt : array_like, float
         Concentration.
-    X : array_like (same shape as gam), float
+    X : array_like, float
         Projected radius X = R/rc.
 
     Returns
@@ -1278,7 +1278,7 @@ def n_king62(Xt, X):
     ----------
     Xt : array_like, float
         Concentration.
-    X : array_like (same shape as gam), float
+    X : array_like, float
         Projected radius X = R/rc.
 
     Returns
@@ -1339,7 +1339,7 @@ def likelihood_king62(params, Ri):
 
     N_sys_tot = n_king62(Xt, Xmax) - n_king62(Xt, Xmin)
 
-    SD = sd_king62(Xt, X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
+    SD = sd_king62(Xt, X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1412,6 +1412,212 @@ def lnprob_k62(params, Ri, guess, bounds):
     if not np.isfinite(lp):
         return -np.inf
     return lp - likelihood_king62(params, Ri)
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"Cored Hernquist profile functions"
+# ---------------------------------------------------------------------------
+
+###############################################################################
+#
+# Functions concerning the general Cored Hernquist profile.
+#
+###############################################################################
+
+
+def sd_chernquist(X):
+    """
+    Cored Hernquist surface density, normalized according to the convention:
+
+    SD(X = R/a) = SD_real(R) * pi * a^2 / N_infinty
+
+    comments: Series expansion kindly provided by Gary Mamon.
+
+    Parameters
+    ----------
+    X : array_like, float
+        Projected radius X = R/a.
+
+    Returns
+    -------
+    SD : array_like (same shape as Xt), float
+        Normalized surface density profile.
+
+    """
+
+    if len(np.shape(X)) == 2 and np.shape(X)[0] == 1:
+        X = X[0]
+    elif len(np.shape(X)) == 0:
+        X = np.asarray([X])
+
+    term1 = -0.25 * (2 + 13 * X * X) / (X * X - 1) ** 3
+    term2a = 0.25 * 3 * X * X * (4 + X * X) / (X * X - 1) ** 3
+
+    lowr = np.where(X < 1)
+    bigr = np.where(X > 1)
+    exactr = np.where(X == 1)
+    term2b = np.zeros(len(X))
+    term2b[lowr] = np.arccosh(1 / X[lowr]) / np.sqrt(1 - X[lowr] * X[lowr])
+    term2b[bigr] = np.arccos(1 / X[bigr]) / np.sqrt(X[bigr] * X[bigr] - 1)
+    term2b[exactr] = 1
+
+    sd = term1 + term2a * term2b
+
+    Xcloseto1 = np.where(np.abs(X - 1) < 0.01)
+    sd[Xcloseto1] = (
+        4 / 35
+        - 16 * (X[Xcloseto1] - 1) / 105
+        + 152 * (X[Xcloseto1] - 1) ** 2 / 1155
+        - 272 * (X[Xcloseto1] - 1) ** 3 / 3003
+    )
+
+    return sd
+
+
+def n_chernquist(X):
+    """
+    Cored Hernquist projected number, normalized according to the convention:
+
+    N(X = R/a) = N(R) / N_infinty
+
+    Parameters
+    ----------
+    X : array_like, float
+        Projected radius X = R/a.
+
+    Returns
+    -------
+    N : array_like (same shape as Xt), float
+        Cored Hernquist projected number.
+
+    """
+
+    if len(np.shape(X)) == 2 and np.shape(X)[0] == 1:
+        X = X[0]
+    elif len(np.shape(X)) == 0:
+        X = np.asarray([X])
+
+    term1 = X ** 3 / (1 + X) ** 3
+    term2 = 0.5 * X * X / (X * X - 1) ** 3
+    term3a = -1 + 2 * X - 7 * X * X + 6 * X ** 3
+
+    lowr = np.where(X <= 1)
+    bigr = np.where(X > 1)
+    exactr = np.where(X == 1)
+    term3b = np.zeros(len(X))
+    term3b[lowr] = -np.sqrt(1 - X[lowr] * X[lowr]) * np.arccosh(1 / X[lowr])
+    term3b[bigr] = np.sqrt(X[bigr] * X[bigr] - 1) * np.arccos(1 / X[bigr])
+    term3b[exactr] = 0
+
+    N = term1 + term2 * (term3a - 3 * X * X * term3b)
+
+    return N
+
+
+def likelihood_chernquist(params, Ri):
+    """
+    Likelihood function of the Cored Hernquist profile plus a constant contribution
+    from fore/background tracers.
+
+    Parameters
+    ----------
+    Parameters to be fitted: Scale radius,
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    Ri : array_like
+        Array containing the ensemble of projected radii.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+    """
+    a = 10 ** params[0]
+
+    if params[1] < -10:
+        norm = 0
+    else:
+        norm = 10 ** params[1]
+
+    Xmax = np.amax(Ri) / a
+    Xmin = np.amin(Ri) / a
+    X = Ri / a
+
+    N_sys_tot = n_chernquist(Xmax) - n_chernquist(Xmin)
+
+    SD = sd_chernquist(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+
+    Ntot = N_sys_tot * (1 + norm)
+
+    fi = 2 * (X / a) * SD / Ntot
+
+    idx_valid = np.logical_not(np.isnan(np.log(fi)))
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
+    return L
+
+
+def lnprior_ch(params, guess, bounds):
+    """
+    Prior assumptions on the parameters.
+
+    Parameters
+    ----------
+    Parameters to be fitted: Scale radius,
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    guess : array_like
+        Array containing the initial guess of the parameters.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+
+
+    Returns
+    -------
+    log-prior probability : float
+        0, if the parameters are within the prior range,
+        - Infinity otherwise.
+
+    """
+
+    if (guess[0] - bounds[0] <= params[0] <= guess[0] + bounds[0]) and (
+        guess[1] - bounds[1] <= params[1] <= guess[1] + bounds[1]
+    ):
+        return 0.0
+    return -np.inf
+
+
+def lnprob_ch(params, Ri, guess, bounds):
+    """
+    log-probability of fit parameters.
+
+    Parameters
+    ----------
+    Parameters to be fitted: Scale radius,
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    Ri : array_like
+        Array containing the ensemble of projected radii.
+    guess : array_like
+        Array containing the initial guess of the parameters.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+
+
+    Returns
+    -------
+    log-prior probability : float
+        log-probability of fit parameters.
+
+    """
+
+    lp = lnprior_ch(params, guess, bounds)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp - likelihood_chernquist(params, Ri)
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1552,7 +1758,7 @@ def likelihood_kazantzidis(params, Ri):
 
     N_sys_tot = n_kazantizidis(Xmax) - n_kazantizidis(Xmin)
 
-    SD = sd_kazantzidis(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
+    SD = sd_kazantzidis(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1825,11 +2031,11 @@ def n_plummer_angle(R, Rmax, d, a):
         term1 = -a * a * np.arccos(arg1) / (np.pi * (a * a + R * R))
 
         arg2 = np.sqrt(
-            -(d**4) - (R * R - Rmax * Rmax) ** 2 + 2 * d * d * (R * R + Rmax * Rmax)
+            -(d ** 4) - (R * R - Rmax * Rmax) ** 2 + 2 * d * d * (R * R + Rmax * Rmax)
         )
 
         arg3 = -np.sqrt(
-            a**4 + (d * d - Rmax * Rmax) ** 2 + 2 * a * a * (d * d + Rmax * Rmax)
+            a ** 4 + (d * d - Rmax * Rmax) ** 2 + 2 * a * a * (d * d + Rmax * Rmax)
         )
 
         arg4 = (d * d - Rmax * Rmax) ** 2 - R * R * (d * d + Rmax * Rmax)
@@ -1926,7 +2132,7 @@ def likelihood_plummer(params, Ri):
 
     N_sys_tot = n_plummer(Xmax) - n_plummer(Xmin)
 
-    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
+    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1980,7 +2186,7 @@ def likelihood_plummer_freec(params, x, y):
 
     N_sys_tot = n_plummer(Xmax) - n_plummer(Xmin)
 
-    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
+    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -2047,7 +2253,7 @@ def likelihood_plummer_center(params, x, y, ra0, dec0, rmax):
         Xmin * a, rmax, d, a
     )
 
-    SD = sd_plummer(X) + norm * N_sys_tot / (rmax**2)
+    SD = sd_plummer(X) + norm * N_sys_tot / (rmax ** 2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -2153,7 +2359,7 @@ def m_dm(a, x):
 
     """
 
-    m = x**a / (1 + x**a)
+    m = x ** a / (1 + x ** a)
 
     return m
 
@@ -2178,7 +2384,7 @@ def vd_dm(a, x):
 
     """
 
-    vd = a * x ** (a - 3) / (1 + x**a) ** 2
+    vd = a * x ** (a - 3) / (1 + x ** a) ** 2
 
     return vd
 
@@ -2614,6 +2820,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
             - 'plummer'
             - 'gplummer'
             - 'king62'
+            - 'chernquist'
         No data is provided.
 
     Returns
@@ -2625,7 +2832,14 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
 
     """
 
-    if model not in ["sersic", "plummer", "kazantzidis", "gplummer", "king62"]:
+    if model not in [
+        "sersic",
+        "plummer",
+        "kazantzidis",
+        "gplummer",
+        "king62",
+        "chernquist",
+    ]:
         raise ValueError("Does not recognize surface density model.")
 
     if (x is None and y is None) or (x is None):
@@ -2684,13 +2898,28 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
         results = mle_model.x
         hfun = ndt.Hessian(lambda c: likelihood_king62(c, ri), full_output=True)
 
+    elif model == "chernquist":
+        bounds = [(hmr - 2, hmr + 2), (norm - 2, norm + 2)]
+        mle_model = differential_evolution(
+            lambda c: likelihood_chernquist(c, ri), bounds
+        )
+        results = mle_model.x
+        hfun = ndt.Hessian(lambda c: likelihood_chernquist(c, ri), full_output=True)
+
     hessian_ndt, info = hfun(results)
     if hybrid is False:
         arg_null = np.argmin(np.abs(np.diag(hessian_ndt)))
         hessian_ndt = np.delete(hessian_ndt, arg_null, axis=1)
         hessian_ndt = np.delete(hessian_ndt, arg_null, axis=0)
 
-    var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+    try:
+        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+    except np.linalg.LinAlgError as err:
+        if "Singular matrix" in str(err):
+            print("WARNING: Errors are deprecated --> assigning uncertainties as -1.")
+            var = -np.ones(len(results))
+        else:
+            raise ValueError("Error when computing uncertainties.")
 
     return results, var
 
@@ -2728,6 +2957,7 @@ def mcmc(
              - 'plummer'
              - 'gplummer'
              - 'king62'
+             - 'chernquist'
         The default is 'plummer'.
     nwalkers : int, optional
         Number of Markov chains. The default is None.
@@ -2773,7 +3003,7 @@ def mcmc(
 
     """
 
-    if model not in ["sersic", "plummer", "kazantzidis", "gplummer"]:
+    if model not in ["sersic", "plummer", "kazantzidis", "gplummer", "chernquist"]:
         raise ValueError("Does not recognize surface density model.")
 
     if (x is None and y is None) or (x is None):
@@ -2831,6 +3061,9 @@ def mcmc(
 
     elif model == "king62":
         func = lnprob_k62
+
+    elif model == "chernquist":
+        func = lnprob_ch
 
     if use_pool:
 
@@ -3031,12 +3264,12 @@ def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=T
         mfit = np.polyfit(np.log10(rp), mp, pold)
 
         lx = np.log10(rp)
-        x = 10**lx
+        x = 10 ** lx
 
         ly = 0
         for j in range(pold + 1):
             ly = ly + mfit[j] * lx ** (pold - j)
-        y = 10**ly
+        y = 10 ** ly
 
         dlydlx = 0
         for j in range(pold):
@@ -3223,12 +3456,12 @@ def mcmc_mass(
             mfit = np.polyfit(np.log10(rp), mp, pold)
 
             lx = np.log10(rp)
-            x = 10**lx
+            x = 10 ** lx
 
             ly = 0
             for j in range(pold + 1):
                 ly = ly + mfit[j] * lx ** (pold - j)
-            y = 10**ly
+            y = 10 ** ly
 
             dlydlx = 0
             for j in range(pold):

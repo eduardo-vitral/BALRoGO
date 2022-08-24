@@ -287,7 +287,7 @@ def global_pdf(
     err = (
         (ex * (Ux - mu_pmx_go) / pm_mod) ** 2
         + (ey * (Uy - mu_pmy_go) / pm_mod) ** 2
-        + 2 * ex * ey * exy * (Ux - mu_pmx_go) * (Uy - mu_pmy_go) / pm_mod**2
+        + 2 * ex * ey * exy * (Ux - mu_pmx_go) * (Uy - mu_pmy_go) / pm_mod ** 2
     )
     sig_pm_go = np.sqrt(sig_pm_go * sig_pm_go + err)
 
@@ -429,7 +429,7 @@ def likelihood_gauss2d(params, Ux, Uy, ex, ey, exy, values=None):
     err = (
         (ex * (Ux - mu_pmx_go) / pm_mod) ** 2
         + (ey * (Uy - mu_pmy_go) / pm_mod) ** 2
-        + 2 * ex * ey * exy * (Ux - mu_pmx_go) * (Uy - mu_pmy_go) / pm_mod**2
+        + 2 * ex * ey * exy * (Ux - mu_pmx_go) * (Uy - mu_pmy_go) / pm_mod ** 2
     )
     sig_pm_go = np.sqrt(sig_pm_go * sig_pm_go + err)
 
@@ -658,7 +658,7 @@ def prob(Ux, Uy, ex, ey, exy, params, conv=True):
         err = (
             (ex * (Ux - mu_pmx_go) / pm_mod) ** 2
             + (ey * (Uy - mu_pmy_go) / pm_mod) ** 2
-            + 2 * ex * ey * exy * (Ux - mu_pmx_go) * (Uy - mu_pmy_go) / pm_mod**2
+            + 2 * ex * ey * exy * (Ux - mu_pmx_go) * (Uy - mu_pmy_go) / pm_mod ** 2
         )
         sig_pm_go = sig_pm_go = np.sqrt(sig_pm_go * sig_pm_go + err)
 
