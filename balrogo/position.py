@@ -197,7 +197,7 @@ def center_iterative(x, y):
     while many_tracers is True:
 
         idx = np.where(
-            angle.sky_distance_deg(x, y, center[0], center[1]) < (0.9 ** count) * sigma
+            angle.sky_distance_deg(x, y, center[0], center[1]) < (0.9**count) * sigma
         )
 
         bins_x = good_bin(x[idx])
@@ -582,13 +582,13 @@ def prob(r, params, model="plummer"):
     X = r / a
 
     if model == "plummer":
-        sd = sd_plummer(X) * nsys / (np.pi * a ** 2)
+        sd = sd_plummer(X) * nsys / (np.pi * a**2)
     elif model == "kazantzidis":
-        sd = sd_kazantzidis(X) * nsys / (np.pi * a ** 2)
+        sd = sd_kazantzidis(X) * nsys / (np.pi * a**2)
     elif model == "sersic":
-        sd = sd_sersic(n, X) * nsys / (np.pi * a ** 2)
+        sd = sd_sersic(n, X) * nsys / (np.pi * a**2)
 
-    sd_fs = nilop / (np.pi * (Xmax ** 2 - Xmin ** 2))
+    sd_fs = nilop / (np.pi * (Xmax**2 - Xmin**2))
 
     probability = sd / (sd + sd_fs)
 
@@ -628,9 +628,9 @@ def b(n):
         2 * n
         - 1 / 3
         + 4 / (405 * n)
-        + 46 / (25515 * n ** 2)
-        + 131 / (1148175 * n ** 3)
-        - 2194697 / (30690717750 * n ** 4)
+        + 46 / (25515 * n**2)
+        + 131 / (1148175 * n**3)
+        - 2194697 / (30690717750 * n**4)
     )
     return b
 
@@ -718,7 +718,7 @@ def likelihood_sersic(params, Ri):
 
     N_sys_tot = n_sersic(n, Xmax) - n_sersic(n, Xmin)
 
-    SD = sd_sersic(n, X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_sersic(n, X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -908,13 +908,13 @@ def sd_gplummer(gam, X):
         * (-3 + X * X + gam)
         * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
     )
-    term2 = (-17 + X ** 4 - X * X * (gam - 8) - gam * (gam - 9)) * hyp2f1(
+    term2 = (-17 + X**4 - X * X * (gam - 8) - gam * (gam - 9)) * hyp2f1(
         1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
     )
     term3 = (gam - 3 - X * X) * (term1 + term2)
 
     num = -(gam - 3) * (X * X * (gam - 4) * (gam - 2) + term3)
-    den = 2 * X ** 4 * (1 + X * X) * (gam - 4) * (gam - 2)
+    den = 2 * X**4 * (1 + X * X) * (gam - 4) * (gam - 2)
 
     sd = num / den
 
@@ -978,7 +978,7 @@ def n_gplummer(gam, X):
     term2 = (
         (1 + X * X) * (X * X + gam - 3) * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
     )
-    term3 = (17 - X ** 4 + X * X * (gam - 8) + gam * (gam - 9)) * hyp2f1(
+    term3 = (17 - X**4 + X * X * (gam - 8) + gam * (gam - 9)) * hyp2f1(
         1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
     )
 
@@ -1020,7 +1020,7 @@ def likelihood_gplummer(params, Ri):
 
     N_sys_tot = n_gplummer(gam, Xmax) - n_gplummer(gam, Xmin)
 
-    SD = sd_gplummer(gam, X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_gplummer(gam, X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1339,7 +1339,7 @@ def likelihood_king62(params, Ri):
 
     N_sys_tot = n_king62(Xt, Xmax) - n_king62(Xt, Xmin)
 
-    SD = sd_king62(Xt, X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_king62(Xt, X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1498,9 +1498,9 @@ def n_chernquist(X):
     elif len(np.shape(X)) == 0:
         X = np.asarray([X])
 
-    term1 = X ** 3 / (1 + X) ** 3
+    term1 = X**3 / (1 + X) ** 3
     term2 = 0.5 * X * X / (X * X - 1) ** 3
-    term3a = -1 + 2 * X - 7 * X * X + 6 * X ** 3
+    term3a = -1 + 2 * X - 7 * X * X + 6 * X**3
 
     lowr = np.where(X <= 1)
     bigr = np.where(X > 1)
@@ -1547,7 +1547,7 @@ def likelihood_chernquist(params, Ri):
 
     N_sys_tot = n_chernquist(Xmax) - n_chernquist(Xmin)
 
-    SD = sd_chernquist(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_chernquist(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -1758,7 +1758,7 @@ def likelihood_kazantzidis(params, Ri):
 
     N_sys_tot = n_kazantizidis(Xmax) - n_kazantizidis(Xmin)
 
-    SD = sd_kazantzidis(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_kazantzidis(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -2031,11 +2031,11 @@ def n_plummer_angle(R, Rmax, d, a):
         term1 = -a * a * np.arccos(arg1) / (np.pi * (a * a + R * R))
 
         arg2 = np.sqrt(
-            -(d ** 4) - (R * R - Rmax * Rmax) ** 2 + 2 * d * d * (R * R + Rmax * Rmax)
+            -(d**4) - (R * R - Rmax * Rmax) ** 2 + 2 * d * d * (R * R + Rmax * Rmax)
         )
 
         arg3 = -np.sqrt(
-            a ** 4 + (d * d - Rmax * Rmax) ** 2 + 2 * a * a * (d * d + Rmax * Rmax)
+            a**4 + (d * d - Rmax * Rmax) ** 2 + 2 * a * a * (d * d + Rmax * Rmax)
         )
 
         arg4 = (d * d - Rmax * Rmax) ** 2 - R * R * (d * d + Rmax * Rmax)
@@ -2132,7 +2132,7 @@ def likelihood_plummer(params, Ri):
 
     N_sys_tot = n_plummer(Xmax) - n_plummer(Xmin)
 
-    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -2186,7 +2186,7 @@ def likelihood_plummer_freec(params, x, y):
 
     N_sys_tot = n_plummer(Xmax) - n_plummer(Xmin)
 
-    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax ** 2 - Xmin ** 2)
+    SD = sd_plummer(X) + norm * N_sys_tot / (Xmax**2 - Xmin**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -2253,7 +2253,7 @@ def likelihood_plummer_center(params, x, y, ra0, dec0, rmax):
         Xmin * a, rmax, d, a
     )
 
-    SD = sd_plummer(X) + norm * N_sys_tot / (rmax ** 2)
+    SD = sd_plummer(X) + norm * N_sys_tot / (rmax**2)
 
     Ntot = N_sys_tot * (1 + norm)
 
@@ -2359,7 +2359,7 @@ def m_dm(a, x):
 
     """
 
-    m = x ** a / (1 + x ** a)
+    m = x**a / (1 + x**a)
 
     return m
 
@@ -2384,7 +2384,7 @@ def vd_dm(a, x):
 
     """
 
-    vd = a * x ** (a - 3) / (1 + x ** a) ** 2
+    vd = a * x ** (a - 3) / (1 + x**a) ** 2
 
     return vd
 
@@ -3264,12 +3264,12 @@ def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=T
         mfit = np.polyfit(np.log10(rp), mp, pold)
 
         lx = np.log10(rp)
-        x = 10 ** lx
+        x = 10**lx
 
         ly = 0
         for j in range(pold + 1):
             ly = ly + mfit[j] * lx ** (pold - j)
-        y = 10 ** ly
+        y = 10**ly
 
         dlydlx = 0
         for j in range(pold):
@@ -3456,12 +3456,12 @@ def mcmc_mass(
             mfit = np.polyfit(np.log10(rp), mp, pold)
 
             lx = np.log10(rp)
-            x = 10 ** lx
+            x = 10**lx
 
             ly = 0
             for j in range(pold + 1):
                 ly = ly + mfit[j] * lx ** (pold - j)
-            y = 10 ** ly
+            y = 10**ly
 
             dlydlx = 0
             for j in range(pold):
