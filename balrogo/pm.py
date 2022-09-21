@@ -24,13 +24,15 @@ from scipy import integrate
 from scipy.special import gamma
 from scipy.signal import find_peaks
 import operator
-from skimage.feature import peak_local_max
+from scipy.ndimage.filters import maximum_filter
+from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
 import emcee
 import numdifftools as ndt
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 
 ncpu = cpu_count()
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
@@ -713,6 +715,86 @@ def quantile(x, q):
     return np.percentile(x, 100.0 * q)
 
 
+def detect_peaks(image):
+    """
+    Returns peaks in an image. Takes an image and detect the peaks using
+    the local maximum filter.
+
+    Parameters
+    ----------
+    image : array_like
+        2D histogram of points.
+
+    Returns
+    -------
+    detected_peaks : boolean
+        Mask of the peaks (i.e. 1 when
+        the pixel's value is the neighborhood maximum, 0 otherwise)
+
+    """
+
+    # define an 8-connected neighborhood
+    neighborhood = generate_binary_structure(2, 2)
+
+    # apply the local maximum filter; all pixel of maximal value
+    # in their neighborhood are set to 1
+    local_max = maximum_filter(image, footprint=neighborhood) == image
+    # local_max is a mask that contains the peaks we are
+    # looking for, but also the background.
+    # In order to isolate the peaks we must remove the background from the mask.
+
+    # we create the mask of the background
+    background = image == 0
+
+    # a little technicality: we must erode the background in order to
+    # successfully subtract it form local_max, otherwise a line will
+    # appear along the background border (artifact of the local maximum filter)
+    eroded_background = binary_erosion(
+        background, structure=neighborhood, border_value=1
+    )
+
+    # we obtain the final mask, containing only peaks,
+    # by removing the background from the local_max mask (xor operation)
+    detected_peaks = local_max ^ eroded_background
+
+    return detected_peaks
+
+
+def detect_n_peaks(image, num_peaks=1):
+    """
+    Returns the indexes of the num_peaks highest peaks in image.
+
+    Parameters
+    ----------
+    image : array_like
+        2D histogram of points.
+    num_peaks : int, optional
+        Number of peaks to be determined. The default is 1.
+
+    Returns
+    -------
+    peaks : array_like
+        Indexes.
+
+    """
+
+    peaks_bool = detect_peaks(image)
+    peaks_true = np.where(peaks_bool > 0)
+
+    peak_values = image[peaks_true]
+
+    args = np.argsort(-peak_values)
+
+    peaks = np.zeros((num_peaks, 2))
+
+    for i in range(num_peaks):
+        peaks[i] = np.asarray([peaks_true[0][args[i]], peaks_true[1][args[i]]])
+
+    peaks = peaks.astype(int)
+
+    return peaks
+
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
 "Guess initial parameters"
@@ -859,7 +941,7 @@ def initial_guess(x_data, y_data):
     # Estimates the PMRA and PMDec means from the two clumps by taking the
     # two main local maxima of the 2d histogram. With that, it estimates the
     # other clump parameters
-    peaks = peak_local_max(hist, num_peaks=2)
+    peaks = detect_n_peaks(hist, num_peaks=2)
     y_peak, x_peak = peaks.T[0], peaks.T[1]
     mean_x, mean_y = xedges[x_peak], yedges[y_peak]
     sigma_x = np.asarray(

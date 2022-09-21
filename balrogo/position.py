@@ -18,9 +18,9 @@ Created on 2020
 ###############################################################################
 
 from . import angle
+from . import pm
 
 import numpy as np
-from skimage.feature import peak_local_max
 from scipy.optimize import differential_evolution
 from scipy.special import gamma, gammainc, kn, hyp2f1
 from scipy.interpolate import PchipInterpolator
@@ -32,6 +32,7 @@ from multiprocessing import Pool
 from multiprocessing import cpu_count
 
 ncpu = cpu_count()
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ---------------------------------------------------------------------------
@@ -178,7 +179,7 @@ def center_iterative(x, y):
 
     # Estimates the RA and Dec means from the galactic object by taking the
     # main local maxima of the 2d histogram.
-    peaks = peak_local_max(hist, num_peaks=1)
+    peaks = pm.detect_n_peaks(hist, num_peaks=1)
 
     y_peak, x_peak = peaks.T[0], peaks.T[1]
     cmx, cmy = xedges[x_peak], yedges[y_peak]
