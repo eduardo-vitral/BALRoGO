@@ -82,7 +82,7 @@ def gauss_sig(x_axis, gauss, peak):
     return sigma
 
 
-def find_center(x, y, method="mle", ra0=None, dec0=None, hybrid=True):
+def find_center(x, y, method="mle", ra0=None, dec0=None, hybrid=True, full_fit=False):
     """
     Fit a center (peak) of the [x,y] data.
 
@@ -97,6 +97,7 @@ def find_center(x, y, method="mle", ra0=None, dec0=None, hybrid=True):
             - 'iterative'.
             - 'mle'.
             - 'mle_robust'.
+            - 'mle_ellipse'
         Default is 'mle'.
     ra0 : float, optional
         RA center of the original data set downloaded.
@@ -105,6 +106,11 @@ def find_center(x, y, method="mle", ra0=None, dec0=None, hybrid=True):
     hydrid :  boolean, optional
         "True", if the user whises to consider field stars in the fit.
         The default is True.
+    full_fit: boolean, optional
+        "True", if the user wants to recover not only the fit for the
+        center, but also other structural parameters.
+        Can only be used without "iterative" mode.
+        The default is False.
 
     Raises
     ------
@@ -122,7 +128,7 @@ def find_center(x, y, method="mle", ra0=None, dec0=None, hybrid=True):
 
     """
 
-    if method not in ["iterative", "mle", "mle_robust"]:
+    if method not in ["iterative", "mle", "mle_robust", "mle_ellipse"]:
         raise ValueError("Does not recognize method argument.")
 
     # Takes off NaN values
@@ -135,9 +141,13 @@ def find_center(x, y, method="mle", ra0=None, dec0=None, hybrid=True):
     if method == "iterative":
         center, unc = center_iterative(x, y)
     elif method == "mle":
-        center, unc = center_mle(x, y, hybrid=hybrid)
+        center, unc = center_mle(x, y, hybrid=hybrid, full_fit=full_fit)
     elif method == "mle_robust":
-        center, unc = center_mle_rob(x, y, ra0=ra0, dec0=dec0, hybrid=hybrid)
+        center, unc = center_mle_rob(
+            x, y, ra0=ra0, dec0=dec0, hybrid=hybrid, full_fit=full_fit
+        )
+    elif method == "mle_ellipse":
+        center, unc = center_mle_ell(x, y, hybrid=hybrid, full_fit=full_fit)
 
     return center, unc
 
@@ -227,7 +237,7 @@ def center_iterative(x, y):
     return center, unc
 
 
-def center_mle(x, y, hybrid=True):
+def center_mle(x, y, hybrid=True, full_fit=False):
     """
     Fit a center (peak) of the [x,y] data through a simple mle approach.
 
@@ -240,6 +250,11 @@ def center_mle(x, y, hybrid=True):
     hydrid :  boolean, optional
         "True", if the user whises to consider field stars in the fit.
         The default is True.
+    full_fit: boolean, optional
+        "True", if the user wants to recover not only the fit for the
+        center, but also other structural parameters.
+        Can only be used without "iterative" mode.
+        The default is False.
 
     Returns
     -------
@@ -276,6 +291,8 @@ def center_mle(x, y, hybrid=True):
         arg_null = np.argmin(np.abs(np.diag(hessian_ndt)))
         hessian_ndt = np.delete(hessian_ndt, arg_null, axis=1)
         hessian_ndt = np.delete(hessian_ndt, arg_null, axis=0)
+        results = np.delete(results, arg_null)
+
         var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
         center = np.asarray([results[1], results[2]])
@@ -286,10 +303,13 @@ def center_mle(x, y, hybrid=True):
         center = np.asarray([results[2], results[3]])
         unc = np.asarray([var[2], var[3]])
 
+    if full_fit is True:
+        return results, var
+
     return center, unc
 
 
-def center_mle_rob(x, y, ra0=None, dec0=None, hybrid=True):
+def center_mle_rob(x, y, ra0=None, dec0=None, hybrid=True, full_fit=False):
     """
     Fit a center (peak) of the [x,y] data through an mle robust approach.
     It considers the circular section where the data is complete.
@@ -307,6 +327,11 @@ def center_mle_rob(x, y, ra0=None, dec0=None, hybrid=True):
     hydrid :  boolean, optional
         "True", if the user whises to consider field stars in the fit.
         The default is True.
+    full_fit: boolean, optional
+        "True", if the user wants to recover not only the fit for the
+        center, but also other structural parameters.
+        Can only be used without "iterative" mode.
+        The default is False.
 
     Returns
     -------
@@ -350,6 +375,7 @@ def center_mle_rob(x, y, ra0=None, dec0=None, hybrid=True):
         arg_null = np.argmin(np.abs(np.diag(hessian_ndt)))
         hessian_ndt = np.delete(hessian_ndt, arg_null, axis=1)
         hessian_ndt = np.delete(hessian_ndt, arg_null, axis=0)
+        results = np.delete(results, arg_null)
 
         var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
@@ -360,6 +386,86 @@ def center_mle_rob(x, y, ra0=None, dec0=None, hybrid=True):
 
         center = np.asarray([results[2], results[3]])
         unc = np.asarray([var[2], var[3]])
+
+    if full_fit is True:
+        return results, var
+
+    return center, unc
+
+
+def center_mle_ell(x, y, hybrid=True, full_fit=False):
+    """
+    Fit a center (peak) of the ellipstical [x,y] data
+    through a simple mle approach.
+
+    Parameters
+    ----------
+    x : array_like
+        Data in x-direction
+    y : array_like
+        Data in y-direction
+    hydrid :  boolean, optional
+        "True", if the user whises to consider field stars in the fit.
+        The default is True.
+    full_fit: boolean, optional
+        "True", if the user wants to recover not only the fit for the
+        center, but also other structural parameters.
+        Can only be used without "iterative" mode.
+        The default is False.
+
+    Returns
+    -------
+    center : 2D-array of floats
+        Position of the peak: [x_coordinate,y_coordinate]
+    unc : float
+        Uncertainty in the position.
+
+    """
+
+    cmx, cmy = quantile(x, 0.5), quantile(y, 0.5)
+    hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
+
+    hmr = np.log10(hmr)
+    norm = np.log10(norm)
+    if hybrid is False:
+        norm = -50
+
+    bounds = [
+        (hmr - 2, hmr + 2),
+        (hmr - 2, hmr + 2),
+        (-np.pi / 2, np.pi / 2),
+        (norm - 2, norm + 2),
+        (quantile(x, 0.16), quantile(x, 0.84)),
+        (quantile(y, 0.16), quantile(y, 0.84)),
+    ]
+
+    mle_model = differential_evolution(
+        lambda c: likelihood_plummer_ell_center(c, x, y), bounds
+    )
+    results = mle_model.x
+    hfun = ndt.Hessian(
+        lambda c: likelihood_plummer_ell_center(c, x, y), full_output=True
+    )
+
+    hessian_ndt, info = hfun(results)
+    if hybrid is False:
+        arg_null = np.argmin(np.abs(np.diag(hessian_ndt)))
+        hessian_ndt = np.delete(hessian_ndt, arg_null, axis=1)
+        hessian_ndt = np.delete(hessian_ndt, arg_null, axis=0)
+        results = np.delete(results, arg_null)
+
+        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+        center = np.asarray([results[-2], results[-1]])
+        unc = np.asarray([var[-2], var[-1]])
+    else:
+        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+        center = np.asarray([results[-2], results[-1]])
+        unc = np.asarray([var[-2], var[-1]])
+
+    if full_fit is True:
+        return results, var
 
     return center, unc
 
@@ -2267,6 +2373,85 @@ def likelihood_plummer_center(params, x, y, ra0, dec0, rmax):
     return L
 
 
+def likelihood_plummer_ell_center(params, x, y):
+    """
+    Likelihood function of the Plummer profile plus a constant contribution
+    from fore/background tracers. Fits the center considering an
+    elliptical Plummer.
+
+    Parameters
+    ----------
+    params : array_like
+        Parameters to be fitted: Plummer characteristic radius a and
+                                 log-ratio of galactic objects and Milky
+                                 Way stars.
+    x : array_like
+        Array containing the ensemble of ra data.
+    y : array_like
+        Array containing the ensemble of dec data.
+
+    Returns
+    -------
+    L : float
+       Likelihood.
+
+    """
+
+    a = 10 ** params[0]
+    b = 10 ** params[1]
+    theta = params[2]
+    if params[3] < -10:
+        norm = 0
+    else:
+        norm = 10 ** params[3]
+
+    cmx = params[4]
+    cmy = params[5]
+
+    # Transforms data in radians
+    x = x * (np.pi / 180)
+    y = y * (np.pi / 180)
+
+    x0 = cmx * (np.pi / 180)
+    y0 = cmy * (np.pi / 180)
+
+    # projects the data
+    xp = np.sin(x - x0) * np.cos(y)
+    yp = np.cos(y0) * np.sin(y) - np.sin(y0) * np.cos(y) * np.cos(x - x0)
+
+    # Transforms data back to degree
+    xp = xp * (180 / np.pi)
+    yp = yp * (180 / np.pi)
+
+    xnew = (xp) * np.cos(theta) + (yp) * np.sin(theta)
+    ynew = -(xp) * np.sin(theta) + (yp) * np.cos(theta)
+
+    m = np.sqrt((xnew / a) * (xnew / a) + (ynew / b) * (ynew / b))
+    r = np.sqrt(xnew * xnew + ynew * ynew)
+
+    mmax = np.amax(m)
+    mmin = np.amin(m)
+
+    rmax = np.amax(r)
+    rmin = np.amin(r)
+
+    N_sys_tot = n_plummer(mmax) - n_plummer(mmin)
+
+    SD = sd_plummer(m) + norm * N_sys_tot * a * b * 0.5 * (np.pi / 180) ** 2 / (
+        np.cos(rmin * np.pi / 180) - np.cos(rmax * np.pi / 180)
+    )
+
+    Ntot = N_sys_tot * (1 + norm)
+
+    fi = (SD / Ntot) / (a * b)
+
+    idx_valid = np.logical_not(np.isnan(np.log(fi)))
+
+    L = -np.sum(np.log(fi[idx_valid]))
+
+    return L
+
+
 def lnprior_p(params, guess, bounds):
     """
     Prior assumptions on the parameters.
@@ -2295,6 +2480,47 @@ def lnprior_p(params, guess, bounds):
     ):
         return 0.0
     return -np.inf
+
+
+def lnprior_ep(params, bounds, gauss):
+    """
+    Prior assumptions on the parameters.
+
+    Parameters
+    ----------
+    params : array_like
+        Parameters to be fitted: Plummer characteristic radius a and
+                                 log-ratio of galactic objects and Milky
+                                 Way stars.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Gaussian priors.
+
+    Returns
+    -------
+    log-prior probability : float
+        0, if the parameters are within the prior range,
+        - Infinity otherwise.
+
+    """
+
+    if (
+        (bounds[0, 0] < params[0] < bounds[0, 1])
+        and (bounds[1, 0] < params[1] < bounds[1, 1])
+        and (bounds[2, 0] < params[2] < bounds[2, 1])
+        and (bounds[3, 0] < params[3] < bounds[3, 1])
+        and (bounds[4, 0] < params[4] < bounds[4, 1])
+        and (bounds[5, 0] < params[5] < bounds[5, 1])
+    ):
+        lprior = 0
+        for i in range(len(params)):
+            if gauss[i, 1] > 0:
+                nutmp = (params[i] - gauss[i, 0]) / gauss[i, 1]
+                lprior = lprior - 0.5 * nutmp * nutmp
+        return lprior
+    else:
+        return -np.inf
 
 
 def lnprob_p(params, Ri, guess, bounds):
@@ -2326,6 +2552,37 @@ def lnprob_p(params, Ri, guess, bounds):
     if not np.isfinite(lp):
         return -np.inf
     return lp - likelihood_plummer(params, Ri)
+
+
+def lnprob_ep(params, x, y, bounds, gauss):
+    """
+    log-probability of fit parameters.
+
+    Parameters
+    ----------
+    params : array_like
+    Parameters to be fitted: Plummer characteristic radius a and
+                             log-ratio of galactic objects and Milky
+                             Way stars.
+    Ri : array_like
+        Array containing the ensemble of projected radii.
+    guess : array_like
+        Array containing the initial guess of the parameters.
+    bounds : array_like
+        Array containing the interval of variation of the parameters.
+
+
+    Returns
+    -------
+    log-prior probability : float
+        log-probability of fit parameters.
+
+    """
+
+    lp = lnprior_ep(params, bounds, gauss)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp - likelihood_plummer_ell_center(params, x, y)
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2937,6 +3194,9 @@ def mcmc(
     x0=None,
     y0=None,
     hybrid=True,
+    center_fit=False,
+    gaussp=False,
+    values=None,
 ):
     """
     MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
@@ -2985,6 +3245,17 @@ def mcmc(
     hydrid :  boolean, optional
         "True", if the user whises to consider field stars in the fit.
         The default is True.
+    center_fit :  boolean, optional
+        "True", if the user whises to allow for center fit.
+        Currently only available for model "eplummer".
+        The default is False.
+    gaussp : boolean, optional
+        "True", if the user wishes Gaussian priors to be considered.
+        The default is False.
+    values : array_like, optional
+        Array containing some of the parameters already fitted. If not fitted,
+        they are filled with np.nan.
+        The default is None.
 
     Raises
     ------
@@ -3004,11 +3275,116 @@ def mcmc(
 
     """
 
-    if model not in ["sersic", "plummer", "kazantzidis", "gplummer", "chernquist"]:
+    if model not in [
+        "sersic",
+        "plummer",
+        "kazantzidis",
+        "gplummer",
+        "chernquist",
+        "eplummer",
+    ]:
         raise ValueError("Does not recognize surface density model.")
 
     if (x is None and y is None) or (x is None):
         raise ValueError("Please provide the data to be fitted.")
+
+    if model == "eplummer":
+
+        func = lnprob_ep
+
+        cmx, cmy = quantile(x, 0.5), quantile(y, 0.5)
+        hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
+
+        hmr = np.log10(hmr)
+        norm = np.log10(norm)
+
+        if hybrid is False:
+            values[2] = -50
+
+        bounds = [
+            (hmr - 2, hmr + 2),
+            (hmr - 2, hmr + 2),
+            (-np.pi / 2, np.pi / 2),
+            (norm - 2, norm + 2),
+            (quantile(x, 0.16), quantile(x, 0.84)),
+            (quantile(y, 0.16), quantile(y, 0.84)),
+        ]
+
+        if values is None:
+            values = np.zeros(len(bounds))
+            values[:] = np.nan
+
+        for i in range(len(values)):
+            if np.logical_not(np.isnan(values[i])):
+                bounds[i] = (
+                    values[i] - 1e-7 * np.abs(values[i]),
+                    values[i] + 1e-7 * np.abs(values[i]),
+                )
+
+        mle_model = differential_evolution(
+            lambda c: likelihood_plummer_ell_center(c, x, y), bounds
+        )
+        results = mle_model.x
+        hfun = ndt.Hessian(
+            lambda c: likelihood_plummer_ell_center(c, x, y), full_output=True
+        )
+
+        hessian_ndt, info = hfun(results)
+        for i in range(len(values) - 1, -1, -1):
+            if np.logical_not(np.isnan(values[i])):
+                hessian_ndt = np.delete(hessian_ndt, i, axis=1)
+                hessian_ndt = np.delete(hessian_ndt, i, axis=0)
+                results[i] = values[i]
+
+        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+        for i in range(len(values)):
+            if np.logical_not(np.isnan(values[i])):
+                var = np.insert(var, i, 1e-9 * np.abs(values[i]))
+
+        if ini is None:
+            ini = np.zeros(len(results))
+            for i in range(len(results)):
+                if bounds[i][0] < results[i] < bounds[i][1]:
+                    ini[i] = results[i]
+                else:
+                    ini[i] = 0.5 * (bounds[i][0] + bounds[i][1])
+
+        bounds = np.asarray(bounds)
+
+        ndim = len(ini)  # number of dimensions.
+        if nwalkers is None or nwalkers < 2 * ndim:
+            nwalkers = int(2 * ndim + 1)
+
+        if gaussp is True:
+            gaussp = np.zeros((ndim, 2))
+            for i in range(ndim):
+                if np.logical_not(np.isnan(var[i])):
+                    gaussp[i, 0] = ini[i]
+                    gaussp[i, 1] = var[i]
+        else:
+            gaussp = np.zeros((ndim, 2))
+
+        for i in range(ndim):
+            if np.isnan(var[i]):
+                var[i] = 0.5 * (bounds[i, 1] - bounds[i, 0])
+
+        pos = [ini + 1e-4 * var * np.random.randn(ndim) for i in range(nwalkers)]
+
+        if use_pool:
+
+            with Pool() as pool:
+                sampler = emcee.EnsembleSampler(
+                    nwalkers, ndim, func, args=(x, y, bounds, gaussp), pool=pool
+                )
+                sampler.run_mcmc(pos, steps)
+        else:
+
+            sampler = emcee.EnsembleSampler(
+                nwalkers, ndim, func, args=(x, y, bounds, gaussp)
+            )
+            sampler.run_mcmc(pos, steps)
+
+        return sampler.chain
 
     if y is None:
         ri = x
@@ -3046,7 +3422,7 @@ def mcmc(
         else:
             ini[1] = -50
 
-    pos = [ini + 1e-3 * bounds * np.random.randn(ndim) for i in range(nwalkers)]
+    pos = [ini + 1e-3 * ini * np.random.randn(ndim) for i in range(nwalkers)]
 
     if model == "sersic":
         func = lnprob_s
