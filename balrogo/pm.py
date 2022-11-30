@@ -156,6 +156,49 @@ def pdf_field_stars(Ux, Uy, mu_pmx, mu_pmy, sr_pmx, sr_pmy, rot_pm, slp_pm):
     return pdf
 
 
+def lngauss_1d(Ux, mu_pmx, sig_pm, mirror=False):
+    """
+    1D Log-Gaussian PDF in cartesian coordinates.
+
+    Parameters
+    ----------
+    Ux : array_like
+        Array containting the data to be fitted, in x-direction.
+    mu_pmx : float
+        Mean proper motion in x-direction.
+    sig_pm : float
+        Log-Gaussian standard deviation.
+    mirror : Boolean
+        True, if the Log-Gaussian is mirrored with respect to the
+        y-axis. The default is False.
+
+    Returns
+    -------
+    pdf : array_like
+        Array containing the PDF the galactic object (1D Gaussian).
+
+    """
+
+    pdf = np.zeros(len(Ux))
+
+    if mirror is True:
+
+        Ux = -Ux + np.nanmax(Ux)
+
+    else:
+
+        Ux = Ux - np.nanmin(Ux)
+
+    dx = np.log(Ux) - mu_pmx
+
+    f1 = -0.5 * (dx / sig_pm) * (dx / sig_pm)
+    den = np.sqrt(2 * np.pi * sig_pm * sig_pm * Ux * Ux)
+
+    pdf = np.exp(f1) / den
+
+    return pdf
+
+
 def gauss_1d(Ux, mu_pmx, sig_pm):
     """
     1D Gaussian PDF in cartesian coordinates.
@@ -483,6 +526,58 @@ def likelihood_2gauss1d(params, Ux, ex):
 
     # PDF from Milky Way stars
     pdf_mw = (1 - frc_go_mw) * gauss_1d(Ux, mu_pmx_mw, sr_pmx_mw)
+
+    # Gets the PDF
+    f_i = pdf_go + pdf_mw
+
+    # Transforms zero's in NaN
+    f_i[f_i <= 0] = np.nan
+
+    # Calculates the likelihood, taking out NaN's
+    f_i = f_i[np.logical_not(np.isnan(f_i))]
+    L = -np.sum(np.log(f_i))
+
+    return L
+
+
+def likelihood_1gauss1d_1lngauss1d(params, Ux, ex, mirror=False):
+    """
+    Computes minus the likelihood of two Gaussians.
+
+    Parameters
+    ----------
+    params : array_like
+        Array of parameters from the model.
+    Ux : array_like
+        Array containting the data to be fitted, in x-direction.
+    ex : array_like
+        Data uncertainty in x-direction.
+    mirror : Boolean
+        True, if the Log-Gaussian is mirrored with respect to the
+        y-axis. The default is False.
+
+    Returns
+    -------
+    L : float
+        minus the logarithm of the likelihood function.
+    """
+
+    mu_pmx_go = params[0]  # mean from galactic object
+    sig_pm_go = params[1]  # dispersion from galactic object
+
+    mu_pmx_mw = params[2]  # mean from Milky Way stars
+    sr_pmx_mw = params[3]  # scale radius from Milky Way stars
+
+    frc_go_mw = params[4]  # fraction of galactic objects by Milky Way stars
+
+    sig_pm_go = np.sqrt(sig_pm_go * sig_pm_go + ex * ex)
+    sr_pmx_mw = np.sqrt(sr_pmx_mw * sr_pmx_mw)
+
+    # PDF from galactic object
+    pdf_go = frc_go_mw * gauss_1d(Ux, mu_pmx_go, sig_pm_go)
+
+    # PDF from Milky Way stars
+    pdf_mw = (1 - frc_go_mw) * lngauss_1d(Ux, mu_pmx_mw, sr_pmx_mw, mirror=mirror)
 
     # Gets the PDF
     f_i = pdf_go + pdf_mw
@@ -1251,7 +1346,7 @@ def maximum_likelihood(
     return results, var
 
 
-def gauss_likelihood(X, eX=None, conv=True, hybrid=False):
+def gauss_likelihood(X, eX=None, conv=True, hybrid=True, lngauss=False, mirror=None):
     """
     Calls a maximum likelihood fit of two (or one) Gaussian 1D fields.
 
@@ -1268,13 +1363,18 @@ def gauss_likelihood(X, eX=None, conv=True, hybrid=False):
     hybrid : boolean, optional
         True, if the data contain interlopers.
         The default is True.
-
+    lngauss : Boolean
+        True, if user wishes to model interlopers with a
+        Log-Gaussian distribution. The default is None.
+    mirror : Boolean
+        True, if the Log-Gaussian is mirrored with respect to the
+        y-axis. The default is None.
 
     Returns
     -------
-    results : 10D-array
+    results : array
         Best fit parameters of the proper motion model.
-    var : 10D-array
+    var : array
         Uncertainty of the fits.
 
     """
@@ -1323,23 +1423,50 @@ def gauss_likelihood(X, eX=None, conv=True, hybrid=False):
         index_go = np.argmin(sigs)
         index_mw = np.argmax(sigs)
 
+        if lngauss is True:
+
+            mu_mw = np.log(sigs[index_mw])
+            std_mw = 0.5
+
+            if mirror is None:
+                dright = np.nanmax(X) - peaks_arg[index_mw]
+                dleft = peaks_arg[index_mw] - np.nanmin(X)
+
+                if dleft > dright:
+                    mirror = True
+                else:
+                    mirror = False
+        else:
+            mu_mw = peaks_arg[index_mw]
+            std_mw = sigs[index_mw]
+
         ini = np.asarray(
             [
                 peaks_arg[index_go],
                 sigs[index_go],
-                peaks_arg[index_mw],
-                sigs[index_mw],
+                mu_mw,
+                std_mw,
                 flux[index_go] / (flux[index_go] + flux[index_mw]),
             ]
         )
 
-        bounds = [
-            (ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]),
-            (0.1 * ini[1], 10 * ini[1]),
-            (ini[2] - 5 * ini[3], ini[2] + 5 * ini[3]),
-            (0.1 * ini[3], 10 * ini[3]),
-            (0.01, 1),
-        ]
+        if lngauss is True:
+
+            bounds = [
+                (ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]),
+                (0.1 * ini[1], 10 * ini[1]),
+                (ini[2] - 1.0, ini[2] + 1.0),
+                (0.01, 1),
+                (0.01, 1),
+            ]
+        else:
+            bounds = [
+                (ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]),
+                (0.1 * ini[1], 10 * ini[1]),
+                (ini[2] - 5 * ini[3], ini[2] + 5 * ini[3]),
+                (0.1 * ini[3], 10 * ini[3]),
+                (0.01, 1),
+            ]
 
         ranges = [
             min(ini[0], ini[2]) - 3 * max(ini[1], ini[3]),
@@ -1370,14 +1497,31 @@ def gauss_likelihood(X, eX=None, conv=True, hybrid=False):
 
     if hybrid is True:
 
-        mle_model = differential_evolution(
-            lambda c: likelihood_2gauss1d(c, X, eX), bounds
-        )
-        results = mle_model.x
+        if lngauss is False:
+            mle_model = differential_evolution(
+                lambda c: likelihood_2gauss1d(c, X, eX), bounds
+            )
+            results = mle_model.x
 
-        hfun = ndt.Hessian(lambda c: likelihood_2gauss1d(c, X, eX), full_output=True)
-        hessian_ndt, info = hfun(results)
-        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+            hfun = ndt.Hessian(
+                lambda c: likelihood_2gauss1d(c, X, eX), full_output=True
+            )
+            hessian_ndt, info = hfun(results)
+            var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+        else:
+            mle_model = differential_evolution(
+                lambda c: likelihood_1gauss1d_1lngauss1d(c, X, eX, mirror=mirror),
+                bounds,
+            )
+            results = mle_model.x
+
+            hfun = ndt.Hessian(
+                lambda c: likelihood_1gauss1d_1lngauss1d(c, X, eX, mirror=mirror),
+                full_output=True,
+            )
+            hessian_ndt, info = hfun(results)
+            var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
     else:
         mle_model = differential_evolution(
             lambda c: likelihood_1gauss1d(c, X, eX), bounds
@@ -1388,7 +1532,10 @@ def gauss_likelihood(X, eX=None, conv=True, hybrid=False):
         hessian_ndt, info = hfun(results)
         var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
-    return results, var
+    if lngauss is False:
+        return results, var
+    else:
+        return results, var, mirror
 
 
 def mcmc(
