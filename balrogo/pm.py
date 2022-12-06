@@ -1101,6 +1101,7 @@ def maximum_likelihood(
     conv=True,
     hybrid=True,
     values=None,
+    ini=None,
     bounds=None,
 ):
     """
@@ -1135,6 +1136,9 @@ def maximum_likelihood(
         Array containing some of the parameters already fitted. If not fitted,
         they are filled with np.nan.
         The default is None.
+    ini : array_like, optional
+        Initial guesses for the parameters.
+        The default is None.
     bounds : array_like, optional
         Bounds used in the MLE fit.
         The default is None.
@@ -1155,7 +1159,8 @@ def maximum_likelihood(
             values[:] = np.nan
 
         # Gets the initial guess of the parameters
-        ini = initial_guess(X, Y)
+        if ini is None:
+            ini = initial_guess(X, Y)
 
         if bounds is None:
             ranges = [
@@ -1323,8 +1328,16 @@ def maximum_likelihood(
                 hessian_ndt = np.delete(hessian_ndt, i, axis=1)
                 hessian_ndt = np.delete(hessian_ndt, i, axis=0)
                 results[i] = values[i]
-        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
-
+        try:
+            var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+        except np.linalg.LinAlgError as err:
+            if "Singular matrix" in str(err):
+                print(
+                    "WARNING: Errors are deprecated --> assigning uncertainties as -1."
+                )
+                var = -np.ones(len(results))
+            else:
+                raise ValueError("Error when computing uncertainties.")
     else:
         mle_model = differential_evolution(
             lambda c: likelihood_gauss2d(c, X, Y, eX, eY, eXY, values=values), bounds
@@ -1341,7 +1354,16 @@ def maximum_likelihood(
                 hessian_ndt = np.delete(hessian_ndt, i, axis=1)
                 hessian_ndt = np.delete(hessian_ndt, i, axis=0)
                 results[i] = values[i]
-        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+        try:
+            var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+        except np.linalg.LinAlgError as err:
+            if "Singular matrix" in str(err):
+                print(
+                    "WARNING: Errors are deprecated --> assigning uncertainties as -1."
+                )
+                var = -np.ones(len(results))
+            else:
+                raise ValueError("Error when computing uncertainties.")
 
     return results, var
 
