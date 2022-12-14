@@ -491,6 +491,66 @@ def likelihood_gauss2d(params, Ux, Uy, ex, ey, exy, values=None):
     return L
 
 
+def likelihood_3gauss1d(params, Ux, ex):
+    """
+    Computes minus the likelihood of two Gaussians.
+
+    Parameters
+    ----------
+    params : array_like
+        Array of parameters from the model.
+    Ux : array_like
+        Array containting the data to be fitted, in x-direction.
+    ex : array_like
+        Data uncertainty in x-direction.
+
+    Returns
+    -------
+    L : float
+        minus the logarithm of the likelihood function.
+    """
+
+    mu_pmx_go = params[0]  # mean from galactic object
+    sig_pm_go = params[1]  # dispersion from galactic object
+
+    mu_pmx_mw1 = params[2]  # mean from Milky Way stars
+    sr_pmx_mw1 = params[3]  # scale radius from Milky Way stars
+    mu_pmx_mw2 = params[4]  # mean from Milky Way stars
+    sr_pmx_mw2 = params[5]  # scale radius from Milky Way stars
+
+    frc_go = params[6]  # fraction of galactic objects by Milky Way stars
+    fac_mw = params[7]
+
+    frc_mw = 1 - frc_go
+
+    frc_mw1 = fac_mw * frc_mw
+    frc_mw2 = (1 - fac_mw) * frc_mw
+
+    sig_pm_go = np.sqrt(sig_pm_go * sig_pm_go + ex * ex)
+    sr_pmx_mw1 = np.sqrt(sr_pmx_mw1 * sr_pmx_mw1 + ex * ex)
+    sr_pmx_mw2 = np.sqrt(sr_pmx_mw2 * sr_pmx_mw2 + ex * ex)
+
+    # PDF from galactic object
+    pdf_go = frc_go * gauss_1d(Ux, mu_pmx_go, sig_pm_go)
+
+    # PDF from Milky Way stars
+    pdf_mw = frc_mw1 * gauss_1d(Ux, mu_pmx_mw1, sr_pmx_mw1) + frc_mw2 * gauss_1d(
+        Ux, mu_pmx_mw2, sr_pmx_mw2
+    )
+
+    # Gets the PDF
+    f_i = pdf_go + pdf_mw
+
+    # Transforms zero's in NaN
+    f_i[f_i <= 0] = np.nan
+
+    # Calculates the likelihood, taking out NaN's
+    f_i = f_i[np.logical_not(np.isnan(f_i))]
+    L = -np.sum(np.log(f_i))
+
+    return L
+
+
 def likelihood_2gauss1d(params, Ux, ex):
     """
     Computes minus the likelihood of two Gaussians.
@@ -1103,6 +1163,7 @@ def maximum_likelihood(
     values=None,
     ini=None,
     bounds=None,
+    define_range=True,
 ):
     """
     Calls a maximum likelihood fit of the proper motion paramters of
@@ -1142,6 +1203,10 @@ def maximum_likelihood(
     bounds : array_like, optional
         Bounds used in the MLE fit.
         The default is None.
+    define_range : boolean, optional
+        True, if the user wishes that automatic ranges be defined.
+        Good choice for data containing clear outliers.
+        The default is True.
 
 
     Returns
@@ -1257,13 +1322,16 @@ def maximum_likelihood(
                 )
                 ini[i] = values[i]
 
-    idx_x = np.intersect1d(np.where(X < ranges[0][1]), np.where(X > ranges[0][0]))
-    idx_y = np.intersect1d(np.where(Y < ranges[1][1]), np.where(Y > ranges[1][0]))
+    if define_range is True:
+        idx_x = np.intersect1d(np.where(X < ranges[0][1]), np.where(X > ranges[0][0]))
+        idx_y = np.intersect1d(np.where(Y < ranges[1][1]), np.where(Y > ranges[1][0]))
 
-    idxpm = np.intersect1d(idx_x, idx_y)
+        idxpm = np.intersect1d(idx_x, idx_y)
 
-    X = X[idxpm]
-    Y = Y[idxpm]
+        X = X[idxpm]
+        Y = Y[idxpm]
+    else:
+        idxpm = np.arange(len(X))
 
     if conv is False:
         eX = np.zeros(len(X))
@@ -1368,7 +1436,9 @@ def maximum_likelihood(
     return results, var
 
 
-def gauss_likelihood(X, eX=None, conv=True, hybrid=True, lngauss=False, mirror=None):
+def gauss_likelihood(
+    X, eX=None, conv=True, hybrid=True, lngauss=False, mirror=None, dgauss=False
+):
     """
     Calls a maximum likelihood fit of two (or one) Gaussian 1D fields.
 
@@ -1387,10 +1457,13 @@ def gauss_likelihood(X, eX=None, conv=True, hybrid=True, lngauss=False, mirror=N
         The default is True.
     lngauss : Boolean
         True, if user wishes to model interlopers with a
-        Log-Gaussian distribution. The default is None.
+        Log-Gaussian distribution. The default is False.
     mirror : Boolean
         True, if the Log-Gaussian is mirrored with respect to the
         y-axis. The default is None.
+    dgauss : Boolean
+        True, if user wishes to model interlopers with a
+        double Gaussian distribution. The default is False.
 
     Returns
     -------
@@ -1481,7 +1554,20 @@ def gauss_likelihood(X, eX=None, conv=True, hybrid=True, lngauss=False, mirror=N
                 (0.01, 1),
                 (0.01, 1),
             ]
+        elif dgauss is True:
+            print(ini[0], ini[1], ini[2], ini[3])
+            bounds = [
+                (ini[0] - 1 * ini[1], ini[0] + 1 * ini[1]),
+                (0.1 * ini[1], 10 * ini[1]),
+                (ini[2] - 5 * ini[3], ini[2] + 5 * ini[3]),
+                (0.1 * ini[3], 10 * ini[3]),
+                (ini[2] - 5 * ini[3], ini[2] + 5 * ini[3]),
+                (0.1 * ini[3], 10 * ini[3]),
+                (0.01, 1),
+                (0.01, 1),
+            ]
         else:
+
             bounds = [
                 (ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]),
                 (0.1 * ini[1], 10 * ini[1]),
@@ -1491,8 +1577,8 @@ def gauss_likelihood(X, eX=None, conv=True, hybrid=True, lngauss=False, mirror=N
             ]
 
         ranges = [
-            min(ini[0], ini[2]) - 3 * max(ini[1], ini[3]),
-            max(ini[0], ini[2]) + 3 * max(ini[1], ini[3]),
+            min(ini[0], ini[2]) - 5 * max(ini[1], ini[3]),
+            max(ini[0], ini[2]) + 5 * max(ini[1], ini[3]),
         ]
     else:
         # Gets the initial guess of the parameters
@@ -1519,18 +1605,7 @@ def gauss_likelihood(X, eX=None, conv=True, hybrid=True, lngauss=False, mirror=N
 
     if hybrid is True:
 
-        if lngauss is False:
-            mle_model = differential_evolution(
-                lambda c: likelihood_2gauss1d(c, X, eX), bounds
-            )
-            results = mle_model.x
-
-            hfun = ndt.Hessian(
-                lambda c: likelihood_2gauss1d(c, X, eX), full_output=True
-            )
-            hessian_ndt, info = hfun(results)
-            var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
-        else:
+        if lngauss is True:
             mle_model = differential_evolution(
                 lambda c: likelihood_1gauss1d_1lngauss1d(c, X, eX, mirror=mirror),
                 bounds,
@@ -1540,6 +1615,30 @@ def gauss_likelihood(X, eX=None, conv=True, hybrid=True, lngauss=False, mirror=N
             hfun = ndt.Hessian(
                 lambda c: likelihood_1gauss1d_1lngauss1d(c, X, eX, mirror=mirror),
                 full_output=True,
+            )
+            hessian_ndt, info = hfun(results)
+            var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+        elif dgauss is True:
+            mle_model = differential_evolution(
+                lambda c: likelihood_3gauss1d(c, X, eX), bounds
+            )
+            results = mle_model.x
+
+            hfun = ndt.Hessian(
+                lambda c: likelihood_3gauss1d(c, X, eX), full_output=True
+            )
+            hessian_ndt, info = hfun(results)
+            var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+
+        else:
+            mle_model = differential_evolution(
+                lambda c: likelihood_2gauss1d(c, X, eX), bounds
+            )
+            results = mle_model.x
+
+            hfun = ndt.Hessian(
+                lambda c: likelihood_2gauss1d(c, X, eX), full_output=True
             )
             hessian_ndt, info = hfun(results)
             var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
