@@ -25,6 +25,7 @@ import operator
 import math
 from scipy.spatial import ConvexHull
 from scipy.interpolate import griddata
+from scipy.special import gamma
 import matplotlib.pyplot as plt
 from functools import partial
 from scipy.optimize import curve_fit
@@ -254,7 +255,7 @@ def pmr_corr(vlos, r, d):
 # ------------------------------------------------------------------------------
 
 
-def aux_disp(idx, y, ey, dimy, robust_sig):
+def aux_disp(idx, y, ey, dimy, robust_sig, method=None, nsamples=100):
     """
     Auxiliary function used by hexbin to compute the dispersion.
 
@@ -271,6 +272,12 @@ def aux_disp(idx, y, ey, dimy, robust_sig):
     robust_sig : boolean
         True if the user wants to compute  a dispersion
         less sensible to outliers.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples.
+        The default is 100.
 
     Returns
     -------
@@ -292,21 +299,23 @@ def aux_disp(idx, y, ey, dimy, robust_sig):
 
         for i in range(0, dimy):
 
-            if len(idx) < 30:
+            if method is None:
                 disp[i, 0] = np.sqrt(
-                    np.nanstd(y[i][idx], ddof=1) ** 2 - np.nanmean(ey[i][idx] ** 2)
+                    np.nanstd(y[i][idx]) ** 2 - np.nanmean(ey[i][idx] ** 2)
                 )
-            else:
-                disp[i, 0] = np.sqrt(
-                    np.nanstd(y[i][idx], ddof=0) ** 2 - np.nanmean(ey[i][idx] ** 2)
-                )
+            elif method == "vdv+":
+                n = len(y[i][idx])
+                bn = np.sqrt(2 / n) * gamma(n / 2) / gamma((n - 1) / 2)
+                sig_mle = np.nanstd(y[i][idx])
+                esig2_mle = np.nanmean(ey[i][idx] ** 2)
+                disp[i, 0] = (1 / bn) * np.sqrt(sig_mle**2 - bn * bn * esig2_mle)
 
     disp = np.sqrt(np.sum(disp * disp, axis=0)) / np.sqrt(dimy)
 
     return disp
 
 
-def aux_err(idx, y, ey, dimy, robust_sig, bootp):
+def aux_err(idx, y, ey, dimy, robust_sig, bootp, method=None, nsamples=100):
     """
     Auxiliary function used by hexbin to compute the dispersion.
 
@@ -325,6 +334,12 @@ def aux_err(idx, y, ey, dimy, robust_sig, bootp):
         less sensible to outliers.
     bootp : boolean
         True if the errors are drawn from a Bootstrap method.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples.
+        The default is 100.
 
     Returns
     -------
@@ -344,7 +359,7 @@ def aux_err(idx, y, ey, dimy, robust_sig, bootp):
             disp[i, 0] = np.sqrt(disp[i, 0] ** 2 - np.nanmean(ey[i][idx] ** 2))
 
             if bootp is True:
-                err[i, 0] = bootstrap(y[i][idx])
+                err[i, 0] = bootstrap(y[i][idx], ey[i][idx], method="robust")
             else:
                 err[i, 0] = disp[i, 0] / np.sqrt(2 * (len(y[i][idx]) - 1))
 
@@ -352,17 +367,21 @@ def aux_err(idx, y, ey, dimy, robust_sig, bootp):
 
         for i in range(0, dimy):
 
-            if len(idx) < 30:
+            if method is None:
                 disp[i, 0] = np.sqrt(
-                    np.nanstd(y[i][idx], ddof=1) ** 2 - np.nanmean(ey[i][idx] ** 2)
+                    np.nanstd(y[i][idx]) ** 2 - np.nanmean(ey[i][idx] ** 2)
                 )
-            else:
-                disp[i, 0] = np.sqrt(
-                    np.nanstd(y[i][idx], ddof=0) ** 2 - np.nanmean(ey[i][idx] ** 2)
-                )
+            elif method == "vdv+":
+                n = len(y[i][idx])
+                bn = np.sqrt(2 / n) * gamma(n / 2) / gamma((n - 1) / 2)
+                sig_mle = np.nanstd(y[i][idx])
+                esig2_mle = np.nanmean(ey[i][idx] ** 2)
+                disp[i, 0] = (1 / bn) * np.sqrt(sig_mle**2 - bn * bn * esig2_mle)
 
             if bootp is True:
-                err[i, 0] = bootstrap(y[i][idx])
+                err[i, 0] = bootstrap(
+                    y[i][idx], ey[i][idx], method=method, nsamples=nsamples
+                )
             else:
                 err[i, 0] = disp[i, 0] / np.sqrt(2 * (len(y[i][idx]) - 1))
 
@@ -371,7 +390,7 @@ def aux_err(idx, y, ey, dimy, robust_sig, bootp):
     return err
 
 
-def bin_disp1d(x, y, ey, dimy, bins, bootp=True, logx=True):
+def bin_montecarlo_1d(x, y, ey, dimy, bins, logx=True, nsamples=100):
     """
     Computes the dispersion of y (and its uncertainty) as a function of x.
 
@@ -387,12 +406,12 @@ def bin_disp1d(x, y, ey, dimy, bins, bootp=True, logx=True):
         Dimension of y.
     bins : int
         Number of bins.
-    bootp : boolean, optional
-        True if the errors are drawn from a Bootstrap method.
-        The default is True.
     logx : boolean, optional
         True if the dispersion is evaluated in a logarithm-spaced grid of x.
         The default is True.
+    nsamples : int, optional
+        Number of Monte Carlo samples.
+        The default is 100.
 
     Returns
     -------
@@ -419,10 +438,6 @@ def bin_disp1d(x, y, ey, dimy, bins, bootp=True, logx=True):
             cond1 = np.where(x < rbin[j + 1])
             cond2 = np.where(x >= rbin[j])
             cond = np.intersect1d(cond1, cond2)
-            if len(cond) > 30:
-                dof = 0
-            else:
-                dof = 1
 
             if logx is True:
                 r[j] = np.sqrt(rbin[j] * rbin[j + 1])
@@ -430,11 +445,103 @@ def bin_disp1d(x, y, ey, dimy, bins, bootp=True, logx=True):
                 r[j] = 0.5 * (rbin[j] * rbin[j + 1])
 
             disp[i, j] = np.sqrt(
-                np.nanstd(y[i][cond], ddof=dof) ** 2 - np.nanmean(ey[i][cond] ** 2)
+                np.nanstd(y[i][cond]) ** 2 - np.nanmean(ey[i][cond] ** 2)
             )
 
+            samples_disp = np.zeros(nsamples)
+            for k in range(nsamples):
+                samples_disp[k] = mle_disp(y[i][cond], ey[i][cond])
+            disp[i, j] = np.nanmean(samples_disp)
+            err[i, j] = np.nanstd(samples_disp)
+            disp[i, j], err[i, j] = monte_carlo_bias(
+                y[i][cond],
+                ey[i][cond],
+                disp[i, j],
+                err[i, j],
+                nsamples,
+            )
+
+    disp = np.sqrt(np.sum(disp * disp, axis=0)) / np.sqrt(dimy)
+    err = np.sqrt(np.sum(err * err, axis=0)) / np.sqrt(dimy)
+
+    return r, disp, err
+
+
+def bin_disp1d(x, y, ey, dimy, bins, bootp=True, logx=True, method=None, nsamples=100):
+    """
+    Computes the dispersion of y (and its uncertainty) as a function of x.
+
+    Parameters
+    ----------
+    x : array_like
+        Reference array.
+    y : array_like
+        Quantity from which the dispersion is calculated.
+    ey : array_like
+        Uncertainty on the quantity from which the dispersion is calculated.
+    dimy : int
+        Dimension of y.
+    bins : int
+        Number of bins.
+    bootp : boolean, optional
+        True if the errors are drawn from a Bootstrap method.
+        The default is True.
+    logx : boolean, optional
+        True if the dispersion is evaluated in a logarithm-spaced grid of x.
+        The default is True.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples.
+        The default is 100.
+
+    Returns
+    -------
+    r : array_like
+        Binned version of x.
+    disp : array_like
+        Dispersion.
+    err : array_like
+        Uncertainty on the dispersion.
+
+    """
+
+    disp = np.zeros((dimy, bins - 1))
+    err = np.zeros((dimy, bins - 1))
+    r = np.zeros(bins - 1)
+
+    if logx is True:
+        rbin = np.logspace(np.log10(np.nanmin(x)), np.log10(np.nanmax(x)), bins)
+    else:
+        rbin = np.linspace(np.nanmin(x), np.nanmax(x), bins)
+
+    for i in range(0, dimy):
+        for j in range(0, bins - 1):
+            cond1 = np.where(x < rbin[j + 1])
+            cond2 = np.where(x >= rbin[j])
+            cond = np.intersect1d(cond1, cond2)
+
+            if logx is True:
+                r[j] = np.sqrt(rbin[j] * rbin[j + 1])
+            else:
+                r[j] = 0.5 * (rbin[j] * rbin[j + 1])
+
+            if method is None:
+                disp[i, j] = np.sqrt(
+                    np.nanstd(y[i][cond]) ** 2 - np.nanmean(ey[i][cond] ** 2)
+                )
+            elif method == "vdv+":
+                n = len(cond)
+                bn = np.sqrt(2 / n) * gamma(n / 2) / gamma((n - 1) / 2)
+                sig_mle = np.nanstd(y[i][cond])
+                esig2_mle = np.nanmean(ey[i][cond] ** 2)
+                disp[i, j] = (1 / bn) * np.sqrt(sig_mle**2 - bn * bn * esig2_mle)
+
             if bootp is True:
-                err[i, j] = bootstrap(y[i][cond])
+                err[i, j] = bootstrap(
+                    y[i][cond], ey[i][cond], method=method, nsamples=nsamples
+                )
             else:
                 err[i, j] = disp[i, j] / np.sqrt(2 * (len(y[i][cond]) - 1))
 
@@ -444,7 +551,9 @@ def bin_disp1d(x, y, ey, dimy, bins, bootp=True, logx=True):
     return r, disp, err
 
 
-def moving_grid1d(x, y, ey, dimy, bootp=True, logx=True, bins=10, ngrid=10):
+def moving_grid1d(
+    x, y, ey, dimy, bootp=True, logx=True, bins=10, ngrid=10, method=None, nsamples=100
+):
     """
     Calculates the dispersion in a moving grid.
 
@@ -470,6 +579,12 @@ def moving_grid1d(x, y, ey, dimy, bootp=True, logx=True, bins=10, ngrid=10):
     ngrid : int, optional
         Number of grids per bin.
         The default is 10.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples.
+        The default is 100.
 
     Returns
     -------
@@ -510,11 +625,27 @@ def moving_grid1d(x, y, ey, dimy, bootp=True, logx=True, bins=10, ngrid=10):
 
         if i == 1:
             r, disp, err = bin_disp1d(
-                xi, yi, eyi, dimy, bins=bins, bootp=bootp, logx=logx
+                xi,
+                yi,
+                eyi,
+                dimy,
+                bins=bins,
+                bootp=bootp,
+                logx=logx,
+                method=method,
+                nsamples=nsamples,
             )
         else:
             ri, dispi, erri = bin_disp1d(
-                xi, yi, eyi, dimy, bins=bins, bootp=bootp, logx=logx
+                xi,
+                yi,
+                eyi,
+                dimy,
+                bins=bins,
+                bootp=bootp,
+                logx=logx,
+                method=method,
+                nsamples=nsamples,
             )
 
             r = np.append(r, ri)
@@ -536,7 +667,9 @@ def moving_grid1d(x, y, ey, dimy, bootp=True, logx=True, bins=10, ngrid=10):
     return r, disp, err
 
 
-def equal_size(x, y, ey, dimy, bootp=True, logx=True, nbin=10):
+def equal_size(
+    x, y, ey, dimy, bootp=True, logx=True, nbin=10, method=None, nsamples=100
+):
     """
     Calculates the dispersion in a fixed bin size grid.
 
@@ -558,6 +691,12 @@ def equal_size(x, y, ey, dimy, bootp=True, logx=True, nbin=10):
         The default is False.
     nbin : int, optional
         Number of tracers per bin. The default is 10.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples.
+        The default is 100.
 
     Returns
     -------
@@ -569,11 +708,6 @@ def equal_size(x, y, ey, dimy, bootp=True, logx=True, nbin=10):
         Uncertainty on the dispersion.
 
     """
-
-    if nbin > 30:
-        dof = 0
-    else:
-        dof = 1
 
     size = math.floor(len(x) / nbin)
     disp = np.zeros((dimy, size))
@@ -588,13 +722,25 @@ def equal_size(x, y, ey, dimy, bootp=True, logx=True, nbin=10):
 
         for j in range(0, dimy):
 
-            disp[j, i] = np.sqrt(
-                np.nanstd(y[j][nbin * i : nbin * (i + 1) - 1], ddof=dof) ** 2
-                - np.nanmean(ey[j][nbin * i : nbin * (i + 1) - 1] ** 2)
-            )
+            if method is None:
+                disp[j, i] = np.sqrt(
+                    np.nanstd(y[j][nbin * i : nbin * (i + 1) - 1]) ** 2
+                    - np.nanmean(ey[j][nbin * i : nbin * (i + 1) - 1] ** 2)
+                )
+            elif method == "vdv+":
+                n = len(y[j][nbin * i : nbin * (i + 1) - 1])
+                bn = np.sqrt(2 / n) * gamma(n / 2) / gamma((n - 1) / 2)
+                sig_mle = np.nanstd(y[j][nbin * i : nbin * (i + 1) - 1])
+                esig2_mle = np.nanmean(ey[j][nbin * i : nbin * (i + 1) - 1] ** 2)
+                disp[j, i] = (1 / bn) * np.sqrt(sig_mle**2 - bn * bn * esig2_mle)
 
             if bootp is True:
-                err[j, i] = bootstrap(y[j][nbin * i : nbin * (i + 1) - 1])
+                err[j, i] = bootstrap(
+                    y[j][nbin * i : nbin * (i + 1) - 1],
+                    ey[j][nbin * i : nbin * (i + 1) - 1],
+                    method=method,
+                    nsamples=nsamples,
+                )
             else:
                 err[j, i] = disp[j, i] / np.sqrt(
                     2
@@ -616,7 +762,9 @@ def equal_size(x, y, ey, dimy, bootp=True, logx=True, nbin=10):
     return r, disp, err
 
 
-def perc_bins(x, y, ey, dimy, bootp=True, logx=True, nnodes=5):
+def perc_bins(
+    x, y, ey, dimy, bootp=True, logx=True, nnodes=5, method=None, nsamples=100
+):
     """
     Calculates the dispersion in a grid whose size varies geometrically with
     the parcentile of x.
@@ -639,6 +787,12 @@ def perc_bins(x, y, ey, dimy, bootp=True, logx=True, nnodes=5):
         The default is False.
     nnodes : int, optional
         Number of grids. The default is 5.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples.
+        The default is 100.
 
     Returns
     -------
@@ -667,11 +821,6 @@ def perc_bins(x, y, ey, dimy, bootp=True, logx=True, nnodes=5):
 
         idxr = np.intersect1d(np.where(x >= ri), np.where(x <= rf))
 
-        if len(idxr) > 30:
-            dof = 0
-        else:
-            dof = 1
-
         if logx is True:
             r[i] = np.sqrt(np.nanmin(x[idxr]) * np.nanmax(x[idxr]))
         else:
@@ -679,12 +828,21 @@ def perc_bins(x, y, ey, dimy, bootp=True, logx=True, nnodes=5):
 
         for j in range(0, dimy):
 
-            disp[j, i] = np.sqrt(
-                np.nanstd(y[j][idxr], ddof=dof) ** 2 - np.nanmean(ey[j][idxr] ** 2)
-            )
+            if method is None:
+                disp[j, i] = np.sqrt(
+                    np.nanstd(y[j][idxr]) ** 2 - np.nanmean(ey[j][idxr] ** 2)
+                )
+            elif method == "vdv+":
+                n = len(y[j][idxr])
+                bn = np.sqrt(2 / n) * gamma(n / 2) / gamma((n - 1) / 2)
+                sig_mle = np.nanstd(y[j][idxr])
+                esig2_mle = np.nanmean(ey[j][idxr] ** 2)
+                disp[j, i] = (1 / bn) * np.sqrt(sig_mle**2 - bn * bn * esig2_mle)
 
             if bootp is True:
-                err[j, i] = bootstrap(y[j][idxr])
+                err[j, i] = bootstrap(
+                    y[j][idxr], ey[j][idxr], method=method, nsamples=nsamples
+                )
             else:
                 err[j, i] = disp[j, i] / np.sqrt(
                     2 * (len(y[j][idxr][np.logical_not(np.isnan(y[j][idxr]))]) - 1)
@@ -696,7 +854,9 @@ def perc_bins(x, y, ey, dimy, bootp=True, logx=True, nnodes=5):
     return r, disp, err
 
 
-def closest_points(x, y, ey, dimy, bootp=True, logx=True, nbin=5):
+def closest_points(
+    x, y, ey, dimy, bootp=True, logx=True, nbin=5, method=None, nsamples=100
+):
     """
     Calculates the dispersion in a grid of the closest nbin tracers.
 
@@ -718,6 +878,12 @@ def closest_points(x, y, ey, dimy, bootp=True, logx=True, nbin=5):
         The default is False.
     nbin : int, optional
         Number of closest points. The default is 5.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples.
+        The default is 100.
 
     Returns
     -------
@@ -740,21 +906,25 @@ def closest_points(x, y, ey, dimy, bootp=True, logx=True, nbin=5):
         dist_r = np.abs(x[i] - x)
         idxr = (np.argpartition(dist_r, nbin)[:nbin]).astype(int)
 
-        if len(idxr) > 30:
-            dof = 0
-        else:
-            dof = 1
-
         r[i] = x[i]
 
         for j in range(0, dimy):
 
-            disp[j, i] = np.sqrt(
-                np.nanstd(y[j][idxr], ddof=dof) ** 2 - np.nanmean(ey[j][idxr] ** 2)
-            )
+            if method is None:
+                disp[j, i] = np.sqrt(
+                    np.nanstd(y[j][idxr]) ** 2 - np.nanmean(ey[j][idxr] ** 2)
+                )
+            elif method == "vdv+":
+                n = len(y[j][idxr])
+                bn = np.sqrt(2 / n) * gamma(n / 2) / gamma((n - 1) / 2)
+                sig_mle = np.nanstd(y[j][idxr])
+                esig2_mle = np.nanmean(ey[j][idxr] ** 2)
+                disp[j, i] = (1 / bn) * np.sqrt(sig_mle**2 - bn * bn * esig2_mle)
 
             if bootp is True:
-                err[j, i] = bootstrap(y[j][idxr])
+                err[j, i] = bootstrap(
+                    y[j][idxr], ey[j][idxr], method=method, nsamples=nsamples
+                )
             else:
                 err[j, i] = disp[j, i] / np.sqrt(
                     2 * (len(y[j][idxr][np.logical_not(np.isnan(y[j][idxr]))]) - 1)
@@ -778,6 +948,8 @@ def disp1d(
     nbin=None,
     polorder=None,
     return_fits=False,
+    method=None,
+    nsamples=100,
 ):
     """
     Computes the dispersion of y.
@@ -815,6 +987,12 @@ def disp1d(
     return_fits: Whether the user wants to return the polynomial
         smoothing fits.
         The default is False.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples for "vdma" method.
+        The default is 100
 
     Returns
     -------
@@ -828,7 +1006,22 @@ def disp1d(
     """
 
     if isinstance(bins, int) is True:
-        r, disp, err = bin_disp1d(x, y, ey, dimy, bins=bins, bootp=bootp, logx=logx)
+        if method == "vdma":
+            r, disp, err = bin_montecarlo_1d(
+                x, y, ey, dimy, bins=bins, logx=logx, nsamples=nsamples
+            )
+        else:
+            r, disp, err = bin_disp1d(
+                x,
+                y,
+                ey,
+                dimy,
+                bins=bins,
+                bootp=bootp,
+                logx=logx,
+                method=method,
+                nsamples=nsamples,
+            )
 
     if bins == "moving":
         if nbin is None:
@@ -837,7 +1030,16 @@ def disp1d(
             bins = nbin
         ngrid = 2
         r, disp, err = moving_grid1d(
-            x, y, ey, dimy, bootp=bootp, logx=logx, bins=bins, ngrid=ngrid
+            x,
+            y,
+            ey,
+            dimy,
+            bootp=bootp,
+            logx=logx,
+            bins=bins,
+            ngrid=ngrid,
+            method=method,
+            nsamples=nsamples,
         )
 
     if bins == "fix-size":
@@ -846,14 +1048,34 @@ def disp1d(
             nbin = int(len(x) / bins)
         else:
             nbin = nbin
-        r, disp, err = equal_size(x, y, ey, dimy, bootp=bootp, logx=logx, nbin=nbin)
+        r, disp, err = equal_size(
+            x,
+            y,
+            ey,
+            dimy,
+            bootp=bootp,
+            logx=logx,
+            nbin=nbin,
+            method=method,
+            nsamples=nsamples,
+        )
 
     if bins == "percentile":
         if nbin is None:
             nnodes = int(2 * position.good_bin(x))
         else:
             nnodes = nbin
-        r, disp, err = perc_bins(x, y, ey, dimy, bootp=bootp, logx=logx, nnodes=nnodes)
+        r, disp, err = perc_bins(
+            x,
+            y,
+            ey,
+            dimy,
+            bootp=bootp,
+            logx=logx,
+            nnodes=nnodes,
+            method=method,
+            nsamples=nsamples,
+        )
 
     if bins == "closest":
         if nbin is None:
@@ -861,7 +1083,17 @@ def disp1d(
             nbin = int(len(x) / bins)
         else:
             nbin = nbin
-        r, disp, err = closest_points(x, y, ey, dimy, bootp=bootp, logx=logx, nbin=nbin)
+        r, disp, err = closest_points(
+            x,
+            y,
+            ey,
+            dimy,
+            bootp=bootp,
+            logx=logx,
+            nbin=nbin,
+            method=method,
+            nsamples=nsamples,
+        )
 
     nonan1 = np.logical_not(np.isnan(disp))
     nonan2 = np.logical_not(np.isnan(err))
@@ -936,6 +1168,7 @@ def disp2d(
     robust_sig=False,
     nbin=None,
     nmov=None,
+    method=None,
 ):
     """
     Calculates a dispersion map in the x plane.
@@ -970,6 +1203,9 @@ def disp2d(
         The default is None.
     nmov : int, optional
         Auxiliar value for moving grids.
+        The default is None.
+    method : str, optional
+        Method to compute the dispersion.
         The default is None.
 
     Returns
@@ -1024,9 +1260,17 @@ def disp2d(
             amax.append(np.amax(alim1))
             dmax.append(np.amax(dlim1))
 
-    raux_disp = partial(aux_disp, y=y, ey=ey, dimy=dimy, robust_sig=robust_sig)
+    raux_disp = partial(
+        aux_disp, y=y, ey=ey, dimy=dimy, robust_sig=robust_sig, method=method
+    )
     raux_err = partial(
-        aux_err, y=y, ey=ey, dimy=dimy, robust_sig=robust_sig, bootp=bootp
+        aux_err,
+        y=y,
+        ey=ey,
+        dimy=dimy,
+        robust_sig=robust_sig,
+        bootp=bootp,
+        method=method,
     )
 
     for i in range(0, len(amin)):
@@ -1131,6 +1375,8 @@ def dispersion(
     a0=None,
     d0=None,
     nmov=None,
+    method="vdma",
+    nsamples=100,
 ):
     """
     Calculates the dispersion.
@@ -1179,6 +1425,12 @@ def dispersion(
     nmov : int, optional
         Auxiliar value for moving grids.
         The default is None.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples for "vdma" method.
+        The default is 100.
 
     Returns
     -------
@@ -1230,6 +1482,8 @@ def dispersion(
             logx=logx,
             nbin=nbin,
             return_fits=return_fits,
+            method=method,
+            nsamples=nsamples,
         )
     else:
         r, disp, err = disp2d(
@@ -1244,6 +1498,7 @@ def dispersion(
             robust_sig=robust_sig,
             nbin=nbin,
             nmov=nmov,
+            method=method,
         )
 
     err[np.where(err <= 0)] = np.nan
@@ -1291,7 +1546,7 @@ def disp_plummer(r, d0, a=2, b=0.25):
 # ------------------------------------------------------------------------------
 
 
-def btsp(x):
+def btsp(x, ex):
     """
     Selects randomly a sub array of elements from x, by shuffling it.
 
@@ -1299,20 +1554,25 @@ def btsp(x):
     ----------
     x : array_like
         Elements to be shuffled.
+    ex : array_like
+        Elements to be shuffled.
 
     Returns
     -------
     x_new : array_like
         Shuffled array.
+    ex_new : array_like
+        Shuffled errors array.
 
     """
     q = np.random.rand(len(x))
     ind = np.rint(len(x) * q - 0.5).astype(int)
     x_new = x[ind]
-    return x_new
+    ex_new = ex[ind]
+    return x_new, ex_new
 
 
-def bootstrap(array):
+def bootstrap(array, earray, method=None, nsamples=100):
     """
     Bootstrap method: Computes a dispersion whitin an array of values.
 
@@ -1320,6 +1580,14 @@ def bootstrap(array):
     ----------
     array : array_like
         Array to calculate the dispersion.
+    earray : array_like
+        Array of errors to calculate the dispersion.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples.
+        The default is 100.
 
     Returns
     -------
@@ -1328,15 +1596,20 @@ def bootstrap(array):
 
     """
 
-    if len(array) > 30:
-        dof = 0
-    else:
-        dof = 1
-
     sig = np.zeros(100)
     for i in range(100):
-        xb = btsp(array)
-        sig[i] = np.std(xb, ddof=dof)
+        xb, exb = btsp(array, earray)
+        if method is None:
+            sig[i] = np.sqrt(np.nanstd(xb) ** 2 - np.nanmean(exb**2))
+        elif method == "vdv+":
+            n = len(xb)
+            bn = np.sqrt(2 / n) * gamma(n / 2) / gamma((n - 1) / 2)
+            sig_mle = np.nanstd(xb)
+            esig2_mle = np.nanmean(exb**2)
+            sig[i] = (1 / bn) * np.sqrt(sig_mle**2 - bn * bn * esig2_mle)
+        elif method == "robust":
+            disp = np.median(np.abs(xb - np.median(exb))) / 0.6745
+            sig[i] = np.sqrt(disp**2 - np.nanmean(exb**2))
 
     unc = np.std(sig)
 
@@ -1368,6 +1641,136 @@ def lgaussian(x, mu, sig):
     lg = -0.5 * arg * arg - 0.5 * np.log(2 * np.pi) - np.log(sig)
 
     return lg
+
+
+def likelihood_1gauss1d(params, Ux, ex):
+    """
+    Computes minus the likelihood of one Gaussian.
+    Follows the recipe from van der Marel & Anderson, 2010.
+
+    Parameters
+    ----------
+    params : array_like
+        Array of parameters from the model.
+    Ux : array_like
+        Array containting the data to be fitted, in x-direction.
+    ex : array_like
+        Data uncertainty in x-direction.
+
+    Returns
+    -------
+    L : float
+        minus the logarithm of the likelihood function.
+    """
+
+    sig = params[0]  # dispersion from galactic object
+
+    sig = np.sqrt(sig * sig + ex * ex)
+
+    s1 = np.sum(1 / (sig * sig))
+    s2 = np.sum(Ux / (sig * sig))
+
+    mu = s2 / s1
+
+    # PDF from galactic object
+    f_i = lgaussian(Ux, mu, sig)
+
+    # Calculates the likelihood, taking out NaN's
+    f_i = f_i[np.logical_not(np.isnan(f_i))]
+    L = -np.sum(f_i)
+
+    return L
+
+
+def mle_disp(x, ex):
+    """
+    Performs a Gaussian maximum likelihood estimation of the dispersion.
+    Follows the recipe from van der Marel & Anderson, 2010.
+
+    Parameters
+    ----------
+    x : array_like, float
+        Random variable.
+    ex : array_like, float
+        Random variable errors.
+
+    Returns
+    -------
+    results: array_like, float
+        Dispersion.
+    """
+
+    # Gets the initial guess of the parameters
+    ini = np.asarray([np.nanmedian(x), np.nanstd(x)])
+
+    bounds = [
+        (0.5 * ini[1], 2 * ini[1]),
+    ]
+
+    ranges = [ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]]
+
+    idx_x = np.intersect1d(np.where(x < ranges[1]), np.where(x > ranges[0]))
+
+    x = x[idx_x]
+    ex = ex[idx_x]
+
+    mle_model = differential_evolution(lambda c: likelihood_1gauss1d(c, x, ex), bounds)
+    results = mle_model.x[0]
+
+    return results
+
+
+def monte_carlo_bias(x, ex, sig_mle, esig_mle, nsamples):
+    """
+    Performs a Monte Carlo correction of the velocity dispersion.
+    Follows the recipe from van der Marel & Anderson, 2010.
+
+    Parameters
+    ----------
+    x : array_like, float
+        Random variable.
+    ex : array_like, float
+        Random variable errors.
+    sig_mle : float
+        Dispersion obtained from the MLE.
+    esig_mle : float
+        Dispersion error obtained from the MLE.
+    nsamples : int
+        Number of samples in the Monte Carlo routine.
+
+    Returns
+    -------
+    results: float
+        Corrected dispersion and respective error.
+    """
+
+    sig = np.sqrt(sig_mle * sig_mle + ex * ex)
+
+    s1 = np.sum(1 / (sig * sig))
+    s2 = np.sum(x / (sig * sig))
+
+    mu = s2 / s1
+
+    # create arrays for sample means and dispersion
+    sample_sig = np.zeros(nsamples)
+
+    # draw Monte Carlo samples and get maximum likelihood parameter estimates
+    for k in range(nsamples):
+
+        # draw sample from Gaussian, broadened with uncertainties
+        sample = np.random.normal(mu, sig)
+
+        # get mean and dispersion of Monte Carlo samples
+        sample_sig[k] = mle_disp(sample, ex)
+
+    # ratio of average dispersion in Monte Carlo samples to input dispersion
+    ratio = np.nanmean(sample_sig) / sig_mle
+
+    # apply correction to dispersion and error
+    corrected_dispersion = sig_mle / ratio
+    error_dispersion = np.nanstd(sample_sig) / ratio**2
+
+    return corrected_dispersion, error_dispersion
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
