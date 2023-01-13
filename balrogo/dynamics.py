@@ -251,6 +251,371 @@ def pmr_corr(vlos, r, d):
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
+"Mean functions"
+# ------------------------------------------------------------------------------
+
+
+def bin_mean1d(x, y, ey, dimy, bins, logx=True, method=None, nsamples=100):
+    """
+    Computes the dispersion of y (and its uncertainty) as a function of x.
+
+    Parameters
+    ----------
+    x : array_like
+        Reference array.
+    y : array_like
+        Quantity from which the dispersion is calculated.
+    ey : array_like
+        Uncertainty on the quantity from which the dispersion is calculated.
+    dimy : int
+        Dimension of y.
+    bins : int
+        Number of bins.
+    logx : boolean, optional
+        True if the dispersion is evaluated in a logarithm-spaced grid of x.
+        The default is True.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples.
+        The default is 100.
+
+    Returns
+    -------
+    r : array_like
+        Binned version of x.
+    disp : array_like
+        Dispersion.
+    err : array_like
+        Uncertainty on the dispersion.
+
+    """
+
+    mean = np.zeros((dimy, bins - 1))
+    disp = np.zeros((dimy, bins - 1))
+    err = np.zeros((dimy, bins - 1))
+    r = np.zeros(bins - 1)
+
+    if logx is True:
+        rbin = np.logspace(np.log10(np.nanmin(x)), np.log10(np.nanmax(x)), bins)
+    else:
+        rbin = np.linspace(np.nanmin(x), np.nanmax(x), bins)
+
+    for i in range(0, dimy):
+        for j in range(0, bins - 1):
+            cond1 = np.where(x < rbin[j + 1])
+            cond2 = np.where(x >= rbin[j])
+            cond = np.intersect1d(cond1, cond2)
+
+            if logx is True:
+                r[j] = np.sqrt(rbin[j] * rbin[j + 1])
+            else:
+                r[j] = 0.5 * (rbin[j] * rbin[j + 1])
+
+            if method is None:
+                disp[i, j] = np.sqrt(
+                    np.nanstd(y[i][cond]) ** 2 - np.nanmean(ey[i][cond] ** 2)
+                )
+                mean[i, j], err[i, j] = mle_mean(y[i][cond], ey[i][cond], disp[i, j])
+            elif method == "vdv+":
+                n = len(cond)
+                bn = np.sqrt(2 / n) * gamma(n / 2) / gamma((n - 1) / 2)
+                sig_mle = np.nanstd(y[i][cond])
+                esig2_mle = np.nanmean(ey[i][cond] ** 2)
+                disp[i, j] = (1 / bn) * np.sqrt(sig_mle**2 - bn * bn * esig2_mle)
+                mean[i, j], err[i, j] = mle_mean(y[i][cond], ey[i][cond], disp[i, j])
+            elif method == "vdma":
+                samples_disp = np.zeros(nsamples)
+                for k in range(nsamples):
+                    samples_disp[k] = mle_disp(y[i][cond], ey[i][cond])
+                disp[i, j] = np.nanmean(samples_disp)
+                err[i, j] = np.nanstd(samples_disp)
+                disp[i, j], err[i, j] = monte_carlo_bias(
+                    y[i][cond],
+                    ey[i][cond],
+                    disp[i, j],
+                    err[i, j],
+                    nsamples,
+                )
+                mean[i, j], err[i, j] = mle_mean(y[i][cond], ey[i][cond], disp[i, j])
+
+    if dimy > 1:
+        mean = np.sqrt(np.sum(mean * mean, axis=0)) / np.sqrt(dimy)
+    else:
+        mean = mean[0]
+    err = np.sqrt(np.sum(err * err, axis=0)) / np.sqrt(dimy)
+
+    return r, mean, err
+
+
+def mean1d(
+    x,
+    y,
+    ey,
+    dimy,
+    bins=2,
+    smooth=True,
+    bootp=True,
+    logx=True,
+    nbin=None,
+    polorder=None,
+    return_fits=False,
+    method=None,
+    nsamples=100,
+):
+    """
+    Computes the mean of y.
+
+    Parameters
+    ----------
+    x : array_like
+        Reference array.
+    y : array_like
+        Quantity from which the dispersion is calculated.
+    ey : array_like
+        Uncertainty on the quantity from which the dispersion is calculated.
+    dimy : int
+        Dimension of y.
+    bins : int
+        Number of bins used to bin the data.
+        The default is 2.
+    smooth : boolean, optional
+        True if the mean should
+        be smoothed.
+        The default is True.
+    bootp : boolean, optional
+        True if the errors are drawn from a Bootstrap method.
+        The default is True.
+    logx : boolean, optional
+        True if the dispersion is evaluated in a logarithm-spaced grid of x.
+        The default is False.
+    nbin : Auxiliar value for binning when bins is not an integer.
+        The default is None.
+    polorder : int, optional
+        Order of smoothing polynomial.
+        The default is None.
+    return_fits: Whether the user wants to return the polynomial
+        smoothing fits.
+        The default is False.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples for "vdma" method.
+        The default is 100
+
+    Returns
+    -------
+    r : array_like
+        Reference array (possibly binned).
+    mean : array_like
+        Mean.
+    err : array_like
+        Uncertainty on the mean.
+
+    """
+
+    if isinstance(bins, int) is True:
+        r, mean, err = bin_mean1d(
+            x,
+            y,
+            ey,
+            dimy,
+            bins=bins,
+            logx=logx,
+            method=method,
+            nsamples=nsamples,
+        )
+
+    nonan1 = np.logical_not(np.isnan(mean))
+    nonan2 = np.logical_not(np.isnan(err))
+    nonan = nonan1 * nonan2
+
+    rmin = np.nanmin(r)
+    rmax = np.nanmax(r)
+    idxrange = np.intersect1d(np.where(x > rmin), np.where(x < rmax))
+
+    if smooth is True:
+
+        mean = mean[nonan]
+        err = err[nonan]
+        r = r[nonan]
+
+        if polorder is None:
+            pold = int(0.2 * position.good_bin(mean))
+        else:
+            pold = polorder
+
+        if logx is False:
+
+            poly_mean, cov_mean = np.polyfit(r, mean, pold, w=1 / err, cov=True)
+
+            # Do the interpolation for plotting:
+            t = x[idxrange]
+            # Matrix with rows 1, t, t**2, ...:
+            TT = np.vstack([t ** (pold - i) for i in range(pold + 1)]).T
+            yi = np.dot(
+                TT, poly_mean
+            )  # matrix multiplication calculates the polynomial values
+            C_yi = np.dot(TT, np.dot(cov_mean, TT.T))  # C_y = TT*C_z*TT.T
+            sig_yi = np.sqrt(np.diag(C_yi))  # Standard deviations are sqrt of diagonal
+
+            mean = yi
+            err = sig_yi
+            r = x[idxrange]
+        else:
+            poly_mean, cov_mean = np.polyfit(
+                np.log10(r), mean, pold, w=1 / err, cov=True
+            )
+
+            # Do the interpolation for plotting:
+            t = np.log10(x[idxrange])
+            # Matrix with rows 1, t, t**2, ...:
+            TT = np.vstack([t ** (pold - i) for i in range(pold + 1)]).T
+            yi = np.dot(
+                TT, poly_mean
+            )  # matrix multiplication calculates the polynomial values
+            C_yi = np.dot(TT, np.dot(cov_mean, TT.T))  # C_y = TT*C_z*TT.T
+            sig_yi = np.sqrt(np.diag(C_yi))  # Standard deviations are sqrt of diagonal
+
+            mean = yi
+            err = sig_yi
+            r = x[idxrange]
+
+        if return_fits is True:
+            return r, mean, err, poly_mean
+
+    return r, mean, err
+
+
+def mean(
+    x,
+    y,
+    ey=None,
+    bins=None,
+    smooth=True,
+    bootp=False,
+    logx=False,
+    nbin=None,
+    polorder=None,
+    return_fits=False,
+    robust_sig=False,
+    a0=None,
+    d0=None,
+    nmov=None,
+    method="vdma",
+    nsamples=100,
+):
+    """
+    Calculates the mean.
+
+    Parameters
+    ----------
+    x : array_like
+        Reference array.
+    y : array_like
+        Quantity from which the dispersion is calculated.
+    ey : array_like, optional
+        Uncertainty on the quantity from which the dispersion is calculated.
+        Default is None.
+    bins : int, string, optional
+        Number of bins or method used to bin the data.
+        "moving" stands for a moving grid, later interpolated with a
+        cubic spline.
+        The default is None.
+    smooth : boolean, optional
+        True if the mean should
+        be smoothed.
+        The default is True.
+    bootp : boolean, optional
+        True if the errors are drawn from a Bootstrap method.
+        The default is False.
+    logx : boolean, optional
+        True if the dispersion is evaluated in a logarithm-spaced grid of x.
+        The default is False.
+    nbin : int, optional
+        Auxiliar value for binning when bins is not an integer.
+        The default is None.
+    polorder : int, optional
+        Order of smoothing polynomial.
+        The default is None.
+    return_fits: Whether the user wants to return the polynomial
+        smoothing fits.
+        The default is False.
+    a0 : float, optional.
+        Bulk RA. The default is None.
+    d0 : float, optional.
+        Bulk Dec. The default is None.
+    nmov : int, optional
+        Auxiliar value for moving grids.
+        The default is None.
+    method : str, optional
+        Method to compute the dispersion.
+        The default is None.
+    nsamples : int, optional
+        Number of Monte Carlo samples for "vdma" method.
+        The default is 100.
+
+    Returns
+    -------
+    r : array_like
+        Reference array (possibly binned).
+    mean : array_like
+        Mean.
+    err : array_like
+        Uncertainty on the mean.
+
+    """
+
+    if len(np.shape(x)) == 1:
+        dimx = 1
+    else:
+        dimx = 2
+        x = np.asarray(x)
+
+    if bins is None:
+        bins = 2
+
+    if len(np.shape(y)) == 1:
+        dimy = 1
+        if ey is None:
+            ey = np.asarray([np.zeros(len(y))])
+        else:
+            ey = np.asarray([ey])
+        y = np.asarray([y])
+    else:
+        y = np.asarray(y)
+        if ey is None:
+            ey = np.zeros(np.shape(y))
+        else:
+            ey = np.asarray(ey)
+        dimy = np.shape(y)[0]
+
+    if dimx == 1:
+        r, mean, err = mean1d(
+            x,
+            y,
+            ey,
+            dimy,
+            bins=bins,
+            smooth=smooth,
+            bootp=bootp,
+            polorder=polorder,
+            logx=logx,
+            nbin=nbin,
+            return_fits=return_fits,
+            method=method,
+            nsamples=nsamples,
+        )
+
+    err[np.where(err <= 0)] = np.nan
+
+    return r, mean, err
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ------------------------------------------------------------------------------
 "Dispersion functions"
 # ------------------------------------------------------------------------------
 
@@ -443,10 +808,6 @@ def bin_montecarlo_1d(x, y, ey, dimy, bins, logx=True, nsamples=100):
                 r[j] = np.sqrt(rbin[j] * rbin[j + 1])
             else:
                 r[j] = 0.5 * (rbin[j] * rbin[j + 1])
-
-            disp[i, j] = np.sqrt(
-                np.nanstd(y[i][cond]) ** 2 - np.nanmean(ey[i][cond] ** 2)
-            )
 
             samples_disp = np.zeros(nsamples)
             for k in range(nsamples):
@@ -1680,6 +2041,37 @@ def likelihood_1gauss1d(params, Ux, ex):
     L = -np.sum(f_i)
 
     return L
+
+
+def mle_mean(x, ex, sig):
+    """
+    Performs a Gaussian maximum likelihood estimation of the mean.
+    Follows the recipe from van der Marel & Anderson, 2010.
+
+    Parameters
+    ----------
+    x : array_like, float
+        Random variable.
+    ex : array_like, float
+        Random variable errors.
+
+    Returns
+    -------
+    mu: array_like, float
+        Mean.
+    emu: array_like, float
+        Error on the mean.
+    """
+
+    sig = np.sqrt(sig * sig + ex * ex)
+
+    s1 = np.sum(1 / (sig * sig))
+    s2 = np.sum(x / (sig * sig))
+
+    mu = s2 / s1
+    emu = 1 / np.sqrt(s1)
+
+    return mu, emu
 
 
 def mle_disp(x, ex):
