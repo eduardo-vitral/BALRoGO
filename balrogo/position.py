@@ -684,8 +684,8 @@ def prob(r, params, model="plummer"):
     nsys = len(r) / (1 + norm)
     nilop = len(r) - nsys
 
-    Xmax = np.amax(r) / a
-    Xmin = np.amin(r) / a
+    rmax = np.amax(r)
+    rmin = np.amin(r)
     X = r / a
 
     if model == "plummer":
@@ -695,7 +695,7 @@ def prob(r, params, model="plummer"):
     elif model == "sersic":
         sd = sd_sersic(n, X) * nsys / (np.pi * a**2)
 
-    sd_fs = nilop / (np.pi * (Xmax**2 - Xmin**2))
+    sd_fs = nilop / (np.pi * (rmax**2 - rmin**2))
 
     probability = sd / (sd + sd_fs)
 
