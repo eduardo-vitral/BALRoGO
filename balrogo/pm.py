@@ -1555,7 +1555,7 @@ def gauss_likelihood(
                 (0.01, 1),
             ]
         elif dgauss is True:
-            print(ini[0], ini[1], ini[2], ini[3])
+
             bounds = [
                 (ini[0] - 1 * ini[1], ini[0] + 1 * ini[1]),
                 (0.1 * ini[1], 10 * ini[1]),
