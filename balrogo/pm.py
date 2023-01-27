@@ -1555,9 +1555,9 @@ def gauss_likelihood(
                 (0.01, 1),
             ]
         elif dgauss is True:
-            print(ini[0], ini[1], ini[2], ini[3])
+
             bounds = [
-                (ini[0] - 1 * ini[1], ini[0] + 1 * ini[1]),
+                (ini[0] - 5 * ini[1], ini[0] + 5 * ini[1]),
                 (0.1 * ini[1], 10 * ini[1]),
                 (ini[2] - 5 * ini[3], ini[2] + 5 * ini[3]),
                 (0.1 * ini[3], 10 * ini[3]),
@@ -1576,10 +1576,16 @@ def gauss_likelihood(
                 (0.01, 1),
             ]
 
-        ranges = [
-            min(ini[0], ini[2]) - 5 * max(ini[1], ini[3]),
-            max(ini[0], ini[2]) + 5 * max(ini[1], ini[3]),
-        ]
+        if dgauss is True:
+            ranges = [
+                min(ini[0], ini[2]) - 10 * max(ini[1], ini[3]),
+                max(ini[0], ini[2]) + 10 * max(ini[1], ini[3]),
+            ]
+        else:
+            ranges = [
+                min(ini[0], ini[2]) - 5 * max(ini[1], ini[3]),
+                max(ini[0], ini[2]) + 5 * max(ini[1], ini[3]),
+            ]
     else:
         # Gets the initial guess of the parameters
         ini = np.asarray([np.median(X), np.std(X)])
