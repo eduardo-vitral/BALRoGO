@@ -12,7 +12,7 @@ Created on 2020
 # Gaia mission data.
 #
 # Documentation is provided on Vitral, 2021.
-# If you have any further questions please email vitral@iap.fr
+# If you have any further questions please email evitral@stsci.edu
 #
 ###############################################################################
 

@@ -403,7 +403,11 @@ def sky_coord_rotate(v_i, v0_i, v0_f, theta=0, debug=False):
             A[i] = np.arctan2(sinA, cosA)
 
             if debug is True and i < 10:
-                print("A, B [degrees]:", A[i] * (180 / np.pi), B[i] * (180 / np.pi))
+                print(
+                    "A, B [degrees]:",
+                    A[i] * (180 / np.pi),
+                    B[i] * (180 / np.pi),
+                )
     else:
         print("You did not give a valid input for the Rodrigues formula.")
         return
@@ -518,7 +522,7 @@ def transrot_source(a, d, a0, d0, af, df):
 
     a, d = sky_coord_rotate(v_i, v0_i, v0_f, theta=phi)
 
-    return a, d
+    return a % 360, d
 
 
 def rotate_axis(x, y, theta, mu_x=0, mu_y=0):

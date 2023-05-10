@@ -13,7 +13,7 @@ Created on 2020
 # as well as robust initial guesses for those fits.
 #
 # Documentation is provided on Vitral, 2021.
-# If you have any further questions please email vitral@iap.fr
+# If you have any further questions please email evitral@stsci.edu
 #
 ###############################################################################
 
