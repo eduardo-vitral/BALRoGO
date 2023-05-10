@@ -94,7 +94,9 @@ def sky_distance_deg(RA, Dec, RA0, Dec0):
     RA0 = RA0 * np.pi / 180
     Dec0 = Dec0 * np.pi / 180
 
-    R = (180 / np.pi) * np.arccos(np.sin(Dec) * np.sin(Dec0) + np.cos(Dec) * np.cos(Dec0) * np.cos((RA - RA0)))
+    R = (180 / np.pi) * np.arccos(
+        np.sin(Dec) * np.sin(Dec0) + np.cos(Dec) * np.cos(Dec0) * np.cos((RA - RA0))
+    )
 
     return np.asarray(R)
 
@@ -307,14 +309,22 @@ def rodrigues_formula(k, v, theta, debug=False):
         return
 
     if len(np.shape(v)) == 1 and len(v) == 3:
-        v_rot = v * np.cos(theta) + np.cross(k, v) * np.sin(theta) + k * np.dot(k, v) * (1 - np.cos(theta))
+        v_rot = (
+            v * np.cos(theta)
+            + np.cross(k, v) * np.sin(theta)
+            + k * np.dot(k, v) * (1 - np.cos(theta))
+        )
 
     elif len(np.shape(v)) == 2 and np.shape(v)[0] == 3:
         v_rot = np.zeros((np.shape(v)[1], 3))
         for i in range(0, len(v_rot)):
 
             v0 = np.asarray([v[0][i], v[1][i], v[2][i]])
-            v_rot[i] = v0 * np.cos(theta) + np.cross(k, v0) * np.sin(theta) + k * np.dot(v0, k) * (1 - np.cos(theta))
+            v_rot[i] = (
+                v0 * np.cos(theta)
+                + np.cross(k, v0) * np.sin(theta)
+                + k * np.dot(v0, k) * (1 - np.cos(theta))
+            )
 
             if debug is True and i < 10:
                 print("v0   :", v0)
@@ -627,7 +637,9 @@ def cart_to_sph(x, y, z, vx, vy, vz):
 
     vr = (vx * x + vy * y + vz * z) / r
     vphi = (vy * x - vx * y) / np.sqrt(x * x + y * y)
-    vtheta = -(vz * (x * x + y * y) - z * (vx * x + vy * y)) / (np.sqrt(x * x + y * y) * r)
+    vtheta = -(vz * (x * x + y * y) - z * (vx * x + vy * y)) / (
+        np.sqrt(x * x + y * y) * r
+    )
 
     return r, phi, theta, vr, vphi, vtheta
 
@@ -672,8 +684,16 @@ def sph_to_cart(r, phi, theta, vr, vphi, vtheta):
     y = r * np.sin(theta) * np.sin(phi)
     z = r * np.cos(theta)
 
-    vx = vr * np.sin(theta) * np.cos(phi) + vtheta * np.cos(theta) * np.cos(phi) - vphi * np.sin(phi)
-    vy = vr * np.sin(theta) * np.sin(phi) + vtheta * np.cos(theta) * np.sin(phi) + vphi * np.cos(phi)
+    vx = (
+        vr * np.sin(theta) * np.cos(phi)
+        + vtheta * np.cos(theta) * np.cos(phi)
+        - vphi * np.sin(phi)
+    )
+    vy = (
+        vr * np.sin(theta) * np.sin(phi)
+        + vtheta * np.cos(theta) * np.sin(phi)
+        + vphi * np.cos(phi)
+    )
     vz = vr * np.cos(theta) - vtheta * np.sin(theta)
 
     return x, y, z, vx, vy, vz
@@ -747,9 +767,15 @@ def radec_to_lb(a, d, dadt=None, dddt=None):
         sinb = np.sin(b)
         cosdl = np.cos(l_NCP - lon)
 
-        dbdt = (sind_NGP * cosd * dddt - cosd_NGP * cosda * sind * dddt - cosd_NGP * sinda * dadt) / cosb
+        dbdt = (
+            sind_NGP * cosd * dddt
+            - cosd_NGP * cosda * sind * dddt
+            - cosd_NGP * sinda * dadt
+        ) / cosb
 
-        dldt = (cosb * (sind * dddt * sinda - cosda * dadt) - cosd * sinda * sinb * dbdt) / (cosb * cosb * cosdl)
+        dldt = (
+            cosb * (sind * dddt * sinda - cosda * dadt) - cosd * sinda * sinb * dbdt
+        ) / (cosb * cosb * cosdl)
 
         lon = lon * (180 / np.pi)
         b = b * (180 / np.pi)
@@ -830,11 +856,16 @@ def lb_to_radec(lon, b, dldt=None, dbdt=None):
         sind = np.sin(d)
         cosda = np.cos(a - a_NGP)
 
-        dddt = (sind_NGP * cosb * dbdt - cosd_NGP * cosdl * sinb * dbdt + cosd_NGP * cosb * sindl * dldt) / cosd
+        dddt = (
+            sind_NGP * cosb * dbdt
+            - cosd_NGP * cosdl * sinb * dbdt
+            + cosd_NGP * cosb * sindl * dldt
+        ) / cosd
 
-        dadt = -(cosd * (sinb * dbdt * sindl + cosb * cosdl * dldt) - cosb * sindl * sind * dddt) / (
-            cosd * cosd * cosda
-        )
+        dadt = -(
+            cosd * (sinb * dbdt * sindl + cosb * cosdl * dldt)
+            - cosb * sindl * sind * dddt
+        ) / (cosd * cosd * cosda)
 
         dadt = dadt * cosd
 
