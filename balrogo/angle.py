@@ -94,10 +94,7 @@ def sky_distance_deg(RA, Dec, RA0, Dec0):
     RA0 = RA0 * np.pi / 180
     Dec0 = Dec0 * np.pi / 180
 
-    R = (180 / np.pi) * np.arccos(
-        np.sin(Dec) * np.sin(Dec0)
-        + np.cos(Dec) * np.cos(Dec0) * np.cos((RA - RA0))
-    )
+    R = (180 / np.pi) * np.arccos(np.sin(Dec) * np.sin(Dec0) + np.cos(Dec) * np.cos(Dec0) * np.cos((RA - RA0)))
 
     return np.asarray(R)
 
@@ -171,23 +168,15 @@ def polar_to_sky(r, phi, a0, d0):
 
     if phi < np.pi:
         if (np.cos(r) - np.sin(d) * np.sin(d0)) / (np.cos(d) * np.cos(d0)) > 0:
-            a = a0 + np.arccos(
-                np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
-            )
+            a = a0 + np.arccos(np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
         else:
-            a = a0 + np.arccos(
-                -np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
-            )
+            a = a0 + np.arccos(-np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
 
     if phi >= np.pi:
         if (np.cos(r) - np.sin(d) * np.sin(d0)) / (np.cos(d) * np.cos(d0)) > 0:
-            a = a0 - np.arccos(
-                np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
-            )
+            a = a0 - np.arccos(np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
         else:
-            a = a0 - np.arccos(
-                -np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
-            )
+            a = a0 - np.arccos(-np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
 
     ra = a * 180 / np.pi
     dec = d * 180 / np.pi
@@ -237,9 +226,7 @@ def sky_to_polar(a, d, a0, d0):
 
     p[np.intersect1d(spp, dp)] = np.arcsin(sp[np.intersect1d(spp, dp)])
     p[np.intersect1d(spp, dm)] = np.pi - np.arcsin(sp[np.intersect1d(spp, dm)])
-    p[np.intersect1d(spm, dp)] = 2 * np.pi + np.arcsin(
-        sp[np.intersect1d(spm, dp)]
-    )
+    p[np.intersect1d(spm, dp)] = 2 * np.pi + np.arcsin(sp[np.intersect1d(spm, dp)])
     p[np.intersect1d(spm, dm)] = np.pi - np.arcsin(sp[np.intersect1d(spm, dm)])
 
     return r, p
@@ -320,22 +307,14 @@ def rodrigues_formula(k, v, theta, debug=False):
         return
 
     if len(np.shape(v)) == 1 and len(v) == 3:
-        v_rot = (
-            v * np.cos(theta)
-            + np.cross(k, v) * np.sin(theta)
-            + k * np.dot(k, v) * (1 - np.cos(theta))
-        )
+        v_rot = v * np.cos(theta) + np.cross(k, v) * np.sin(theta) + k * np.dot(k, v) * (1 - np.cos(theta))
 
     elif len(np.shape(v)) == 2 and np.shape(v)[0] == 3:
         v_rot = np.zeros((np.shape(v)[1], 3))
         for i in range(0, len(v_rot)):
 
             v0 = np.asarray([v[0][i], v[1][i], v[2][i]])
-            v_rot[i] = (
-                v0 * np.cos(theta)
-                + np.cross(k, v0) * np.sin(theta)
-                + k * np.dot(v0, k) * (1 - np.cos(theta))
-            )
+            v_rot[i] = v0 * np.cos(theta) + np.cross(k, v0) * np.sin(theta) + k * np.dot(v0, k) * (1 - np.cos(theta))
 
             if debug is True and i < 10:
                 print("v0   :", v0)
@@ -465,13 +444,9 @@ def sky_vector(a, d, a0, d0, af, df):
 
     v_i = np.asarray([np.cos(a) * np.cos(d), np.sin(a) * np.cos(d), np.sin(d)])
 
-    v0_i = np.asarray(
-        [np.cos(a0) * np.cos(d0), np.sin(a0) * np.cos(d0), np.sin(d0)]
-    )
+    v0_i = np.asarray([np.cos(a0) * np.cos(d0), np.sin(a0) * np.cos(d0), np.sin(d0)])
 
-    v0_f = np.asarray(
-        [np.cos(af) * np.cos(df), np.sin(af) * np.cos(df), np.sin(df)]
-    )
+    v0_f = np.asarray([np.cos(af) * np.cos(df), np.sin(af) * np.cos(df), np.sin(df)])
 
     return v_i, v0_i, v0_f
 
@@ -596,9 +571,7 @@ def get_ellipse(a, b, theta, nbins):
 
     t = np.linspace(0, 2 * np.pi, nbins)
     ellipse = np.array([a * np.cos(t), b * np.sin(t)])
-    m_rot = np.array(
-        [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-    )
+    m_rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
     ellipse_rot = np.zeros((2, ellipse.shape[1]))
     for i in range(ellipse.shape[1]):
         ellipse_rot[:, i] = np.dot(m_rot, ellipse[:, i])
@@ -654,9 +627,7 @@ def cart_to_sph(x, y, z, vx, vy, vz):
 
     vr = (vx * x + vy * y + vz * z) / r
     vphi = (vy * x - vx * y) / np.sqrt(x * x + y * y)
-    vtheta = -(vz * (x * x + y * y) - z * (vx * x + vy * y)) / (
-        np.sqrt(x * x + y * y) * r
-    )
+    vtheta = -(vz * (x * x + y * y) - z * (vx * x + vy * y)) / (np.sqrt(x * x + y * y) * r)
 
     return r, phi, theta, vr, vphi, vtheta
 
@@ -701,16 +672,8 @@ def sph_to_cart(r, phi, theta, vr, vphi, vtheta):
     y = r * np.sin(theta) * np.sin(phi)
     z = r * np.cos(theta)
 
-    vx = (
-        vr * np.sin(theta) * np.cos(phi)
-        + vtheta * np.cos(theta) * np.cos(phi)
-        - vphi * np.sin(phi)
-    )
-    vy = (
-        vr * np.sin(theta) * np.sin(phi)
-        + vtheta * np.cos(theta) * np.sin(phi)
-        + vphi * np.cos(phi)
-    )
+    vx = vr * np.sin(theta) * np.cos(phi) + vtheta * np.cos(theta) * np.cos(phi) - vphi * np.sin(phi)
+    vy = vr * np.sin(theta) * np.sin(phi) + vtheta * np.cos(theta) * np.sin(phi) + vphi * np.cos(phi)
     vz = vr * np.cos(theta) - vtheta * np.sin(theta)
 
     return x, y, z, vx, vy, vz
@@ -784,16 +747,9 @@ def radec_to_lb(a, d, dadt=None, dddt=None):
         sinb = np.sin(b)
         cosdl = np.cos(l_NCP - lon)
 
-        dbdt = (
-            sind_NGP * cosd * dddt
-            - cosd_NGP * cosda * sind * dddt
-            - cosd_NGP * sinda * dadt
-        ) / cosb
+        dbdt = (sind_NGP * cosd * dddt - cosd_NGP * cosda * sind * dddt - cosd_NGP * sinda * dadt) / cosb
 
-        dldt = (
-            cosb * (sind * dddt * sinda - cosda * dadt)
-            - cosd * sinda * sinb * dbdt
-        ) / (cosb * cosb * cosdl)
+        dldt = (cosb * (sind * dddt * sinda - cosda * dadt) - cosd * sinda * sinb * dbdt) / (cosb * cosb * cosdl)
 
         lon = lon * (180 / np.pi)
         b = b * (180 / np.pi)
@@ -874,16 +830,11 @@ def lb_to_radec(lon, b, dldt=None, dbdt=None):
         sind = np.sin(d)
         cosda = np.cos(a - a_NGP)
 
-        dddt = (
-            sind_NGP * cosb * dbdt
-            - cosd_NGP * cosdl * sinb * dbdt
-            + cosd_NGP * cosb * sindl * dldt
-        ) / cosd
+        dddt = (sind_NGP * cosb * dbdt - cosd_NGP * cosdl * sinb * dbdt + cosd_NGP * cosb * sindl * dldt) / cosd
 
-        dadt = -(
-            cosd * (sinb * dbdt * sindl + cosb * cosdl * dldt)
-            - cosb * sindl * sind * dddt
-        ) / (cosd * cosd * cosda)
+        dadt = -(cosd * (sinb * dbdt * sindl + cosb * cosdl * dldt) - cosb * sindl * sind * dddt) / (
+            cosd * cosd * cosda
+        )
 
         dadt = dadt * cosd
 
