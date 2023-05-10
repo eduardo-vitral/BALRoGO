@@ -95,7 +95,8 @@ def sky_distance_deg(RA, Dec, RA0, Dec0):
     Dec0 = Dec0 * np.pi / 180
 
     R = (180 / np.pi) * np.arccos(
-        np.sin(Dec) * np.sin(Dec0) + np.cos(Dec) * np.cos(Dec0) * np.cos((RA - RA0))
+        np.sin(Dec) * np.sin(Dec0)
+        + np.cos(Dec) * np.cos(Dec0) * np.cos((RA - RA0))
     )
 
     return np.asarray(R)
@@ -170,15 +171,23 @@ def polar_to_sky(r, phi, a0, d0):
 
     if phi < np.pi:
         if (np.cos(r) - np.sin(d) * np.sin(d0)) / (np.cos(d) * np.cos(d0)) > 0:
-            a = a0 + np.arccos(np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
+            a = a0 + np.arccos(
+                np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
+            )
         else:
-            a = a0 + np.arccos(-np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
+            a = a0 + np.arccos(
+                -np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
+            )
 
     if phi >= np.pi:
         if (np.cos(r) - np.sin(d) * np.sin(d0)) / (np.cos(d) * np.cos(d0)) > 0:
-            a = a0 - np.arccos(np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
+            a = a0 - np.arccos(
+                np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
+            )
         else:
-            a = a0 - np.arccos(-np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
+            a = a0 - np.arccos(
+                -np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
+            )
 
     ra = a * 180 / np.pi
     dec = d * 180 / np.pi
@@ -228,7 +237,9 @@ def sky_to_polar(a, d, a0, d0):
 
     p[np.intersect1d(spp, dp)] = np.arcsin(sp[np.intersect1d(spp, dp)])
     p[np.intersect1d(spp, dm)] = np.pi - np.arcsin(sp[np.intersect1d(spp, dm)])
-    p[np.intersect1d(spm, dp)] = 2 * np.pi + np.arcsin(sp[np.intersect1d(spm, dp)])
+    p[np.intersect1d(spm, dp)] = 2 * np.pi + np.arcsin(
+        sp[np.intersect1d(spm, dp)]
+    )
     p[np.intersect1d(spm, dm)] = np.pi - np.arcsin(sp[np.intersect1d(spm, dm)])
 
     return r, p
@@ -403,7 +414,11 @@ def sky_coord_rotate(v_i, v0_i, v0_f, theta=0, debug=False):
             A[i] = np.arctan2(sinA, cosA)
 
             if debug is True and i < 10:
-                print("A, B [degrees]:", A[i] * (180 / np.pi), B[i] * (180 / np.pi))
+                print(
+                    "A, B [degrees]:",
+                    A[i] * (180 / np.pi),
+                    B[i] * (180 / np.pi),
+                )
     else:
         print("You did not give a valid input for the Rodrigues formula.")
         return
@@ -450,9 +465,13 @@ def sky_vector(a, d, a0, d0, af, df):
 
     v_i = np.asarray([np.cos(a) * np.cos(d), np.sin(a) * np.cos(d), np.sin(d)])
 
-    v0_i = np.asarray([np.cos(a0) * np.cos(d0), np.sin(a0) * np.cos(d0), np.sin(d0)])
+    v0_i = np.asarray(
+        [np.cos(a0) * np.cos(d0), np.sin(a0) * np.cos(d0), np.sin(d0)]
+    )
 
-    v0_f = np.asarray([np.cos(af) * np.cos(df), np.sin(af) * np.cos(df), np.sin(df)])
+    v0_f = np.asarray(
+        [np.cos(af) * np.cos(df), np.sin(af) * np.cos(df), np.sin(df)]
+    )
 
     return v_i, v0_i, v0_f
 
@@ -518,7 +537,7 @@ def transrot_source(a, d, a0, d0, af, df):
 
     a, d = sky_coord_rotate(v_i, v0_i, v0_f, theta=phi)
 
-    return a, d
+    return a % 360, d
 
 
 def rotate_axis(x, y, theta, mu_x=0, mu_y=0):
@@ -577,7 +596,9 @@ def get_ellipse(a, b, theta, nbins):
 
     t = np.linspace(0, 2 * np.pi, nbins)
     ellipse = np.array([a * np.cos(t), b * np.sin(t)])
-    m_rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+    m_rot = np.array(
+        [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+    )
     ellipse_rot = np.zeros((2, ellipse.shape[1]))
     for i in range(ellipse.shape[1]):
         ellipse_rot[:, i] = np.dot(m_rot, ellipse[:, i])
@@ -770,7 +791,8 @@ def radec_to_lb(a, d, dadt=None, dddt=None):
         ) / cosb
 
         dldt = (
-            cosb * (sind * dddt * sinda - cosda * dadt) - cosd * sinda * sinb * dbdt
+            cosb * (sind * dddt * sinda - cosda * dadt)
+            - cosd * sinda * sinb * dbdt
         ) / (cosb * cosb * cosdl)
 
         lon = lon * (180 / np.pi)
