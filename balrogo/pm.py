@@ -265,6 +265,63 @@ def gauss_2d(Ux, Uy, mu_pmx, mu_pmy, sig_pm):
     return pdf
 
 
+def gaussh_1d(Ux, ex, mu, sig, h3, h4):
+
+    hi = np.asarray([1, 0, 0, h3, h4])
+
+    expterm = np.exp(-0.5 * ((Ux - mu) / np.sqrt(sig * sig + ex * ex)) ** 2)
+    den = 3 * np.sqrt(np.pi) * (4 + np.sqrt(6) * hi[4]) * (sig * sig + ex * ex) ** 4.5
+
+    num1_out = 6 * ex**4 * sig**2
+    num1_in1 = np.sqrt(2) * sig * (6 * sig + np.sqrt(3) * hi[3] * (Ux - mu))
+    num1_in2 = np.sqrt(3) * hi[4] * (2 * mu**2 - sig**2 + 2 * Ux**2 - 4 * mu * Ux)
+    num1 = num1_out * (num1_in1 + num1_in2)
+
+    num2_out = sig**4
+    num2_in1 = (
+        2
+        * np.sqrt(6)
+        * hi[3]
+        * sig
+        * (Ux - mu)
+        * (2 * mu**2 - 3 * sig**2 + 2 * Ux**2 - 4 * mu * Ux)
+    )
+    num2_in2 = (
+        np.sqrt(3)
+        * hi[4]
+        * (
+            4 * mu**4
+            - 12 * mu**2 * sig**2
+            + 3 * sig**4
+            + 4 * Ux**4
+            - 16 * mu * Ux**3
+            + 12 * Ux**2 * (2 * mu**2 - sig**2)
+            - 8 * Ux * (2 * mu**3 - 3 * mu * sig**2)
+        )
+    )
+    num2_in3 = 6 * np.sqrt(2) * sig**4
+    num2 = num2_out * (num2_in1 + num2_in2 + num2_in3)
+
+    num3_out = 2 * ex**2
+    num3_in1 = (
+        np.sqrt(6)
+        * hi[3]
+        * sig**3
+        * (Ux - mu)
+        * (2 * mu**2 - 3 * sig**2 + 2 * Ux**2 - 4 * mu * Ux)
+    )
+    num3_in2 = 12 * np.sqrt(2) * sig**6
+    num3 = num3_out * (num3_in1 + num3_in2)
+
+    num4 = 6 * np.sqrt(2) * ex**6 * sig * (np.sqrt(3) * hi[3] * (Ux - mu) + 4 * sig)
+
+    num5 = 3 * ex**8 * (np.sqrt(3) * hi[4] + 2 * np.sqrt(2))
+
+    gaussh = (expterm / den) * (num1 + num2 + num3 + num4 + num5)
+
+    return gaussh
+
+
 def global_pdf(
     Ux,
     Uy,
@@ -687,6 +744,44 @@ def likelihood_1gauss1d(params, Ux, ex):
 
     # Calculates the likelihood, taking out NaN's
     f_i = f_i[np.logical_not(np.isnan(f_i))]
+    L = -np.sum(np.log(f_i))
+
+    return L
+
+
+def likelihood_1gaussh1d(params, Ux, ex):
+    """
+    Computes minus the likelihood of one Gauss-Hermite.
+
+    Parameters
+    ----------
+    params : array_like
+        Array of parameters from the model.
+    Ux : array_like
+        Array containting the data to be fitted, in x-direction.
+    ex : array_like
+        Data uncertainty in x-direction.
+
+    Returns
+    -------
+    L : float
+        minus the logarithm of the likelihood function.
+    """
+
+    mu_pmx_go = params[0]  # mean from galactic object
+    sig_pm_go = params[1]  # dispersion from galactic object
+    h3 = params[2]
+    h4 = params[3]
+
+    # PDF from galactic object
+    pdf_go = gaussh_1d(Ux, ex, mu_pmx_go, sig_pm_go, h3, h4)
+
+    # Gets the PDF
+    f_i = pdf_go
+
+    # Transforms negatives in zeroes.
+    f_i[f_i <= 0] = 0
+
     L = -np.sum(np.log(f_i))
 
     return L
@@ -1437,7 +1532,14 @@ def maximum_likelihood(
 
 
 def gauss_likelihood(
-    X, eX=None, conv=True, hybrid=True, lngauss=False, mirror=None, dgauss=False
+    X,
+    eX=None,
+    conv=True,
+    hybrid=True,
+    lngauss=False,
+    mirror=None,
+    dgauss=False,
+    hermite=False,
 ):
     """
     Calls a maximum likelihood fit of two (or one) Gaussian 1D fields.
@@ -1464,6 +1566,11 @@ def gauss_likelihood(
     dgauss : Boolean
         True, if user wishes to model interlopers with a
         double Gaussian distribution. The default is False.
+    hermite : Boolean
+        True, if user wishes to model the source with a
+        Gauss-Hermite function (up to order 4). Only available
+        for non hybrid treatment.
+        The default is False.
 
     Returns
     -------
@@ -1587,15 +1694,28 @@ def gauss_likelihood(
                 max(ini[0], ini[2]) + 5 * max(ini[1], ini[3]),
             ]
     else:
-        # Gets the initial guess of the parameters
-        ini = np.asarray([np.median(X), np.std(X)])
+        if hermite is True:
+            # Gets the initial guess of the parameters
+            ini = np.asarray([np.median(X), np.std(X), 0, 0])
 
-        bounds = [
-            (ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]),
-            (0.1 * ini[1], 10 * ini[1]),
-        ]
+            bounds = [
+                (ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]),
+                (0.1 * ini[1], 10 * ini[1]),
+                (-0.5, 0.5),
+                (-0.5, 0.5),
+            ]
 
-        ranges = [ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]]
+            ranges = [ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]]
+        else:
+            # Gets the initial guess of the parameters
+            ini = np.asarray([np.median(X), np.std(X)])
+
+            bounds = [
+                (ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]),
+                (0.1 * ini[1], 10 * ini[1]),
+            ]
+
+            ranges = [ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]]
 
     idx_x = np.intersect1d(np.where(X < ranges[1]), np.where(X > ranges[0]))
 
@@ -1650,14 +1770,28 @@ def gauss_likelihood(
             var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
     else:
-        mle_model = differential_evolution(
-            lambda c: likelihood_1gauss1d(c, X, eX), bounds
-        )
-        results = mle_model.x
+        if hermite is True:
+            mle_model = differential_evolution(
+                lambda c: likelihood_1gaussh1d(c, X, eX), bounds
+            )
+            results = mle_model.x
 
-        hfun = ndt.Hessian(lambda c: likelihood_1gauss1d(c, X, eX), full_output=True)
-        hessian_ndt, info = hfun(results)
-        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+            hfun = ndt.Hessian(
+                lambda c: likelihood_1gaussh1d(c, X, eX), full_output=True
+            )
+            hessian_ndt, info = hfun(results)
+            var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+        else:
+            mle_model = differential_evolution(
+                lambda c: likelihood_1gauss1d(c, X, eX), bounds
+            )
+            results = mle_model.x
+
+            hfun = ndt.Hessian(
+                lambda c: likelihood_1gauss1d(c, X, eX), full_output=True
+            )
+            hessian_ndt, info = hfun(results)
+            var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
 
     if lngauss is False:
         return results, var
