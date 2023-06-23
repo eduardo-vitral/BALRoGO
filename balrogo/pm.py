@@ -1554,7 +1554,9 @@ def maximum_likelihood(
             results = mle_model["x"]
 
         hfun = ndt.Hessian(
-            lambda c: likelihood_function(c, X, Y, eX, eY, eXY, values=values),
+            lambda c: likelihood_function(
+                c, X, Y, eX, eY, eXY, values=values, circ=circ
+            ),
             full_output=True,
         )
 
@@ -1947,17 +1949,17 @@ def mcmc(
     if bounds is None:
 
         bounds = [
-                (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
-                (ini[1] - 3 * ini[2], ini[1] + 3 * ini[2]),
-                (0.1 * ini[2], 10 * ini[2]),
-                (ini[3] - 5 * ini[5], ini[3] + 5 * ini[5]),
-                (ini[4] - 5 * ini[5], ini[4] + 5 * ini[5]),
-                (0.1 * ini[5], 10 * ini[5]),
-                (0.1 * ini[5], 10 * ini[5]),
-                (-np.pi / 2, np.pi / 2),
-                (-20, -3),
-                (0.01, 1),
-            ]
+            (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
+            (ini[1] - 3 * ini[2], ini[1] + 3 * ini[2]),
+            (0.1 * ini[2], 10 * ini[2]),
+            (ini[3] - 5 * ini[5], ini[3] + 5 * ini[5]),
+            (ini[4] - 5 * ini[5], ini[4] + 5 * ini[5]),
+            (0.1 * ini[5], 10 * ini[5]),
+            (0.1 * ini[5], 10 * ini[5]),
+            (-np.pi / 2, np.pi / 2),
+            (-20, -3),
+            (0.01, 1),
+        ]
 
     ndim = len(ini)  # number of dimensions.
     if nwalkers is None or nwalkers < 2 * ndim:
@@ -1986,14 +1988,14 @@ def mcmc(
                 nwalkers,
                 ndim,
                 likelihood_prob,
-                args=(X, Y, eX, eY, eXY, ini, bounds, circ=circ),
+                args=(X, Y, eX, eY, eXY, ini, bounds, circ),
                 pool=pool,
             )
             sampler.run_mcmc(pos, steps)
     else:
 
         sampler = emcee.EnsembleSampler(
-            nwalkers, ndim, likelihood_prob, args=(X, Y, eX, eY, eXY, ini, bounds, circ=circ)
+            nwalkers, ndim, likelihood_prob, args=(X, Y, eX, eY, eXY, ini, bounds, circ)
         )
         sampler.run_mcmc(pos, steps)
 
