@@ -156,6 +156,54 @@ def pdf_field_stars(Ux, Uy, mu_pmx, mu_pmy, sr_pmx, sr_pmy, rot_pm, slp_pm):
     return pdf
 
 
+def pdf_field_stars_circ(Ux, Uy, mu_pmx, mu_pmy, sr_pmx, sr_pmy, rot_pm, slp_pm):
+    """
+    PDF of Milky Way field stars according to slightly different from
+    eq. 24 from Vitral 2021, such that the function does not assume a
+    2-D diamond shape at large radii.
+
+    Parameters
+    ----------
+    Ux : array_like
+        Array containting the data to be fitted, in x-direction.
+    Uy : array_like
+        Array containting the data to be fitted, in y-direction.
+    mu_pmx : float
+        Mean proper motion in x-direction.
+    mu_pmy :  float
+        Mean proper motion in y-direction.
+    sr_pmx : float
+        Scale radius in x-direction.
+    sr_pmy : float
+        Scale radius in y-direction.
+    rot_pm : float
+        Angle of rotation of the major axis' ellipse,
+        with respect to the x-direction.
+    slp_pm : float
+        Slope of the PDF.
+
+    Returns
+    -------
+    pdf : array_like
+        Array containing the PDF the Milky Way field stars.
+
+    """
+
+    x = (Ux - mu_pmx) * np.cos(rot_pm) + (Uy - mu_pmy) * np.sin(rot_pm)
+    y = -(Ux - mu_pmx) * np.sin(rot_pm) + (Uy - mu_pmy) * np.cos(rot_pm)
+
+    f1 = (x / sr_pmx) * (x / sr_pmx)
+    f2 = (y / sr_pmy) * (y / sr_pmy)
+
+    f = (1 + f1 * f2) ** (0.5 + slp_pm / 2) / (sr_pmx * sr_pmy)
+
+    fac = -0.5 * (3 + slp_pm)
+
+    pdf = fac * f / np.pi
+
+    return pdf
+
+
 def lngauss_1d(Ux, mu_pmx, sig_pm, mirror=False):
     """
     1D Log-Gaussian PDF in cartesian coordinates.
@@ -338,6 +386,7 @@ def global_pdf(
     rot_pm_mw,
     slp_pm_mw,
     frc_go_mw,
+    circ=False,
 ):
     """
     This function gives the sum of the PDF's from the galactic object
@@ -376,6 +425,9 @@ def global_pdf(
         Slope of the Milky Way field stars PDF.
     frc_go_mw : float
         Fraction of galactic objects by Milky Way stars.
+    circ : boolean, optional
+        True, if the user wants to use an interloper PDF with
+        ellipsoidal shape. The defualt is False.
 
     Returns
     -------
@@ -397,14 +449,19 @@ def global_pdf(
     pdf_go = frc_go_mw * gauss_2d(Ux, Uy, mu_pmx_go, mu_pmy_go, sig_pm_go)
 
     # PDF from Milky Way stars
-    pdf_mw = (1 - frc_go_mw) * pdf_field_stars(
-        Ux, Uy, mu_pmx_mw, mu_pmy_mw, sr_pmx_mw, sr_pmy_mw, rot_pm_mw, slp_pm_mw
-    )
+    if circ is True:
+        pdf_mw = (1 - frc_go_mw) * pdf_field_stars_circ(
+            Ux, Uy, mu_pmx_mw, mu_pmy_mw, sr_pmx_mw, sr_pmy_mw, rot_pm_mw, slp_pm_mw
+        )
+    else:
+        pdf_mw = (1 - frc_go_mw) * pdf_field_stars(
+            Ux, Uy, mu_pmx_mw, mu_pmy_mw, sr_pmx_mw, sr_pmy_mw, rot_pm_mw, slp_pm_mw
+        )
 
     return pdf_go + pdf_mw
 
 
-def likelihood_function(params, Ux, Uy, ex, ey, exy, values=None):
+def likelihood_function(params, Ux, Uy, ex, ey, exy, values=None, circ=False):
     """
     Computes minus the likelihood of the PM model from Vitral (2021).
 
@@ -426,6 +483,9 @@ def likelihood_function(params, Ux, Uy, ex, ey, exy, values=None):
         Array containing some of the parameters already fitted. If not fitted,
         they are filled with np.nan.
         The default is None.
+    circ : boolean, optional
+        True, if the user wants to use an interloper PDF with
+        ellipsoidal shape. The defualt is False.
 
     Returns
     -------
@@ -472,6 +532,7 @@ def likelihood_function(params, Ux, Uy, ex, ey, exy, values=None):
         rot_pm_mw,
         slp_pm_mw,
         frc_go_mw,
+        circ=circ,
     )
 
     # Transforms zero's in NaN
@@ -825,7 +886,7 @@ def likelihood_prior(params, guess, bounds):
         return -np.inf
 
 
-def likelihood_prob(params, Ux, Uy, ex, ey, exy, guess, bounds):
+def likelihood_prob(params, Ux, Uy, ex, ey, exy, guess, bounds, circ=False):
     """
     This function gets the prior probability for MCMC.
 
@@ -847,6 +908,9 @@ def likelihood_prob(params, Ux, Uy, ex, ey, exy, guess, bounds):
         Array containing the initial guess of the parameters.
     bounds : array_like
         Array containing the interval of variation of the parameters.
+    circ : boolean, optional
+        True, if the user wants to use an interloper PDF with
+        ellipsoidal shape. The defualt is False.
 
     Returns
     -------
@@ -857,7 +921,7 @@ def likelihood_prob(params, Ux, Uy, ex, ey, exy, guess, bounds):
     lp = likelihood_prior(params, guess, bounds)
     if not np.isfinite(lp):
         return -np.inf
-    return lp - likelihood_function(params, Ux, Uy, ex, ey, exy)
+    return lp - likelihood_function(params, Ux, Uy, ex, ey, exy, circ=circ)
 
 
 def prob(Ux, Uy, ex, ey, exy, params, conv=True):
@@ -991,7 +1055,8 @@ def detect_peaks(image):
     local_max = maximum_filter(image, footprint=neighborhood) == image
     # local_max is a mask that contains the peaks we are
     # looking for, but also the background.
-    # In order to isolate the peaks we must remove the background from the mask.
+    # In order to isolate the peaks we must remove the background
+    # from the mask.
 
     # we create the mask of the background
     background = image == 0
@@ -1259,6 +1324,7 @@ def maximum_likelihood(
     ini=None,
     bounds=None,
     define_range=True,
+    circ=False,
 ):
     """
     Calls a maximum likelihood fit of the proper motion paramters of
@@ -1302,6 +1368,9 @@ def maximum_likelihood(
         True, if the user wishes that automatic ranges be defined.
         Good choice for data containing clear outliers.
         The default is True.
+    circ : boolean, optional
+        True, if the user wants to use an interloper PDF with
+        ellipsoidal shape. The defualt is False.
 
 
     Returns
@@ -1451,7 +1520,9 @@ def maximum_likelihood(
     if hybrid is True:
         if min_method == "dif":
             mle_model = differential_evolution(
-                lambda c: likelihood_function(c, X, Y, eX, eY, eXY, values=values),
+                lambda c: likelihood_function(
+                    c, X, Y, eX, eY, eXY, values=values, circ=circ
+                ),
                 bounds,
             )
             results = mle_model.x
@@ -1473,7 +1544,9 @@ def maximum_likelihood(
                 ]
             )
             mle_model = minimize(
-                lambda c: likelihood_function(c, X, Y, eX, eY, eXY, values=values),
+                lambda c: likelihood_function(
+                    c, X, Y, eX, eY, eXY, values=values, circ=circ
+                ),
                 ini,
                 method=min_method,
                 bounds=bounds,
@@ -1495,9 +1568,8 @@ def maximum_likelihood(
             var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
         except np.linalg.LinAlgError as err:
             if "Singular matrix" in str(err):
-                print(
-                    "WARNING: Errors are deprecated --> assigning uncertainties as -1."
-                )
+                print("WARNING: Errors are deprecated")
+                print("--> assigning uncertainties as -1.")
                 var = -np.ones(len(results))
             else:
                 raise ValueError("Error when computing uncertainties.")
@@ -1521,9 +1593,8 @@ def maximum_likelihood(
             var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
         except np.linalg.LinAlgError as err:
             if "Singular matrix" in str(err):
-                print(
-                    "WARNING: Errors are deprecated --> assigning uncertainties as -1."
-                )
+                print("WARNING: Errors are deprecated")
+                print("--> assigning uncertainties as -1.")
                 var = -np.ones(len(results))
             else:
                 raise ValueError("Error when computing uncertainties.")
@@ -1811,6 +1882,7 @@ def mcmc(
     ini=None,
     bounds=None,
     use_pool=False,
+    circ=False,
 ):
     """
     MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
@@ -1855,6 +1927,9 @@ def mcmc(
     use_pool : boolean, optional
         "True", if the user whises to use full CPU power of the machine.
         The default is False.
+    circ : boolean, optional
+        True, if the user wants to use an interloper PDF with
+        ellipsoidal shape. The defualt is False.
 
     Returns
     -------
@@ -1871,26 +1946,24 @@ def mcmc(
 
     if bounds is None:
 
-        bounds = np.asarray(
-            [
-                ini[2],
-                ini[2],
-                ini[2] * 0.5,
-                ini[5],
-                ini[6],
-                ini[5] * 0.5,
-                ini[6] * 0.5,
-                np.pi / 2,
-                1,
-                ini[9] * 0.1,
+        bounds = [
+                (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
+                (ini[1] - 3 * ini[2], ini[1] + 3 * ini[2]),
+                (0.1 * ini[2], 10 * ini[2]),
+                (ini[3] - 5 * ini[5], ini[3] + 5 * ini[5]),
+                (ini[4] - 5 * ini[5], ini[4] + 5 * ini[5]),
+                (0.1 * ini[5], 10 * ini[5]),
+                (0.1 * ini[5], 10 * ini[5]),
+                (-np.pi / 2, np.pi / 2),
+                (-20, -3),
+                (0.01, 1),
             ]
-        )
 
     ndim = len(ini)  # number of dimensions.
     if nwalkers is None or nwalkers < 2 * ndim:
         nwalkers = int(2 * ndim + 1)
 
-    pos = [ini + 1e-3 * bounds * np.random.randn(ndim) for i in range(nwalkers)]
+    pos = [ini + 1e-3 * ini * np.random.randn(ndim) for i in range(nwalkers)]
 
     if conv is False:
         eX = np.zeros(len(X))
@@ -1913,14 +1986,14 @@ def mcmc(
                 nwalkers,
                 ndim,
                 likelihood_prob,
-                args=(X, Y, eX, eY, eXY, ini, bounds),
+                args=(X, Y, eX, eY, eXY, ini, bounds, circ=circ),
                 pool=pool,
             )
             sampler.run_mcmc(pos, steps)
     else:
 
         sampler = emcee.EnsembleSampler(
-            nwalkers, ndim, likelihood_prob, args=(X, Y, eX, eY, eXY, ini, bounds)
+            nwalkers, ndim, likelihood_prob, args=(X, Y, eX, eY, eXY, ini, bounds, circ=circ)
         )
         sampler.run_mcmc(pos, steps)
 
