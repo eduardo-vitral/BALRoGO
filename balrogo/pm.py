@@ -1613,6 +1613,7 @@ def gauss_likelihood(
     mirror=None,
     dgauss=False,
     hermite=False,
+    bounds=None,
 ):
     """
     Calls a maximum likelihood fit of two (or one) Gaussian 1D fields.
@@ -1644,6 +1645,9 @@ def gauss_likelihood(
         Gauss-Hermite function (up to order 4). Only available
         for non hybrid treatment.
         The default is False.
+    bounds : array_like, optional
+        Bounds used in the MLE fit.
+        The default is None.
 
     Returns
     -------
@@ -1771,12 +1775,13 @@ def gauss_likelihood(
             # Gets the initial guess of the parameters
             ini = np.asarray([np.median(X), np.std(X), 0, 0])
 
-            bounds = [
-                (ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]),
-                (0.1 * ini[1], 10 * ini[1]),
-                (-0.5, 0.5),
-                (-0.5, 0.5),
-            ]
+            if bounds is None:
+                bounds = [
+                    (ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]),
+                    (0.1 * ini[1], 10 * ini[1]),
+                    (-0.5, 0.5),
+                    (-0.5, 0.5),
+                ]
 
             ranges = [ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]]
         else:
