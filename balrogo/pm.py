@@ -924,7 +924,7 @@ def likelihood_prob(params, Ux, Uy, ex, ey, exy, guess, bounds, circ=False):
     return lp - likelihood_function(params, Ux, Uy, ex, ey, exy, circ=circ)
 
 
-def prob(Ux, Uy, ex, ey, exy, params, conv=True):
+def prob(Ux, Uy, ex, ey, exy, params, conv=True, circ=False):
     """
     This function gives the probability of a certain star to belong to
     a galactic object. This is computed with distribution functions in
@@ -947,6 +947,9 @@ def prob(Ux, Uy, ex, ey, exy, params, conv=True):
     conv : boolean, optional
         True, if the user wants to convolve the galactic object PDF with
         Gaussian errors. The defualt is True.
+    circ : boolean, optional
+        True, if the user wants to use an interloper PDF with
+        ellipsoidal shape. The defualt is False.
 
     Returns
     -------
@@ -979,9 +982,14 @@ def prob(Ux, Uy, ex, ey, exy, params, conv=True):
         sig_pm_go = sig_pm_go = np.sqrt(sig_pm_go * sig_pm_go + err)
 
     pdf_go = gauss_2d(Ux, Uy, mu_pmx_go, mu_pmy_go, sig_pm_go)
-    pdf_mw = pdf_field_stars(
-        Ux, Uy, mu_pmx_mw, mu_pmy_mw, sr_pmx_mw, sr_pmy_mw, rot_pm_mw, slp_pm_mw
-    )
+    if circ is True:
+        pdf_mw = pdf_field_stars_circ(
+            Ux, Uy, mu_pmx_mw, mu_pmy_mw, sr_pmx_mw, sr_pmy_mw, rot_pm_mw, slp_pm_mw
+        )
+    else:
+        pdf_mw = pdf_field_stars(
+            Ux, Uy, mu_pmx_mw, mu_pmy_mw, sr_pmx_mw, sr_pmy_mw, rot_pm_mw, slp_pm_mw
+        )
 
     f1 = frc_go_mw * pdf_go
     f2 = (1 - frc_go_mw) * pdf_mw
