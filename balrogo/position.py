@@ -265,7 +265,7 @@ def center_mle(x, y, hybrid=True, full_fit=False):
 
     """
 
-    cmx, cmy = quantile(x, 0.5), quantile(y, 0.5)
+    cmx, cmy = np.nanquantile(x, 0.5), np.nanquantile(y, 0.5)
     hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
 
     hmr = np.log10(hmr)
@@ -276,8 +276,8 @@ def center_mle(x, y, hybrid=True, full_fit=False):
     bounds = [
         (hmr - 2, hmr + 2),
         (norm - 2, norm + 2),
-        (quantile(x, 0.16), quantile(x, 0.84)),
-        (quantile(y, 0.16), quantile(y, 0.84)),
+        (np.nanquantile(x, 0.16), np.nanquantile(x, 0.84)),
+        (np.nanquantile(y, 0.16), np.nanquantile(y, 0.84)),
     ]
 
     mle_model = differential_evolution(
@@ -358,8 +358,8 @@ def center_mle_rob(x, y, ra0=None, dec0=None, hybrid=True, full_fit=False):
     bounds = [
         (hmr - 2, hmr + 2),
         (norm - 2, norm + 2),
-        (quantile(x, 0.16), quantile(x, 0.84)),
-        (quantile(y, 0.16), quantile(y, 0.84)),
+        (np.nanquantile(x, 0.16), np.nanquantile(x, 0.84)),
+        (np.nanquantile(y, 0.16), np.nanquantile(y, 0.84)),
     ]
 
     mle_model = differential_evolution(
@@ -422,7 +422,7 @@ def center_mle_ell(x, y, hybrid=True, full_fit=False):
 
     """
 
-    cmx, cmy = quantile(x, 0.5), quantile(y, 0.5)
+    cmx, cmy = np.nanquantile(x, 0.5), np.nanquantile(y, 0.5)
     hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
 
     hmr = np.log10(hmr)
@@ -435,8 +435,8 @@ def center_mle_ell(x, y, hybrid=True, full_fit=False):
         (hmr - 2, hmr + 2),
         (-np.pi / 2, np.pi / 2),
         (norm - 2, norm + 2),
-        (quantile(x, 0.16), quantile(x, 0.84)),
-        (quantile(y, 0.16), quantile(y, 0.84)),
+        (np.nanquantile(x, 0.16), np.nanquantile(x, 0.84)),
+        (np.nanquantile(y, 0.16), np.nanquantile(y, 0.84)),
     ]
 
     mle_model = differential_evolution(
@@ -524,7 +524,7 @@ def surface_density(x=None, y=None, x0=None, y0=None):
 
         r = angle.sky_distance_deg(x, y, x0, y0)
 
-    q_16, q_50, q_84 = quantile(r, [0.16, 0.5, 0.84])
+    q_16, q_50, q_84 = np.nanquantile(r, [0.16, 0.5, 0.84])
     q_m, q_p = q_50 - q_16, q_84 - q_50
     nbins = int((np.amax(r) - np.amin(r)) / (min(q_m, q_p) / 5))
 
@@ -2989,7 +2989,7 @@ def good_bin(x):
 
     """
 
-    q_16, q_50, q_84 = quantile(x, [0.16, 0.5, 0.84])
+    q_16, q_50, q_84 = np.nanquantile(x, [0.16, 0.5, 0.84])
     q_m, q_p = q_50 - q_16, q_84 - q_50
     bins = int((np.amax(x) - np.amin(x)) / (min(q_m, q_p) / 4))
 
@@ -3292,7 +3292,7 @@ def mcmc(
 
         func = lnprob_ep
 
-        cmx, cmy = quantile(x, 0.5), quantile(y, 0.5)
+        cmx, cmy = np.nanquantile(x, 0.5), np.nanquantile(y, 0.5)
         hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
 
         hmr = np.log10(hmr)
@@ -3306,8 +3306,8 @@ def mcmc(
             (hmr - 2, hmr + 2),
             (-np.pi / 2, np.pi / 2),
             (norm - 2, norm + 2),
-            (quantile(x, 0.16), quantile(x, 0.84)),
-            (quantile(y, 0.16), quantile(y, 0.84)),
+            (np.nanquantile(x, 0.16), np.nanquantile(x, 0.84)),
+            (np.nanquantile(y, 0.16), np.nanquantile(y, 0.84)),
         ]
 
         if values is None:
