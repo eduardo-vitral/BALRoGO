@@ -148,10 +148,10 @@ def polar_to_sky(r, phi, a0, d0):
     Parameters
     ----------
     r : array_like
-        Radial distance from center.
+        Radial distance from center, in radians.
     phi : array_like
         Angle between increasing declination and the projected radius
-        (pointing towards the source).
+        (pointing towards the source, in radians).
     a0 : float
         Right ascention from origin in radians.
     d0 : float
@@ -198,9 +198,9 @@ def sky_to_polar(a, d, a0, d0):
     d : array_like
         Declination in degrees.
     a0 : float
-        Right ascention from origin.
+        Right ascention from origin, in degrees.
     d0 : float
-        Declination from origin.
+        Declination from origin, in degrees.
 
     Returns
     -------
@@ -496,33 +496,22 @@ def transrot_source(a, d, a0, d0, af, df):
 
     """
 
-    v_i, v0_i, v0_f = sky_vector(a, d, a0, d0, af, df)
+    r, p = sky_to_polar(a, d, a0, d0)
 
-    a, d = sky_coord_rotate(v_i, v0_i, v0_f)
+    if np.isscalar(a):
+        a, d = polar_to_sky(r, p, af * (np.pi / 180), df * (np.pi / 180))
 
-    rmax = np.nanmax(sky_distance_deg(a, d, af, df)) * (np.pi / 180)
+        return a, d
 
-    narr = np.asarray([0, 0.1, 0.25, 0.5]) * rmax
-    vt = np.asarray(
-        [
-            np.cos(a0 + narr) * np.cos([d0, d0, d0, d0]),
-            np.sin(a0 + narr) * np.cos([d0, d0, d0, d0]),
-            np.sin([d0, d0, d0, d0]),
-        ]
-    )
+    a_new = np.zeros(len(r))
+    d_new = np.zeros(len(r))
 
-    at, dt = sky_coord_rotate(vt, v0_i, v0_f)
+    for i in range(len(a_new)):
+        a_new[i], d_new[i] = polar_to_sky(
+            r[i], p[i], af * (np.pi / 180), df * (np.pi / 180)
+        )
 
-    r0, p0 = sky_to_polar(a0 + narr, d0 * np.ones(len(narr)), a0, d0)
-    rf, pf = sky_to_polar(at, dt, af, df)
-
-    phi = np.nanmean(pf - p0)
-
-    v_i, v0_i, v0_f = sky_vector(a, d, af, df, af, df)
-
-    a, d = sky_coord_rotate(v_i, v0_i, v0_f, theta=phi)
-
-    return a % 360, d
+    return a_new, d_new
 
 
 def rotate_axis(x, y, theta, mu_x=0, mu_y=0):
