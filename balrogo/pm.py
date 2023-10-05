@@ -277,7 +277,7 @@ def gauss_1d(Ux, mu_pmx, sig_pm):
     return pdf
 
 
-def gauss_2d(Ux, Uy, mu_pmx, mu_pmy, sig_pm):
+def gauss_2d(Ux, Uy, mu_pmx, mu_pmy, sig_pmx, sig_pmy, rho):
     """
     2D Gaussian PDF in cartesian coordinates.
 
@@ -291,7 +291,11 @@ def gauss_2d(Ux, Uy, mu_pmx, mu_pmy, sig_pm):
         Mean proper motion in x-direction.
     mu_pmy : float
         Mean proper motion in y-direction.
-    sig_pm : float
+    sig_pmx : float
+        Gaussian standard deviation, in x-direction.
+    sig_pmy : float
+        Gaussian standard deviation, in y-direction.
+    rho : array_like
         Gaussian standard deviation.
 
     Returns
@@ -304,11 +308,18 @@ def gauss_2d(Ux, Uy, mu_pmx, mu_pmy, sig_pm):
     dx = Ux - mu_pmx
     dy = Uy - mu_pmy
 
-    f1 = -0.5 * (dx / sig_pm) * (dx / sig_pm)
-    f2 = -0.5 * (dy / sig_pm) * (dy / sig_pm)
-    den = 2 * np.pi * sig_pm * sig_pm
+    dets = (1 - rho**2) * (sig_pmx * sig_pmy) ** 2
 
-    pdf = np.exp(f1 + f2) / den
+    num = (
+        (sig_pmy * dx) ** 2
+        + (sig_pmx * dy) ** 2
+        - 2 * rho * sig_pmx * sig_pmy * dx * dy
+    )
+
+    expf = -0.5 * num / dets
+    den = 2 * np.pi * np.sqrt(dets)
+
+    pdf = np.exp(expf) / den
 
     return pdf
 
@@ -437,16 +448,13 @@ def global_pdf(
 
     """
     # Deals with a semi-convolution, only accounting for the galactic object.
-    pm_mod = np.sqrt((Ux - mu_pmx_go) ** 2 + (Uy - mu_pmy_go) ** 2)
-    err = (
-        (ex * (Ux - mu_pmx_go) / pm_mod) ** 2
-        + (ey * (Uy - mu_pmy_go) / pm_mod) ** 2
-        + 2 * ex * ey * exy * (Ux - mu_pmx_go) * (Uy - mu_pmy_go) / pm_mod**2
-    )
-    sig_pm_go = np.sqrt(sig_pm_go * sig_pm_go + err)
+    sig_pmx_go = np.sqrt(sig_pm_go * sig_pm_go + ex * ex)
+    sig_pmy_go = np.sqrt(sig_pm_go * sig_pm_go + ey * ey)
 
     # PDF from galactic object
-    pdf_go = frc_go_mw * gauss_2d(Ux, Uy, mu_pmx_go, mu_pmy_go, sig_pm_go)
+    pdf_go = frc_go_mw * gauss_2d(
+        Ux, Uy, mu_pmx_go, mu_pmy_go, sig_pmx_go, sig_pmy_go, exy
+    )
 
     # PDF from Milky Way stars
     if circ is True:
@@ -585,19 +593,14 @@ def likelihood_gauss2d(params, Ux, Uy, ex, ey, exy, values=None):
 
     mu_pmx_go = params[0]  # mean pmra from galactic object
     mu_pmy_go = params[1]  # mean pmdec from galactic object
-    sig_pm_go = params[2]  # pm dispersion from galactic object
+    sig_pmx_go = params[2]  # pmra dispersion from galactic object
+    sig_pmy_go = params[3]  # pmdec dispersion from galactic object
 
-    # Deals with a semi-convolution, only accounting for the galactic object.
-    pm_mod = np.sqrt((Ux - mu_pmx_go) ** 2 + (Uy - mu_pmy_go) ** 2)
-    err = (
-        (ex * (Ux - mu_pmx_go) / pm_mod) ** 2
-        + (ey * (Uy - mu_pmy_go) / pm_mod) ** 2
-        + 2 * ex * ey * exy * (Ux - mu_pmx_go) * (Uy - mu_pmy_go) / pm_mod**2
-    )
-    sig_pm_go = np.sqrt(sig_pm_go * sig_pm_go + err)
+    sig_pmx_go = np.sqrt(sig_pmx_go**2 + ex**2)
+    sig_pmy_go = np.sqrt(sig_pmy_go**2 + ey**2)
 
     # Gets the PDF
-    f_i = gauss_2d(Ux, Uy, mu_pmx_go, mu_pmy_go, sig_pm_go)
+    f_i = gauss_2d(Ux, Uy, mu_pmx_go, mu_pmy_go, sig_pmx_go, sig_pmy_go, exy)
 
     # Transforms zero's in NaN
     f_i[f_i <= 0] = np.nan
@@ -973,15 +976,15 @@ def prob(Ux, Uy, ex, ey, exy, params, conv=True, circ=False):
     frc_go_mw = params[9]  # fraction of galactic objects by Milky Way stars
 
     if conv is True:
-        pm_mod = np.sqrt((Ux - mu_pmx_go) ** 2 + (Uy - mu_pmy_go) ** 2)
-        err = (
-            (ex * (Ux - mu_pmx_go) / pm_mod) ** 2
-            + (ey * (Uy - mu_pmy_go) / pm_mod) ** 2
-            + 2 * ex * ey * exy * (Ux - mu_pmx_go) * (Uy - mu_pmy_go) / pm_mod**2
-        )
-        sig_pm_go = sig_pm_go = np.sqrt(sig_pm_go * sig_pm_go + err)
+        sig_pmx_go = np.sqrt(sig_pm_go**2 + ex * ex)
+        sig_pmy_go = np.sqrt(sig_pm_go**2 + ey * ey)
+        rho = np.copy(exy)
+    else:
+        sig_pmx_go = np.copy(sig_pm_go)
+        sig_pmy_go = np.copy(sig_pm_go)
+        rho = np.zeros_like(exy)
 
-    pdf_go = gauss_2d(Ux, Uy, mu_pmx_go, mu_pmy_go, sig_pm_go)
+    pdf_go = gauss_2d(Ux, Uy, mu_pmx_go, mu_pmy_go, sig_pmx_go, sig_pmy_go, rho)
     if circ is True:
         pdf_mw = pdf_field_stars_circ(
             Ux, Uy, mu_pmx_mw, mu_pmy_mw, sr_pmx_mw, sr_pmy_mw, rot_pm_mw, slp_pm_mw
@@ -1454,7 +1457,7 @@ def maximum_likelihood(
             values[:] = np.nan
 
         # Gets the initial guess of the parameters
-        ini = np.asarray([np.median(X), np.median(Y), 0.5 * (np.std(X) + np.std(Y))])
+        ini = np.asarray([np.median(X), np.median(Y), 0.5 * np.std(X), 0.5 * np.std(Y)])
 
         if bounds is None:
             ranges = [
@@ -1482,8 +1485,9 @@ def maximum_likelihood(
         if bounds is None:
             bounds = [
                 (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
-                (ini[1] - 3 * ini[2], ini[1] + 3 * ini[2]),
+                (ini[1] - 3 * ini[3], ini[1] + 3 * ini[3]),
                 (0.1 * ini[2], 10 * ini[2]),
+                (0.1 * ini[3], 10 * ini[3]),
             ]
 
         for i in range(len(values)):
