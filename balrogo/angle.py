@@ -219,7 +219,18 @@ def sky_to_polar(a, d, a0, d0):
 
     sp = np.cos(d) * np.sin(a - (a0 * np.pi / 180)) / np.sin(r)
 
-    p = np.zeros(len(sp))
+    if np.isscalar(sp):
+        if sp > 0 and d > (d0 * np.pi / 180):
+            p = np.arcsin(sp)
+        elif sp > 0 and d <= (d0 * np.pi / 180):
+            p = np.pi - np.arcsin(sp)
+        elif sp <= 0 and d > (d0 * np.pi / 180):
+            p = 2 * np.pi + np.arcsin(sp)
+        elif sp <= 0 and d <= (d0 * np.pi / 180):
+            p = np.pi - np.arcsin(sp)
+        return r, p
+    else:
+        p = np.zeros(len(sp))
 
     spp = np.where(sp > 0)
     spm = np.where(sp <= 0)
