@@ -168,17 +168,56 @@ def polar_to_sky(r, phi, a0, d0):
 
     d = np.arcsin(np.cos(r) * np.sin(d0) + np.cos(d0) * np.cos(phi) * np.sin(r))
 
-    if phi < np.pi:
-        if (np.cos(r) - np.sin(d) * np.sin(d0)) / (np.cos(d) * np.cos(d0)) > 0:
-            a = a0 + np.arccos(np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
-        else:
-            a = a0 + np.arccos(-np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
+    if np.isscalar(phi):
+        if phi < np.pi:
+            if (np.cos(r) - np.sin(d) * np.sin(d0)) / (np.cos(d) * np.cos(d0)) > 0:
+                a = a0 + np.arccos(
+                    np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
+                )
+            else:
+                a = a0 + np.arccos(
+                    -np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
+                )
 
-    if phi >= np.pi:
-        if (np.cos(r) - np.sin(d) * np.sin(d0)) / (np.cos(d) * np.cos(d0)) > 0:
-            a = a0 - np.arccos(np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
-        else:
-            a = a0 - np.arccos(-np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2))
+        if phi >= np.pi:
+            if (np.cos(r) - np.sin(d) * np.sin(d0)) / (np.cos(d) * np.cos(d0)) > 0:
+                a = a0 - np.arccos(
+                    np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
+                )
+            else:
+                a = a0 - np.arccos(
+                    -np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
+                )
+    else:
+        a = np.zeros_like(d)
+        for i in range(len(phi)):
+            if phi[i] < np.pi:
+                if (np.cos(r[i]) - np.sin(d[i]) * np.sin(d0)) / (
+                    np.cos(d[i]) * np.cos(d0)
+                ) > 0:
+                    a[i] = a0 + np.arccos(
+                        np.sqrt(1 - (np.sin(phi[i]) * np.sin(r[i]) / np.cos(d[i])) ** 2)
+                    )
+                else:
+                    a[i] = a0 + np.arccos(
+                        -np.sqrt(
+                            1 - (np.sin(phi[i]) * np.sin(r[i]) / np.cos(d[i])) ** 2
+                        )
+                    )
+
+            if phi[i] >= np.pi:
+                if (np.cos(r[i]) - np.sin(d[i]) * np.sin(d0)) / (
+                    np.cos(d[i]) * np.cos(d0)
+                ) > 0:
+                    a[i] = a0 - np.arccos(
+                        np.sqrt(1 - (np.sin(phi[i]) * np.sin(r[i]) / np.cos(d[i])) ** 2)
+                    )
+                else:
+                    a[i] = a0 - np.arccos(
+                        -np.sqrt(
+                            1 - (np.sin(phi[i]) * np.sin(r[i]) / np.cos(d[i])) ** 2
+                        )
+                    )
 
     ra = a * 180 / np.pi
     dec = d * 180 / np.pi
