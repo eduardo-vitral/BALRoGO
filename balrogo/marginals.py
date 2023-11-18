@@ -59,9 +59,7 @@ def corner(
     reals_color="orange",
     marker="X",
     own_dist=True,
-    scale_hist=False,
     quantiles=None,
-    verbose=False,
     fig=None,
     max_n_ticks=4,
     use_math_text=True,
@@ -223,7 +221,6 @@ def corner(
     range_provided = False
     # Parse the parameter ranges.
     if range is None:
-
         range = [[x.min(), x.max()] for x in xs]
         # Check for parameters that never change.
         m = np.array([e[0] == e[1] for e in range], dtype=bool)
@@ -308,7 +305,6 @@ def corner(
     )
 
     for i, x in enumerate(xs):
-
         # Deal with masked arrays.
         if hasattr(x, "compressed"):
             x = x.compressed()
@@ -324,9 +320,6 @@ def corner(
         q_m, q_p = q_50 - q_16, q_84 - q_50
         bins[i] = int((np.amax(range[i]) - np.amin(range[i])) / (min(q_m, q_p) / 4))
 
-        if smooth1d:
-            smooth1d = bins[i]
-
         if smooth1d is False:
             n, b, p = ax.hist(
                 x,
@@ -337,71 +330,47 @@ def corner(
                 histtype="stepfilled",
                 color=colormain,
             )
-            if gauss_prior is not None:
-                if gauss_prior[i]:
-                    if prior_display == 2:
-                        if range_provided:
-                            xx = np.linspace(min(range[i]), max(range[i]), 50)
-                            disp0 = gauss_sig[i]
-                            mu0 = gauss_mu[i]
-                            amp = np.amax(n)
-                            ax.plot(
-                                xx,
-                                dgauss(xx, mu0, disp0, amp),
-                                color=colorgauss,
-                                lw=4,
-                                alpha=0.8,
-                            )
-
-            for axis in ["top", "bottom", "left", "right"]:
-                ax.spines[axis].set_linewidth(2.2)
-                if gauss_prior is not None:
-                    if prior_display == 0:
-                        prior_display = 1
-                    if gauss_prior[i]:
-                        if prior_display == 1:
-                            ax.spines[axis].set_color(colorgauss)
 
         else:
             if gaussian_filter is None:
                 raise ImportError("Please install scipy for smoothing")
+            bins_1d = np.linspace(min(range[i]), max(range[i]), bins[i] + 1)
+            n, _ = np.histogram(x, bins=bins_1d, weights=weights)
+            n = gaussian_filter(n, smooth1d)
+            x0 = np.array(list(zip(bins_1d[:-1], bins_1d[1:]))).flatten()
+            y0 = np.array(list(zip(n, n))).flatten()
+            ax.fill_between(x0, y0, color=colormain)
+            ax.plot(x0, y0, color="k", lw=1)
 
-            n, b, p = ax.hist(
-                x,
-                bins=bins[i],
-                weights=weights,
-                range=np.sort(range[i]),
-                ec="k",
-                histtype="stepfilled",
-                color=colormain,
-            )
+            n = np.copy(y0)
+            b = np.copy(x0)
+
+        if gauss_prior is not None:
+            if gauss_prior[i]:
+                if prior_display == 2:
+                    if range_provided:
+                        xx = np.linspace(min(range[i]), max(range[i]), 50)
+                        disp0 = gauss_sig[i]
+                        mu0 = gauss_mu[i]
+                        amp = np.amax(n)
+                        ax.plot(
+                            xx,
+                            dgauss(xx, mu0, disp0, amp),
+                            color=colorgauss,
+                            lw=4,
+                            alpha=0.8,
+                        )
+
+        for axis in ["top", "bottom", "left", "right"]:
+            ax.spines[axis].set_linewidth(2.2)
             if gauss_prior is not None:
+                if prior_display == 0:
+                    prior_display = 1
                 if gauss_prior[i]:
-                    if prior_display == 2:
-                        if range_provided:
-                            xx = np.linspace(min(range[i]), max(range[i]), 50)
-                            disp0 = gauss_sig[i]
-                            mu0 = gauss_mu[i]
-                            amp = np.amax(n)
-                            ax.plot(
-                                xx,
-                                dgauss(xx, mu0, disp0, amp),
-                                color=colorgauss,
-                                lw=4,
-                                alpha=0.8,
-                            )
-
-            for axis in ["top", "bottom", "left", "right"]:
-                ax.spines[axis].set_linewidth(2.2)
-                if gauss_prior is not None:
-                    if prior_display == 0:
-                        prior_display = 1
-                    if gauss_prior[i]:
-                        if prior_display == 1:
-                            ax.spines[axis].set_color(colorgauss)
+                    if prior_display == 1:
+                        ax.spines[axis].set_color(colorgauss)
 
         if truths is not None and truths[i] is not None:
-
             arrow_width = (np.amax(b) - np.amin(b)) / 20
             arrow_length = (np.amax(n) - np.amin(n)) / 12
 
@@ -418,7 +387,6 @@ def corner(
             )
 
         if reals is not None and reals[i] is not None:
-
             arrow_width = (np.amax(b) - np.amin(b)) / 20
             arrow_length = (np.amax(n) - np.amin(n)) / 12
 
@@ -559,7 +527,6 @@ def corner(
             else:
                 [labs.set_rotation(tick_rotate) for labs in ax.get_xticklabels()]
                 if labels is not None:
-
                     # This concerns the titles on the bottom of the corner plot
                     if own_dist:
                         ax.set_xlabel(labels[j], fontsize=label_size)
@@ -674,7 +641,6 @@ def hist2d(
     ccolormain=None,
     ccolorbackgd=None,
     ccolorhist=None,
-    plot_datapoints=True,
     plot_density=True,
     plot_contours=True,
     no_fill_contours=False,
@@ -798,7 +764,6 @@ def hist2d(
         )
 
     if smooth:
-
         factor = 5
         sig_smooth = [factor * np.std(x.flatten()), factor * np.std(y.flatten())]
 
