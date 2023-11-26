@@ -764,7 +764,7 @@ def hist2d(
         )
 
     if smooth:
-        factor = 5
+        factor = 5 * smooth
         sig_smooth = [factor * np.std(x.flatten()), factor * np.std(y.flatten())]
 
         if gaussian_filter is None:
