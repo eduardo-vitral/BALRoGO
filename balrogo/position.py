@@ -206,7 +206,6 @@ def center_iterative(x, y):
     shift = list()
     count = 0
     while many_tracers is True:
-
         idx = np.where(
             angle.sky_distance_deg(x, y, center[0], center[1]) < (0.9**count) * sigma
         )
@@ -215,7 +214,6 @@ def center_iterative(x, y):
         bins_y = good_bin(y[idx])
 
         if len(idx[0]) < bins_x * bins_y and count > 0:
-
             many_tracers = False
             return center, unc
 
@@ -513,9 +511,7 @@ def surface_density(x=None, y=None, x0=None, y0=None):
     if y is None:
         r = x
     else:
-
         if x0 is None or y0 is None:
-
             center, unc = find_center(x, y)
             if x0 is None:
                 x0 = center[0]
@@ -595,9 +591,7 @@ def initial_guess_sd(x=None, y=None, x0=None, y0=None):
         density = surface_density(x=x)
         size = len(x[0])
     else:
-
         if x0 is None or y0 is None:
-
             center, unc = find_center(x, y)
             if x0 is None:
                 x0 = center[0]
@@ -1322,6 +1316,70 @@ def lnprob_gp_dens(params, ri, bounds, gauss, shells):
     if not np.isfinite(lp):
         return -np.inf
     return lp - likelihood_gplummer_dens(params, ri, shells=shells)
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ---------------------------------------------------------------------------
+"NFW profile functions"
+# ---------------------------------------------------------------------------
+
+###############################################################################
+#
+# Functions concerning the general NFW profile.
+#
+###############################################################################
+
+
+def vd_nfw(gam, x):
+    """
+    Generalized NFW volume density, normalized according to the convention:
+
+    VD(X = R/a) = VD_real(R) 4 * pi * a^3 / N_{-2}
+
+    Parameters
+    ----------
+    gam : array_like, float
+        Inner slope.
+    x : array_like (same shape as gam), float
+        Radius x = r/a.
+
+    Returns
+    -------
+    VD : array_like (same shape as gam), float
+        Normalized volume density profile.
+
+    """
+
+    fac = ((3 - gam) / (2 - gam)) ** (3 - gam) / hyp2f1(1, 1, 4 - gam, -2 + gam)
+    vd = fac * x ** (-gam) * (1 + x) ** (gam - 3)
+
+    return vd
+
+
+def m_nfw(gam, x):
+    """
+    Generalized NFW mass profile, normalized according to the convention:
+
+    M(X = R/a) = M_real(R) / N_{-2}}
+
+    Parameters
+    ----------
+    gam : array_like, float
+        Inner slope.
+    x : array_like (same shape as gam), float
+        Radius x = r/a.
+
+    Returns
+    -------
+    M : array_like (same shape as gam), float
+        Normalized mass profile.
+
+    """
+
+    fac = ((3 - gam) / (2 - gam)) ** (3 - gam) / hyp2f1(1, 1, 4 - gam, -2 + gam)
+    m = hyp2f1(3 - gam, 3 - gam, 4 - gam, -x) * x ** (3 - gam) / (fac * (3 - gam))
+
+    return m
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3107,9 +3165,7 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
         ri = x
         hmr, norm = initial_guess_sd(x=x)
     else:
-
         if x0 is None or y0 is None:
-
             center, unc = find_center(x, y)
             if x0 is None:
                 x0 = center[0]
@@ -3289,7 +3345,6 @@ def mcmc(
         raise ValueError("Please provide the data to be fitted.")
 
     if model == "eplummer":
-
         func = lnprob_ep
 
         cmx, cmy = np.nanquantile(x, 0.5), np.nanquantile(y, 0.5)
@@ -3371,14 +3426,12 @@ def mcmc(
         pos = [ini + 1e-4 * var * np.random.randn(ndim) for i in range(nwalkers)]
 
         if use_pool:
-
             with Pool() as pool:
                 sampler = emcee.EnsembleSampler(
                     nwalkers, ndim, func, args=(x, y, bounds, gaussp), pool=pool
                 )
                 sampler.run_mcmc(pos, steps)
         else:
-
             sampler = emcee.EnsembleSampler(
                 nwalkers, ndim, func, args=(x, y, bounds, gaussp)
             )
@@ -3391,9 +3444,7 @@ def mcmc(
         if ini is None:
             ini, var = maximum_likelihood(x=x, model=model)
     else:
-
         if x0 is None or y0 is None:
-
             center, unc = find_center(x, y)
             if x0 is None:
                 x0 = center[0]
@@ -3443,14 +3494,12 @@ def mcmc(
         func = lnprob_ch
 
     if use_pool:
-
         with Pool() as pool:
             sampler = emcee.EnsembleSampler(
                 nwalkers, ndim, func, args=(ri, ini, bounds), pool=pool
             )
             sampler.run_mcmc(pos, steps)
     else:
-
         sampler = emcee.EnsembleSampler(nwalkers, ndim, func, args=(ri, ini, bounds))
         sampler.run_mcmc(pos, steps)
 
@@ -3618,9 +3667,7 @@ def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=T
     if y is None:
         ri = x
     else:
-
         if x0 is None or y0 is None:
-
             center, unc = find_center(x, y)
             if x0 is None:
                 x0 = center[0]
@@ -3980,7 +4027,6 @@ def mcmc_mass(
                 pos[j][i] = ini[i] + ini[i] * 1e-8 * np.random.randn(1)
 
     if use_pool:
-
         with Pool() as pool:
             if model == "gplummer":
                 sampler = emcee.EnsembleSampler(
