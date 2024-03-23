@@ -65,40 +65,39 @@ kpc_to_km = 3.086 * 10**16
 # ------------------------------------------------------------------------------
 
 
-def sky_distance_deg(RA, Dec, RA0, Dec0):
+def sky_distance_deg(a, d, a0, d0):
     """
     Computes the sky distance (in degrees) between two sets of
     sky coordinates, given also in degrees.
 
     Parameters
     ----------
-    RA : array_like, float
+    a : array_like, float
         Right ascension (in degrees) of object 1.
-    Dec : array_like (same shape as RA), float
+    d : array_like (same shape as RA), float
         Declination (in degrees) of object 1.
-    RA0 : array_like (same shape as RA), float
+    a0 : array_like (same shape as RA), float
         Right ascension (in degrees) of object 2.
-    Dec0 : array_like (same shape as RA), float
+    d0 : array_like (same shape as RA), float
         Declination (in degrees) of object 2.
 
     Returns
     -------
-    R : array_like, float
+    r : array_like, float
         Sky distance (in degrees) between object 1 and object 2.
 
     """
 
-    RA = RA * np.pi / 180
-    Dec = Dec * np.pi / 180
+    a = np.copy(a) * np.pi / 180
+    d = np.copy(d) * np.pi / 180
+    a0 = np.copy(a0) * np.pi / 180
+    d0 = np.copy(d0) * np.pi / 180
 
-    RA0 = RA0 * np.pi / 180
-    Dec0 = Dec0 * np.pi / 180
-
-    R = (180 / np.pi) * np.arccos(
-        np.sin(Dec) * np.sin(Dec0) + np.cos(Dec) * np.cos(Dec0) * np.cos((RA - RA0))
+    r = (180 / np.pi) * np.arccos(
+        np.sin(d) * np.sin(d0) + np.cos(d) * np.cos(d0) * np.cos((a - a0))
     )
 
-    return np.asarray(R)
+    return np.asarray(r)
 
 
 def get_circle_sph_trig(r, a0, d0, nbins=500):
@@ -159,127 +158,112 @@ def polar_to_sky(r, phi, a0, d0):
 
     Returns
     -------
-    ra : array_like
+    a : array_like
         Right ascention in degrees.
-    dec : array_like
+    d : array_like
         Declination in degrees.
 
     """
 
     d = np.arcsin(np.cos(r) * np.sin(d0) + np.cos(d0) * np.cos(phi) * np.sin(r))
 
-    if np.isscalar(phi):
-        if phi < np.pi:
-            if (np.cos(r) - np.sin(d) * np.sin(d0)) / (np.cos(d) * np.cos(d0)) > 0:
-                a = a0 + np.arccos(
-                    np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
-                )
-            else:
-                a = a0 + np.arccos(
-                    -np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
-                )
-        else:
-            if (np.cos(r) - np.sin(d) * np.sin(d0)) / (np.cos(d) * np.cos(d0)) > 0:
-                a = a0 - np.arccos(
-                    np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
-                )
-            else:
-                a = a0 - np.arccos(
-                    -np.sqrt(1 - (np.sin(phi) * np.sin(r) / np.cos(d)) ** 2)
-                )
-    else:
-        a = np.zeros_like(d)
-        for i in range(len(phi)):
-            if phi[i] < np.pi:
-                if (np.cos(r[i]) - np.sin(d[i]) * np.sin(d0)) / (
-                    np.cos(d[i]) * np.cos(d0)
-                ) > 0:
-                    a[i] = a0 + np.arccos(
-                        np.sqrt(1 - (np.sin(phi[i]) * np.sin(r[i]) / np.cos(d[i])) ** 2)
-                    )
-                else:
-                    a[i] = a0 + np.arccos(
-                        -np.sqrt(
-                            1 - (np.sin(phi[i]) * np.sin(r[i]) / np.cos(d[i])) ** 2
-                        )
-                    )
-            else:
-                if (np.cos(r[i]) - np.sin(d[i]) * np.sin(d0)) / (
-                    np.cos(d[i]) * np.cos(d0)
-                ) > 0:
-                    a[i] = a0 - np.arccos(
-                        np.sqrt(1 - (np.sin(phi[i]) * np.sin(r[i]) / np.cos(d[i])) ** 2)
-                    )
-                else:
-                    a[i] = a0 - np.arccos(
-                        -np.sqrt(
-                            1 - (np.sin(phi[i]) * np.sin(r[i]) / np.cos(d[i])) ** 2
-                        )
-                    )
+    sda = np.sin(r) * np.sin(phi) / np.cos(d)
+    cda = (np.cos(r) - np.sin(d) * np.sin(d0)) / (np.cos(d) * np.cos(d0))
 
-    ra = a * 180 / np.pi
-    dec = d * 180 / np.pi
+    a = a0 + np.arctan2(sda, cda)
 
-    return ra, dec
+    a = np.copy(a) * 180 / np.pi
+    d = np.copy(d) * 180 / np.pi
+
+    return a, d
 
 
-def sky_to_polar(a, d, a0, d0):
+def sky_to_polar(a, d, a0, d0, ea=None, ed=None):
     """
-    Transforms sky coordinates, in degrees (RA,Dec), into
-    spherical polar coordinates (r,phi).
+    Transforms uncertainties from sky coordinates, in degrees (RA,Dec),
+    into uncertainties from spherical polar coordinates (r,phi).
+
+    NOTE: The current version of this function neglects any
+    correlations between a and d, and any uncertainties/correlations
+    associated to a0 and d0.
 
     Parameters
     ----------
     a : array_like
-        Right ascention in degrees.
+        Right ascention, in degrees.
     d : array_like
-        Declination in degrees.
+        Declination, in degrees.
     a0 : float
         Right ascention from origin, in degrees.
     d0 : float
         Declination from origin, in degrees.
+    ea : array_like, optional
+        Uncertainty in right ascention, in degrees.
+        The default is None.
+    ed : array_like, optional
+        Uncertainty in declination, in degrees.
+        The default is None.
 
     Returns
     -------
-    r : array_like
-        Radial distance from center.
-    p : array_like
-        Angle between increasing declination and the projected radius
-        (pointing towards the source), in radians.
+    er : array_like
+        Uncertainty in radial distance from center.
+    ep : array_like
+        Uncertainty in angle between increasing declination and
+        the projected radius (pointing towards the source), in radians.
 
     """
 
     r = sky_distance_deg(a, d, a0, d0) * np.pi / 180
 
-    a = a * np.pi / 180
-    d = d * np.pi / 180
+    a = np.copy(a) * np.pi / 180
+    d = np.copy(d) * np.pi / 180
+    a0 = np.copy(a0) * np.pi / 180
+    d0 = np.copy(d0) * np.pi / 180
 
-    sp = np.cos(d) * np.sin(a - (a0 * np.pi / 180)) / np.sin(r)
+    sp = np.cos(d) * np.sin(a - a0) / np.sin(r)
+    cp = (np.sin(d) - np.cos(r) * np.sin(d0)) / (np.sin(r) * np.cos(d0))
 
-    if np.isscalar(sp):
-        if sp > 0 and d > (d0 * np.pi / 180):
-            p = np.arcsin(sp)
-        elif sp > 0 and d <= (d0 * np.pi / 180):
-            p = np.pi - np.arcsin(sp)
-        elif sp <= 0 and d > (d0 * np.pi / 180):
-            p = 2 * np.pi + np.arcsin(sp)
-        elif sp <= 0 and d <= (d0 * np.pi / 180):
-            p = np.pi - np.arcsin(sp)
+    p = np.arctan2(sp, cp) % (2 * np.pi)
+
+    if ea is None or ed is None:
         return r, p
-    else:
-        p = np.zeros(len(sp))
 
-    spp = np.where(sp > 0)
-    spm = np.where(sp <= 0)
-    dp = np.where(d > (d0 * np.pi / 180))
-    dm = np.where(d <= (d0 * np.pi / 180))
+    ea = np.copy(ea) * np.pi / 180
+    ed = np.copy(ed) * np.pi / 180
 
-    p[np.intersect1d(spp, dp)] = np.arcsin(sp[np.intersect1d(spp, dp)])
-    p[np.intersect1d(spp, dm)] = np.pi - np.arcsin(sp[np.intersect1d(spp, dm)])
-    p[np.intersect1d(spm, dp)] = 2 * np.pi + np.arcsin(sp[np.intersect1d(spm, dp)])
-    p[np.intersect1d(spm, dm)] = np.pi - np.arcsin(sp[np.intersect1d(spm, dm)])
+    cosda = np.cos(a - a0)
+    cosd = np.cos(d)
+    cosd0 = np.cos(d0)
 
-    return r, p
+    sinda = np.sin(a - a0)
+    sind = np.sin(d)
+    sind0 = np.sin(d0)
+
+    denr = np.sqrt(1 - (cosda * cosd * cosd0 + sind * sind0) ** 2)
+
+    drda = cosd * cosd0 * sinda / denr
+    drdd = (cosda * cosd0 * sind - cosd * sind0) / denr
+
+    dr = np.sqrt((drda * ea) ** 2 + (drdd * ed) ** 2)
+
+    denp = (
+        cosda**2 * cosd**2
+        - (1 / cosd0) ** 2
+        + cosda * (2 * sind * cosd) * (sind0 / cosd0)
+        + sind**2 * (sind0 / cosd0) ** 2
+    )
+
+    dpda = (
+        (1 / cosd0)
+        * (-0.5 * cosda * (2 * sind * cosd) + cosd**2 * (sind0 / cosd0))
+        / denp
+    )
+    dpdd = (sinda / cosd0) / denp
+
+    dp = np.sqrt((dpda * ea) ** 2 + (dpdd * ed) ** 2)
+
+    return r, p, dr, dp
 
 
 def angular_sep_vector(v0, v):
