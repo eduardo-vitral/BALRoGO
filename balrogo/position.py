@@ -29,9 +29,7 @@ from scipy.signal import find_peaks
 import numdifftools as ndt
 import emcee
 from multiprocessing import Pool
-from multiprocessing import cpu_count
-
-ncpu = cpu_count()
+import os
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -82,7 +80,15 @@ def gauss_sig(x_axis, gauss, peak):
     return sigma
 
 
-def find_center(x, y, method="mle", ra0=None, dec0=None, hybrid=True, full_fit=False):
+def find_center(
+    x,
+    y,
+    method="mle",
+    ra0=None,
+    dec0=None,
+    hybrid=True,
+    full_fit=False,
+):
     """
     Fit a center (peak) of the [x,y] data.
 
@@ -176,11 +182,19 @@ def center_iterative(x, y):
     bins_y = good_bin(y)
 
     # Gets the histogram in RA
-    x_hist, x_axis = np.histogram(x, bins=bins_x, range=(np.amin(x), np.amax(x)))
+    x_hist, x_axis = np.histogram(
+        x,
+        bins=bins_x,
+        range=(np.amin(x), np.amax(x)),
+    )
     x_axis = 0.5 * (x_axis[1:] + x_axis[:-1])
 
     # Gets the histogram in Dec
-    y_hist, y_axis = np.histogram(y, bins=bins_y, range=(np.amin(y), np.amax(y)))
+    y_hist, y_axis = np.histogram(
+        y,
+        bins=bins_y,
+        range=(np.amin(y), np.amax(y)),
+    )
     y_axis = 0.5 * (y_axis[1:] + y_axis[:-1])
 
     # Gets the histogram of the 2d (RA,Dec) data
@@ -207,7 +221,13 @@ def center_iterative(x, y):
     count = 0
     while many_tracers is True:
         idx = np.where(
-            angle.sky_distance_deg(x, y, center[0], center[1]) < (0.9**count) * sigma
+            angle.sky_distance_deg(
+                x,
+                y,
+                center[0],
+                center[1],
+            )
+            < (0.9**count) * sigma,
         )
 
         bins_x = good_bin(x[idx])
@@ -217,13 +237,29 @@ def center_iterative(x, y):
             many_tracers = False
             return center, unc
 
-        hist, xedges, yedges = np.histogram2d(x[idx], y[idx], bins=[bins_x, bins_y])
+        hist, xedges, yedges = np.histogram2d(
+            x[idx],
+            y[idx],
+            bins=[bins_x, bins_y],
+        )
 
         xedges = 0.5 * (xedges[1:] + xedges[:-1])
         yedges = 0.5 * (yedges[1:] + yedges[:-1])
 
-        cmx = np.nansum(xedges * np.sum(hist, axis=1)) / np.nansum(np.sum(hist, axis=1))
-        cmy = np.nansum(yedges * np.sum(hist, axis=0)) / np.nansum(np.sum(hist, axis=0))
+        cmx = np.nansum(
+            xedges
+            * np.sum(
+                hist,
+                axis=1,
+            )
+        ) / np.nansum(np.sum(hist, axis=1))
+        cmy = np.nansum(
+            yedges
+            * np.sum(
+                hist,
+                axis=0,
+            )
+        ) / np.nansum(np.sum(hist, axis=0))
 
         shift.append(angle.sky_distance_deg(cmx, cmy, center[0], center[1]))
 
@@ -282,7 +318,10 @@ def center_mle(x, y, hybrid=True, full_fit=False):
         lambda c: likelihood_plummer_freec(c, x, y), bounds
     )
     results = mle_model.x
-    hfun = ndt.Hessian(lambda c: likelihood_plummer_freec(c, x, y), full_output=True)
+    hfun = ndt.Hessian(
+        lambda c: likelihood_plummer_freec(c, x, y),
+        full_output=True,
+    )
 
     hessian_ndt, info = hfun(results)
     if hybrid is False:
@@ -365,7 +404,8 @@ def center_mle_rob(x, y, ra0=None, dec0=None, hybrid=True, full_fit=False):
     )
     results = mle_model.x
     hfun = ndt.Hessian(
-        lambda c: likelihood_plummer_center(c, x, y, ra0, dec0, rmax), full_output=True
+        lambda c: likelihood_plummer_center(c, x, y, ra0, dec0, rmax),
+        full_output=True,
     )
 
     hessian_ndt, info = hfun(results)
@@ -604,7 +644,18 @@ def initial_guess_sd(x=None, y=None, x0=None, y0=None):
     mw_dens = np.nanmin(density[1])
     density[1] = density[1] - mw_dens
     nilop = (
-        mw_dens * np.pi * (density[0][len(density[0]) - 1] ** 2 - density[0][0] ** 2)
+        mw_dens
+        * np.pi
+        * (
+            density[0][
+                len(
+                    density[0],
+                )
+                - 1
+            ]
+            ** 2
+            - density[0][0] ** 2
+        )
     )
     n_local = np.zeros(len(density[0]))
     for i in range(len(density[0])):
@@ -1010,7 +1061,10 @@ def sd_gplummer(gam, X):
         * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
     )
     term2 = (-17 + X**4 - X * X * (gam - 8) - gam * (gam - 9)) * hyp2f1(
-        1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
+        1,
+        (5 - gam) / 2,
+        1 / 2,
+        -1 / (X * X),
     )
     term3 = (gam - 3 - X * X) * (term1 + term2)
 
@@ -1045,7 +1099,12 @@ def vd_gplummer(gam, bet, x):
     """
 
     num = (
-        2 * x ** (-gam) * (1 + x * x) ** (0.5 * (gam - bet)) * gamma(0.5 * (bet - gam))
+        2
+        * x ** (-gam)
+        * (1 + x * x) ** (0.5 * (gam - bet))
+        * gamma(
+            0.5 * (bet - gam),
+        )
     )
 
     den = gamma(0.5 * (bet - 3)) * gamma(0.5 * (3 - gam))
@@ -1077,10 +1136,20 @@ def n_gplummer(gam, X):
 
     term1 = 1 / (X * X * (gam - 4) * (gam - 2))
     term2 = (
-        (1 + X * X) * (X * X + gam - 3) * hyp2f1(1, (5 - gam) / 2, -1 / 2, -1 / (X * X))
+        (1 + X * X)
+        * (X * X + gam - 3)
+        * hyp2f1(
+            1,
+            (5 - gam) / 2,
+            -1 / 2,
+            -1 / (X * X),
+        )
     )
     term3 = (17 - X**4 + X * X * (gam - 8) + gam * (gam - 9)) * hyp2f1(
-        1, (5 - gam) / 2, 1 / 2, -1 / (X * X)
+        1,
+        (5 - gam) / 2,
+        1 / 2,
+        -1 / (X * X),
     )
 
     N = 1 + term1 * (term2 + term3) * (3 - gam)
@@ -1095,9 +1164,9 @@ def likelihood_gplummer(params, Ri):
 
     Parameters
     ----------
-    Parameters to be fitted: gPlummer inner slope, gPlummer characteristic radius a and
-                             log-ratio of galactic objects and Milky
-                             Way stars.
+    Parameters to be fitted:
+        gPlummer inner slope, gPlummer characteristic radius a and
+        log-ratio of galactic objects and Milky Way stars.
     Ri : array_like
         Array containing the ensemble of projected radii.
 
@@ -1178,7 +1247,16 @@ def likelihood_gplummer_dens(params, ri, shells=True):
 
     fi = 0
     for i in range(len(gam)):
-        dens = (ri / a[i]) * (ri / a[i]) * vd_gplummer(gam[i], bet[i], ri / a[i]) / a[i]
+        dens = (
+            (ri / a[i])
+            * (ri / a[i])
+            * vd_gplummer(
+                gam[i],
+                bet[i],
+                ri / a[i],
+            )
+            / a[i]
+        )
         fi = fi + frac[i] * dens
 
     idx_valid = np.logical_not(np.isnan(np.log(fi)))
@@ -1194,9 +1272,9 @@ def lnprior_gp(params, guess, bounds):
 
     Parameters
     ----------
-    Parameters to be fitted: gPlummer inner slope, gPlummer characteristic radius a and
-                             log-ratio of galactic objects and Milky
-                             Way stars.
+    Parameters to be fitted:
+        gPlummer inner slope, gPlummer characteristic radius a and
+        log-ratio of galactic objects and Milky Way stars.
     guess : array_like
         Array containing the initial guess of the parameters.
     bounds : array_like
@@ -1265,9 +1343,9 @@ def lnprob_gp(params, Ri, guess, bounds):
 
     Parameters
     ----------
-    Parameters to be fitted: gPlummer inner slope, gPlummer characteristic radius a and
-                             log-ratio of galactic objects and Milky
-                             Way stars.
+    Parameters to be fitted:
+        gPlummer inner slope, gPlummer characteristic radius a and
+        log-ratio of galactic objects and Milky Way stars.
     Ri : array_like
         Array containing the ensemble of projected radii.
     guess : array_like
@@ -1295,9 +1373,9 @@ def lnprob_gp_dens(params, ri, bounds, gauss, shells):
 
     Parameters
     ----------
-    Parameters to be fitted: gPlummer inner slope, gPlummer characteristic radius a and
-                             log-ratio of galactic objects and Milky
-                             Way stars.
+    Parameters to be fitted:
+        gPlummer inner slope, gPlummer characteristic radius a and
+        log-ratio of galactic objects and Milky Way stars.
     Ri : array_like
         Array containing the ensemble of projected radii.
     bounds : array_like
@@ -1350,7 +1428,12 @@ def vd_nfw(gam, x):
 
     """
 
-    fac = ((3 - gam) / (2 - gam)) ** (3 - gam) / hyp2f1(1, 1, 4 - gam, -2 + gam)
+    fac = ((3 - gam) / (2 - gam)) ** (3 - gam) / hyp2f1(
+        1,
+        1,
+        4 - gam,
+        -2 + gam,
+    )
     vd = fac * x ** (-gam) * (1 + x) ** (gam - 3)
 
     return vd
@@ -1376,8 +1459,22 @@ def m_nfw(gam, x):
 
     """
 
-    fac = ((3 - gam) / (2 - gam)) ** (3 - gam) / hyp2f1(1, 1, 4 - gam, -2 + gam)
-    m = hyp2f1(3 - gam, 3 - gam, 4 - gam, -x) * x ** (3 - gam) / (fac * (3 - gam))
+    fac = ((3 - gam) / (2 - gam)) ** (3 - gam) / hyp2f1(
+        1,
+        1,
+        4 - gam,
+        -2 + gam,
+    )
+    m = (
+        hyp2f1(
+            3 - gam,
+            3 - gam,
+            4 - gam,
+            -x,
+        )
+        * x ** (3 - gam)
+        / (fac * (3 - gam))
+    )
 
     return m
 
@@ -1424,7 +1521,12 @@ def sd_king62(Xt, X):
 
     num = 1 / np.sqrt(1 + X) - 1 / np.sqrt(1 + Xt)
     num = num * num
-    den = np.log(1 + Xt) - (3 * np.sqrt(1 + Xt) - 1) * (np.sqrt(1 + Xt) - 1) / (1 + Xt)
+    den = np.log(1 + Xt) - (3 * np.sqrt(1 + Xt) - 1) * (
+        np.sqrt(
+            1 + Xt,
+        )
+        - 1
+    ) / (1 + Xt)
 
     sd = num / den
 
@@ -1461,8 +1563,21 @@ def n_king62(Xt, X):
     X = X * X
     Xt = Xt * Xt
 
-    num = np.log(1 + X) - 4 * (np.sqrt(1 + X) - 1) / np.sqrt(1 + Xt) + X / (1 + Xt)
-    den = np.log(1 + Xt) - (3 * np.sqrt(1 + Xt) - 1) * (np.sqrt(1 + Xt) - 1) / (1 + Xt)
+    num = (
+        np.log(1 + X)
+        - 4
+        * (np.sqrt(1 + X) - 1)
+        / np.sqrt(
+            1 + Xt,
+        )
+        + X / (1 + Xt)
+    )
+    den = np.log(1 + Xt) - (3 * np.sqrt(1 + Xt) - 1) * (
+        np.sqrt(
+            1 + Xt,
+        )
+        - 1
+    ) / (1 + Xt)
 
     N = num / den
 
@@ -1682,8 +1797,8 @@ def n_chernquist(X):
 
 def likelihood_chernquist(params, Ri):
     """
-    Likelihood function of the Cored Hernquist profile plus a constant contribution
-    from fore/background tracers.
+    Likelihood function of the Cored Hernquist profile plus a
+    constant contribution from fore/background tracers.
 
     Parameters
     ----------
@@ -1976,7 +2091,15 @@ def likelihood_kazantzidis_dens(params, ri, shells=True):
 
     fi = 0
     for i in range(len(gam)):
-        dens = (ri / a[i]) * (ri / a[i]) * vd_kazantzidis(gam[i], ri / a[i]) / a[i]
+        dens = (
+            (ri / a[i])
+            * (ri / a[i])
+            * vd_kazantzidis(
+                gam[i],
+                ri / a[i],
+            )
+            / a[i]
+        )
         fi = fi + frac[i] * dens
 
     idx_valid = np.logical_not(np.isnan(np.log(fi)))
@@ -2196,11 +2319,11 @@ def n_plummer_angle(R, Rmax, d, a):
         term1 = -a * a * np.arccos(arg1) / (np.pi * (a * a + R * R))
 
         arg2 = np.sqrt(
-            -(d**4) - (R * R - Rmax * Rmax) ** 2 + 2 * d * d * (R * R + Rmax * Rmax)
+            -(d**4) - (R * R - Rmax * Rmax) ** 2 + 2 * d * d * (R * R + Rmax * Rmax),
         )
 
         arg3 = -np.sqrt(
-            a**4 + (d * d - Rmax * Rmax) ** 2 + 2 * a * a * (d * d + Rmax * Rmax)
+            a**4 + (d * d - Rmax * Rmax) ** 2 + 2 * a * a * (d * d + Rmax * Rmax),
         )
 
         arg4 = (d * d - Rmax * Rmax) ** 2 - R * R * (d * d + Rmax * Rmax)
@@ -2440,9 +2563,13 @@ def likelihood_plummer_ell_center(params, x, y):
     Parameters
     ----------
     params : array_like
-        Parameters to be fitted: Plummer characteristic radius a and
-                                 log-ratio of galactic objects and Milky
-                                 Way stars.
+        Parameters to be fitted:
+            - log-Plummer major axis, a [degree]
+            - Projected ellipticity, e = 1 - b/a
+            - Major axis angle, from North to East, phi [radians]
+            - log-ratio of galactic objects and Milky Way stars.
+            - R.A. of galactic object center.
+            - Dec. of galactic object center.
     x : array_like
         Array containing the ensemble of ra data.
     y : array_like
@@ -2456,8 +2583,8 @@ def likelihood_plummer_ell_center(params, x, y):
     """
 
     a = 10 ** params[0]
-    b = 10 ** params[1]
-    theta = params[2]
+    el = params[1]
+    phi = params[2]
     if params[3] < -10:
         norm = 0
     else:
@@ -2466,42 +2593,41 @@ def likelihood_plummer_ell_center(params, x, y):
     cmx = params[4]
     cmy = params[5]
 
-    # Transforms data in radians
-    x = x * (np.pi / 180)
-    y = y * (np.pi / 180)
-
+    # TRANSFORMS DATA FROM DEGREES TO RADIANS
+    a = np.copy(a) * (np.pi / 180)
+    x = np.copy(x) * (np.pi / 180)
+    y = np.copy(y) * (np.pi / 180)
     x0 = cmx * (np.pi / 180)
     y0 = cmy * (np.pi / 180)
 
-    # projects the data
+    # PROJECTS THE DATA, CORRECTING FOR ZERO-POINT
     xp = np.sin(x - x0) * np.cos(y)
     yp = np.cos(y0) * np.sin(y) - np.sin(y0) * np.cos(y) * np.cos(x - x0)
 
-    # Transforms data back to degree
-    xp = xp * (180 / np.pi)
-    yp = yp * (180 / np.pi)
+    # ROTATES ELLIPSE SO MAJOR AXIS ALIGNS WITH X DIRECTION
+    theta = phi - np.pi * 0.5
+    xnew = (xp) * np.cos(theta) - (yp) * np.sin(theta)
+    ynew = (xp) * np.sin(theta) + (yp) * np.cos(theta)
 
-    xnew = (xp) * np.cos(theta) + (yp) * np.sin(theta)
-    ynew = -(xp) * np.sin(theta) + (yp) * np.cos(theta)
-
-    m = np.sqrt((xnew / a) * (xnew / a) + (ynew / b) * (ynew / b))
+    # DEFINES VARIABLES OF INTEREST
     r = np.sqrt(xnew * xnew + ynew * ynew)
+    xi = np.arctan2(ynew, xnew)
+    x = r / a
+    xmax = np.amax(r) / a
+    xmin = np.amin(r) / a
 
-    mmax = np.amax(m)
-    mmin = np.amin(m)
+    # COMPUTES TERMS OF GLOBAL EXPRESSION
+    num1 = (1 - el * el) ** 1.5
+    den1a = ((x * el * np.cos(xi)) ** 2 + el * el - (1 + x * x)) ** 2
+    den1b = xmax * xmax / np.sqrt(
+        (1 + xmax * xmax) * (xmax * xmax + 1 - el * el)
+    ) - xmin * xmin / np.sqrt((1 + xmin * xmin) * (xmin * xmin + 1 - el * el))
+    term1 = num1 / (den1a * den1b)
 
-    rmax = np.amax(r)
-    rmin = np.amin(r)
+    term2 = norm / (xmax**2 - xmin**2)
 
-    N_sys_tot = n_plummer(mmax) - n_plummer(mmin)
-
-    SD = sd_plummer(m) + norm * N_sys_tot * a * b * 0.5 * (np.pi / 180) ** 2 / (
-        np.cos(rmin * np.pi / 180) - np.cos(rmax * np.pi / 180)
-    )
-
-    Ntot = N_sys_tot * (1 + norm)
-
-    fi = (SD / Ntot) / (a * b)
+    # ASSIGNS PDF
+    fi = x * (term1 + term2) / (a * np.pi * (1 + norm))
 
     idx_valid = np.logical_not(np.isnan(np.log(fi)))
 
@@ -2540,16 +2666,20 @@ def lnprior_p(params, guess, bounds):
     return -np.inf
 
 
-def lnprior_ep(params, bounds, gauss):
+def lnprior_plummer_ell_center(params, bounds, gauss):
     """
     Prior assumptions on the parameters.
 
     Parameters
     ----------
     params : array_like
-        Parameters to be fitted: Plummer characteristic radius a and
-                                 log-ratio of galactic objects and Milky
-                                 Way stars.
+        Parameters to be fitted:
+            - log-Plummer major axis, a [degree]
+            - Projected ellipticity, e = 1 - b/a
+            - Major axis angle, from North to East, phi [radians]
+            - log-ratio of galactic objects and Milky Way stars.
+            - R.A. of galactic object center.
+            - Dec. of galactic object center.
     bounds : array_like
         Array containing the interval of variation of the parameters.
     gauss : array_like
@@ -2563,22 +2693,16 @@ def lnprior_ep(params, bounds, gauss):
 
     """
 
-    if (
-        (bounds[0, 0] < params[0] < bounds[0, 1])
-        and (bounds[1, 0] < params[1] < bounds[1, 1])
-        and (bounds[2, 0] < params[2] < bounds[2, 1])
-        and (bounds[3, 0] < params[3] < bounds[3, 1])
-        and (bounds[4, 0] < params[4] < bounds[4, 1])
-        and (bounds[5, 0] < params[5] < bounds[5, 1])
-    ):
-        lprior = 0
-        for i in range(len(params)):
+    lprior = 0
+    for i in range(len(params)):
+        if bounds[i, 0] < params[i] < bounds[i, 1]:
             if gauss[i, 1] > 0:
-                nutmp = (params[i] - gauss[i, 0]) / gauss[i, 1]
-                lprior = lprior - 0.5 * nutmp * nutmp
-        return lprior
-    else:
-        return -np.inf
+                lprior -= 0.5 * ((params[i] - gauss[i, 0]) / gauss[i, 1]) ** 2
+            else:
+                lprior -= 0.0
+        else:
+            lprior -= np.inf
+    return lprior
 
 
 def lnprob_p(params, Ri, guess, bounds):
@@ -2612,22 +2736,29 @@ def lnprob_p(params, Ri, guess, bounds):
     return lp - likelihood_plummer(params, Ri)
 
 
-def lnprob_ep(params, x, y, bounds, gauss):
+def lnprob_plummer_ell_center(params, x, y, bounds, gauss):
     """
     log-probability of fit parameters.
 
     Parameters
     ----------
     params : array_like
-    Parameters to be fitted: Plummer characteristic radius a and
-                             log-ratio of galactic objects and Milky
-                             Way stars.
-    Ri : array_like
-        Array containing the ensemble of projected radii.
-    guess : array_like
-        Array containing the initial guess of the parameters.
+        Parameters to be fitted:
+            - log-Plummer major axis, a [degree]
+            - Projected ellipticity, e = 1 - b/a
+            - Major axis angle, from North to East, phi [radians]
+            - log-ratio of galactic objects and Milky Way stars.
+            - R.A. of galactic object center.
+            - Dec. of galactic object center.
+    x : array_like
+        Array containing the ensemble of ra data.
+    y : array_like
+        Array containing the ensemble of dec data.
     bounds : array_like
         Array containing the interval of variation of the parameters.
+    gauss : array_like
+        Array containing Gaussian priors. Axis = 1 should contain
+        zeros if one is to assume flat priors based on bounds.
 
 
     Returns
@@ -2637,10 +2768,11 @@ def lnprob_ep(params, x, y, bounds, gauss):
 
     """
 
-    lp = lnprior_ep(params, bounds, gauss)
+    lp = lnprior_plummer_ell_center(params, bounds, gauss)
     if not np.isfinite(lp):
-        return -np.inf
-    return lp - likelihood_plummer_ell_center(params, x, y)
+        return -np.inf, -np.inf
+    lprob = lp - likelihood_plummer_ell_center(params, x, y)
+    return lprob, lp
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2918,7 +3050,15 @@ def likelihood_einasto_dens(params, ri, shells=True):
 
     fi = 0
     for i in range(len(n)):
-        dens = (ri / ra[i]) * (ri / ra[i]) * vd_einasto(n[i], ri / ra[i]) / ra[i]
+        dens = (
+            (ri / ra[i])
+            * (ri / ra[i])
+            * vd_einasto(
+                n[i],
+                ri / ra[i],
+            )
+            / ra[i]
+        )
         fi = fi + frac[i] * dens
 
     idx_valid = np.logical_not(np.isnan(np.log(fi)))
@@ -3074,7 +3214,10 @@ def get_saddle(f):
     valididx = np.arange(int(0.2 * len(f)), int(0.8 * len(f)))
     validpeak = peaks[
         np.intersect1d(
-            np.where(peaks > np.nanmin(valididx)), np.where(peaks < np.nanmax(valididx))
+            np.where(peaks > np.nanmin(valididx)),
+            np.where(
+                peaks < np.nanmax(valididx),
+            ),
         )
     ]
     size = len(validpeak)
@@ -3100,7 +3243,14 @@ def get_saddle(f):
 # ---------------------------------------------------------------------------
 
 
-def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid=True):
+def maximum_likelihood(
+    x=None,
+    y=None,
+    model="plummer",
+    x0=None,
+    y0=None,
+    hybrid=True,
+):
     """
     Calls a maximum likelihood fit of the surface density paramters of
     the joint distribution of galactic object plus Milky Way stars.
@@ -3181,9 +3331,15 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
 
     if model == "sersic":
         bounds = [(0.5, 10), (hmr - 2, hmr + 2), (norm - 2, norm + 2)]
-        mle_model = differential_evolution(lambda c: likelihood_sersic(c, ri), bounds)
+        mle_model = differential_evolution(
+            lambda c: likelihood_sersic(c, ri),
+            bounds,
+        )
         results = mle_model.x
-        hfun = ndt.Hessian(lambda c: likelihood_sersic(c, ri), full_output=True)
+        hfun = ndt.Hessian(
+            lambda c: likelihood_sersic(c, ri),
+            full_output=True,
+        )
 
     elif model == "kazantzidis":
         bounds = [(hmr - 2, hmr + 2), (norm - 2, norm + 2)]
@@ -3191,26 +3347,51 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
             lambda c: likelihood_kazantzidis(c, ri), bounds
         )
         results = mle_model.x
-        hfun = ndt.Hessian(lambda c: likelihood_kazantzidis(c, ri), full_output=True)
+        hfun = ndt.Hessian(
+            lambda c: likelihood_kazantzidis(c, ri),
+            full_output=True,
+        )
 
     elif model == "plummer":
         bounds = [(hmr - 2, hmr + 2), (norm - 2, norm + 2)]
-        mle_model = differential_evolution(lambda c: likelihood_plummer(c, ri), bounds)
+        mle_model = differential_evolution(
+            lambda c: likelihood_plummer(c, ri),
+            bounds,
+        )
         results = mle_model.x
-        hfun = ndt.Hessian(lambda c: likelihood_plummer(c, ri), full_output=True)
+        hfun = ndt.Hessian(
+            lambda c: likelihood_plummer(c, ri),
+            full_output=True,
+        )
 
     elif model == "gplummer":
         bounds = [(0, 2), (hmr - 2, hmr + 2), (norm - 2, norm + 2)]
-        mle_model = differential_evolution(lambda c: likelihood_gplummer(c, ri), bounds)
+        mle_model = differential_evolution(
+            lambda c: likelihood_gplummer(c, ri),
+            bounds,
+        )
         results = mle_model.x
-        hfun = ndt.Hessian(lambda c: likelihood_gplummer(c, ri), full_output=True)
+        hfun = ndt.Hessian(
+            lambda c: likelihood_gplummer(c, ri),
+            full_output=True,
+        )
 
     elif model == "king62":
         conc = np.log10(np.nanmax(ri)) - hmr
-        bounds = [(0, max(conc + 2, 3)), (hmr - 3, hmr + 1), (norm - 2, norm + 2)]
-        mle_model = differential_evolution(lambda c: likelihood_king62(c, ri), bounds)
+        bounds = [
+            (0, max(conc + 2, 3)),
+            (hmr - 3, hmr + 1),
+            (norm - 2, norm + 2),
+        ]
+        mle_model = differential_evolution(
+            lambda c: likelihood_king62(c, ri),
+            bounds,
+        )
         results = mle_model.x
-        hfun = ndt.Hessian(lambda c: likelihood_king62(c, ri), full_output=True)
+        hfun = ndt.Hessian(
+            lambda c: likelihood_king62(c, ri),
+            full_output=True,
+        )
 
     elif model == "chernquist":
         bounds = [(hmr - 2, hmr + 2), (norm - 2, norm + 2)]
@@ -3218,7 +3399,10 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
             lambda c: likelihood_chernquist(c, ri), bounds
         )
         results = mle_model.x
-        hfun = ndt.Hessian(lambda c: likelihood_chernquist(c, ri), full_output=True)
+        hfun = ndt.Hessian(
+            lambda c: likelihood_chernquist(c, ri),
+            full_output=True,
+        )
 
     hessian_ndt, info = hfun(results)
     if hybrid is False:
@@ -3230,7 +3414,9 @@ def maximum_likelihood(x=None, y=None, model="plummer", x0=None, y0=None, hybrid
         var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
     except np.linalg.LinAlgError as err:
         if "Singular matrix" in str(err):
-            print("WARNING: Errors are deprecated --> assigning uncertainties as -1.")
+            print(
+                "WARNING: Errors are deprecated --> assigning uncertainties as -1.",
+            )
             var = -np.ones(len(results))
         else:
             raise ValueError("Error when computing uncertainties.")
@@ -3250,9 +3436,11 @@ def mcmc(
     x0=None,
     y0=None,
     hybrid=True,
-    center_fit=False,
-    gaussp=False,
+    gaussp=None,
     values=None,
+    filepath=None,
+    continue_run=False,
+    show_progress=False,
 ):
     """
     MCMC routine based on the emcee package (Foreman-Mackey et al, 2013).
@@ -3275,6 +3463,7 @@ def mcmc(
              - 'gplummer'
              - 'king62'
              - 'chernquist'
+             - 'eplummer'
         The default is 'plummer'.
     nwalkers : int, optional
         Number of Markov chains. The default is None.
@@ -3301,10 +3490,6 @@ def mcmc(
     hydrid :  boolean, optional
         "True", if the user whises to consider field stars in the fit.
         The default is True.
-    center_fit :  boolean, optional
-        "True", if the user whises to allow for center fit.
-        Currently only available for model "eplummer".
-        The default is False.
     gaussp : boolean, optional
         "True", if the user wishes Gaussian priors to be considered.
         The default is False.
@@ -3312,6 +3497,16 @@ def mcmc(
         Array containing some of the parameters already fitted. If not fitted,
         they are filled with np.nan.
         The default is None.
+    filepath : string, optional
+        Path in your machine where to store steps of MCMC chain.
+        The default is None.'
+    continue_run : bool, optional
+        "True", if the user wishes to continue a MCMC realization that was
+        interrupted. Only available if filepath is provided.
+        The default is False.
+    show_progress : bool, optional
+        "True, if the user wishes to keep track of MCMC progress.
+        The default is False.
 
     Raises
     ------
@@ -3322,6 +3517,7 @@ def mcmc(
             - 'plummer'
             - 'gplummer'
             - 'king62'
+            - 'eplummer'
         No data is provided.
 
     Returns
@@ -3345,25 +3541,33 @@ def mcmc(
         raise ValueError("Please provide the data to be fitted.")
 
     if model == "eplummer":
-        func = lnprob_ep
+        if filepath is None:
+            raise ValueError("Please provide a path to store the fit results.")
 
-        cmx, cmy = np.nanquantile(x, 0.5), np.nanquantile(y, 0.5)
-        hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
+        func = lnprob_plummer_ell_center
 
-        hmr = np.log10(hmr)
-        norm = np.log10(norm)
+        if ini is None:
+            cmx, cmy = np.nanquantile(x, 0.5), np.nanquantile(y, 0.5)
+            hmr, norm = initial_guess_sd(x=x, y=y, x0=cmx, y0=cmy)
+
+            hmr = np.log10(hmr)
+            norm = np.log10(norm)
+        else:
+            hmr = ini[0]
+            norm = ini[2]
 
         if hybrid is False:
             values[2] = -50
 
-        bounds = [
-            (hmr - 2, hmr + 2),
-            (hmr - 2, hmr + 2),
-            (-np.pi / 2, np.pi / 2),
-            (norm - 2, norm + 2),
-            (np.nanquantile(x, 0.16), np.nanquantile(x, 0.84)),
-            (np.nanquantile(y, 0.16), np.nanquantile(y, 0.84)),
-        ]
+        if bounds is None:
+            bounds = [
+                (hmr - 2, hmr + 2),
+                (0, 1),
+                (0, np.pi),
+                (norm - 2, norm + 2),
+                (np.nanquantile(x, 0.16), np.nanquantile(x, 0.84)),
+                (np.nanquantile(y, 0.16), np.nanquantile(y, 0.84)),
+            ]
 
         if values is None:
             values = np.zeros(len(bounds))
@@ -3376,68 +3580,145 @@ def mcmc(
                     values[i] + 1e-7 * np.abs(values[i]),
                 )
 
-        mle_model = differential_evolution(
-            lambda c: likelihood_plummer_ell_center(c, x, y), bounds
-        )
-        results = mle_model.x
-        hfun = ndt.Hessian(
-            lambda c: likelihood_plummer_ell_center(c, x, y), full_output=True
-        )
-
-        hessian_ndt, info = hfun(results)
-        for i in range(len(values) - 1, -1, -1):
-            if np.logical_not(np.isnan(values[i])):
-                hessian_ndt = np.delete(hessian_ndt, i, axis=1)
-                hessian_ndt = np.delete(hessian_ndt, i, axis=0)
-                results[i] = values[i]
-
-        var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
-        for i in range(len(values)):
-            if np.logical_not(np.isnan(values[i])):
-                var = np.insert(var, i, 1e-9 * np.abs(values[i]))
-
         if ini is None:
-            ini = np.zeros(len(results))
-            for i in range(len(results)):
-                if bounds[i][0] < results[i] < bounds[i][1]:
-                    ini[i] = results[i]
-                else:
-                    ini[i] = 0.5 * (bounds[i][0] + bounds[i][1])
+            mle_model = differential_evolution(
+                lambda c: likelihood_plummer_ell_center(c, x, y), bounds
+            )
+            results = mle_model.x
+            hfun = ndt.Hessian(
+                lambda c: likelihood_plummer_ell_center(c, x, y),
+                full_output=True,
+            )
 
+            hessian_ndt, info = hfun(results)
+            for i in range(len(values) - 1, -1, -1):
+                if np.logical_not(np.isnan(values[i])):
+                    hessian_ndt = np.delete(hessian_ndt, i, axis=1)
+                    hessian_ndt = np.delete(hessian_ndt, i, axis=0)
+                    results[i] = values[i]
+
+            var = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+            for i in range(len(values)):
+                if np.logical_not(np.isnan(values[i])):
+                    var = np.insert(var, i, 1e-9 * np.abs(values[i]))
+
+            if ini is None:
+                ini = np.zeros(len(results))
+                for i in range(len(results)):
+                    if bounds[i][0] < results[i] < bounds[i][1]:
+                        ini[i] = results[i]
+                    else:
+                        ini[i] = 0.5 * (bounds[i][0] + bounds[i][1])
+
+        # ASSURES THAT MCMC INPUTS ARE VALID
         bounds = np.asarray(bounds)
-
-        ndim = len(ini)  # number of dimensions.
+        ndim = np.shape(bounds)[0]
         if nwalkers is None or nwalkers < 2 * ndim:
             nwalkers = int(2 * ndim + 1)
 
-        if gaussp is True:
-            gaussp = np.zeros((ndim, 2))
-            for i in range(ndim):
-                if np.logical_not(np.isnan(var[i])):
-                    gaussp[i, 0] = ini[i]
-                    gaussp[i, 1] = var[i]
-        else:
+        if gaussp is None:
             gaussp = np.zeros((ndim, 2))
 
-        for i in range(ndim):
-            if np.isnan(var[i]):
-                var[i] = 0.5 * (bounds[i, 1] - bounds[i, 0])
+        ranges = 0.5 * (bounds[:, 1] - bounds[:, 0])
 
-        pos = [ini + 1e-4 * var * np.random.randn(ndim) for i in range(nwalkers)]
+        pos = [
+            ini
+            + 1e-3
+            * ranges
+            * np.random.randn(
+                ndim,
+            )
+            for i in range(
+                nwalkers,
+            )
+        ]
+
+        if filepath is not None:
+            # We'll track how the average autocorrelation time estimate changes
+            index = 0
+            autocorr = np.empty(steps)
+            # This will be useful to testing convergence
+            old_tau = np.inf
+
+            if continue_run is False:
+                # Clear file before starting a new one
+                try:
+                    os.remove(filepath)
+                except FileNotFoundError:
+                    pass
+                backend = emcee.backends.HDFBackend(filepath)
+                backend.reset(nwalkers, ndim)
+            else:
+                backend = emcee.backends.HDFBackend(filepath)
+                steps -= backend.iteration
 
         if use_pool:
             with Pool() as pool:
+                # #### CALL MCMC ROUTINE
                 sampler = emcee.EnsembleSampler(
-                    nwalkers, ndim, func, args=(x, y, bounds, gaussp), pool=pool
+                    nwalkers,
+                    ndim,
+                    func,
+                    args=(x, y, bounds, gaussp),
+                    backend=backend,
+                    pool=pool,
                 )
-                sampler.run_mcmc(pos, steps)
+                # Now we'll sample for up to max_n steps
+                for sample in sampler.sample(
+                    pos,
+                    iterations=steps,
+                    progress=show_progress,
+                ):
+                    # Only check convergence every 100 steps
+                    if sampler.iteration % 100:
+                        continue
+
+                    # Compute the autocorrelation time so far
+                    # Using tol=0 means that we'll always get an estimate even
+                    # if it isn't trustworthy
+                    tau = sampler.get_autocorr_time(tol=0)
+                    autocorr[index] = np.mean(tau)
+                    index += 1
+
+                    # Check convergence
+                    converged = np.all(tau * 100 < sampler.iteration)
+                    converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+                    if converged:
+                        break
+                    old_tau = tau
         else:
             sampler = emcee.EnsembleSampler(
-                nwalkers, ndim, func, args=(x, y, bounds, gaussp)
+                nwalkers,
+                ndim,
+                func,
+                args=(x, y, bounds, gaussp),
+                backend=backend,
             )
-            sampler.run_mcmc(pos, steps)
+            # Now we'll sample for up to max_n steps
+            for sample in sampler.sample(
+                pos,
+                iterations=steps,
+                progress=show_progress,
+            ):
+                # Only check convergence every 100 steps
+                if sampler.iteration % 100:
+                    continue
 
-        return sampler.chain
+                # Compute the autocorrelation time so far
+                # Using tol=0 means that we'll always get an estimate even
+                # if it isn't trustworthy
+                tau = sampler.get_autocorr_time(tol=0)
+                autocorr[index] = np.mean(tau)
+                index += 1
+
+                # Check convergence
+                converged = np.all(tau * 100 < sampler.iteration)
+                converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+                if converged:
+                    break
+                old_tau = tau
+
+        return
 
     if y is None:
         ri = x
@@ -3500,7 +3781,16 @@ def mcmc(
             )
             sampler.run_mcmc(pos, steps)
     else:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, func, args=(ri, ini, bounds))
+        sampler = emcee.EnsembleSampler(
+            nwalkers,
+            ndim,
+            func,
+            args=(
+                ri,
+                ini,
+                bounds,
+            ),
+        )
         sampler.run_mcmc(pos, steps)
 
     chain = sampler.chain
@@ -3514,7 +3804,14 @@ def mcmc(
 # ---------------------------------------------------------------------------
 
 
-def ellipse_likelihood(x=None, y=None, model="sersic", x0=None, y0=None, hybrid=True):
+def ellipse_likelihood(
+    x=None,
+    y=None,
+    model="sersic",
+    x0=None,
+    y0=None,
+    hybrid=True,
+):
     """
     Calls a maximum likelihood fit of the surface density paramters of
     the joint distribution of galactic object plus Milky Way stars.
@@ -3615,7 +3912,14 @@ def ellipse_likelihood(x=None, y=None, model="sersic", x0=None, y0=None, hybrid=
 # ---------------------------------------------------------------------------
 
 
-def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=True):
+def mass_likelihood(
+    x=None,
+    y=None,
+    model="gplummer",
+    x0=None,
+    y0=None,
+    shells=True,
+):
     """
     Calls a maximum likelihood fit of the mass profile paramters of
     a radial distribution.
@@ -3758,7 +4062,8 @@ def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=T
         )
         results = mle_model.x
         hfun = ndt.Hessian(
-            lambda c: likelihood_gplummer_dens(c, ri, shells=shells), full_output=True
+            lambda c: likelihood_gplummer_dens(c, ri, shells=shells),
+            full_output=True,
         )
     elif model == "kazantzidis":
         mle_model = differential_evolution(
@@ -3775,7 +4080,8 @@ def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=T
         )
         results = mle_model.x
         hfun = ndt.Hessian(
-            lambda c: likelihood_dm_dens(c, ri, shells=shells), full_output=True
+            lambda c: likelihood_dm_dens(c, ri, shells=shells),
+            full_output=True,
         )
     elif model == "einasto":
         mle_model = differential_evolution(
@@ -3783,7 +4089,8 @@ def mass_likelihood(x=None, y=None, model="gplummer", x0=None, y0=None, shells=T
         )
         results = mle_model.x
         hfun = ndt.Hessian(
-            lambda c: likelihood_einasto_dens(c, ri, shells=shells), full_output=True
+            lambda c: likelihood_einasto_dens(c, ri, shells=shells),
+            full_output=True,
         )
 
     hessian_ndt, info = hfun(results)
@@ -3967,7 +4274,8 @@ def mcmc_mass(
             )
         elif model == "kazantzidis":
             mle_model = differential_evolution(
-                lambda c: likelihood_kazantzidis_dens(c, r, shells=shells), bounds
+                lambda c: likelihood_kazantzidis_dens(c, r, shells=shells),
+                bounds,
             )
             results = mle_model.x
             hfun = ndt.Hessian(
@@ -3980,7 +4288,8 @@ def mcmc_mass(
             )
             results = mle_model.x
             hfun = ndt.Hessian(
-                lambda c: likelihood_dm_dens(c, r, shells=shells), full_output=True
+                lambda c: likelihood_dm_dens(c, r, shells=shells),
+                full_output=True,
             )
         elif model == "einasto":
             mle_model = differential_evolution(
@@ -3988,7 +4297,8 @@ def mcmc_mass(
             )
             results = mle_model.x
             hfun = ndt.Hessian(
-                lambda c: likelihood_einasto_dens(c, r, shells=shells), full_output=True
+                lambda c: likelihood_einasto_dens(c, r, shells=shells),
+                full_output=True,
             )
 
         hessian_ndt, info = hfun(results)
@@ -4069,7 +4379,15 @@ def mcmc_mass(
     else:
         if model == "gplummer":
             sampler = emcee.EnsembleSampler(
-                nwalkers, ndim, lnprob_gp_dens, args=(r, bounds, gaussp, shells)
+                nwalkers,
+                ndim,
+                lnprob_gp_dens,
+                args=(
+                    r,
+                    bounds,
+                    gaussp,
+                    shells,
+                ),
             )
             sampler.run_mcmc(pos, steps)
         elif model == "kazantzidis":
@@ -4079,12 +4397,28 @@ def mcmc_mass(
             sampler.run_mcmc(pos, steps)
         elif model == "dm":
             sampler = emcee.EnsembleSampler(
-                nwalkers, ndim, lnprob_dm_dens, args=(r, bounds, gaussp, shells)
+                nwalkers,
+                ndim,
+                lnprob_dm_dens,
+                args=(
+                    r,
+                    bounds,
+                    gaussp,
+                    shells,
+                ),
             )
             sampler.run_mcmc(pos, steps)
         elif model == "einasto":
             sampler = emcee.EnsembleSampler(
-                nwalkers, ndim, lnprob_einasto_dens, args=(r, bounds, gaussp, shells)
+                nwalkers,
+                ndim,
+                lnprob_einasto_dens,
+                args=(
+                    r,
+                    bounds,
+                    gaussp,
+                    shells,
+                ),
             )
             sampler.run_mcmc(pos, steps)
 
