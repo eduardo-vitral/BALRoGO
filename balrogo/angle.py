@@ -180,8 +180,9 @@ def polar_to_sky(r, phi, a0, d0):
 
 def sky_to_polar(a, d, a0, d0, ea=None, ed=None):
     """
-    Transforms uncertainties from sky coordinates, in degrees (RA,Dec),
-    into uncertainties from spherical polar coordinates (r,phi).
+    Transforms positions and uncertainties from sky coordinates,
+    in degrees (RA,Dec), into uncertainties from spherical polar
+    coordinates (r,phi).
 
     NOTE: The current version of this function neglects any
     correlations between a and d, and any uncertainties/correlations
@@ -206,6 +207,12 @@ def sky_to_polar(a, d, a0, d0, ea=None, ed=None):
 
     Returns
     -------
+    r : array_like
+        Radial distance from center, in radians.
+    p : array_like
+        Angle from North to East (pointing towards the source), in radians.
+
+    NOTE: If ea and ed are provided, the functino also returns:
     er : array_like
         Uncertainty in radial distance from center.
     ep : array_like
