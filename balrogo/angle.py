@@ -535,22 +535,14 @@ def transrot_source(a, d, a0, d0, af, df):
 
     """
 
-    r, p = sky_to_polar(a, d, a0, d0)
+    (
+        r,
+        p,
+    ) = sky_to_polar(a, d, a0, d0)
 
-    if np.isscalar(a):
-        a, d = polar_to_sky(r, p, af * (np.pi / 180), df * (np.pi / 180))
+    a, d = polar_to_sky(r, p, af * (np.pi / 180), df * (np.pi / 180))
 
-        return a, d
-
-    a_new = np.zeros(len(r))
-    d_new = np.zeros(len(r))
-
-    for i in range(len(a_new)):
-        a_new[i], d_new[i] = polar_to_sky(
-            r[i], p[i], af * (np.pi / 180), df * (np.pi / 180)
-        )
-
-    return a_new, d_new
+    return a, d
 
 
 def rotate_axis(x, y, theta, mu_x=0, mu_y=0):
