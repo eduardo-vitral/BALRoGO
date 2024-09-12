@@ -47,11 +47,14 @@ ncpu = cpu_count()
 # Gravitational constant, in N m^2 kg^-2
 G = 6.67430 * 1e-11
 
-# Multuplying factor to pass from solar mass to kg
+# Multiplying factor to pass from solar mass to kg
 msun_to_kg = 1.98847 * 1e30
 
-# Multuplying factor to pass from kpc to km
+# Multiplying factor to pass from kpc to km
 kpc_to_km = 3.086 * 10**16
+
+# Multiplying factor to pass from mas to radians
+mas_to_rad = 1e-3 * (1 / 3600) * (np.pi / 180)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
@@ -83,7 +86,12 @@ def weight_mean(x, dx, w):
 # ------------------------------------------------------------------------------
 
 
-def pos_sky_to_cart(a, d, a0, d0):
+def pos_sky_to_cart(
+    a,
+    d,
+    a0,
+    d0,
+):
     """
     Transforms sky positions in cartesian projected ones.
 
@@ -133,17 +141,17 @@ def v_sky_to_cart(
     Parameters
     ----------
     a : array_like
-        RA of the source.
+        RA of the source, in degrees.
     d : array_like
-        Dec of the source.
+        Dec of the source, in degrees.
     pma : array_like
         PMRA of the source.
     pmd : array_like
         PMDec of the source.
     a0 : float
-        Bulk RA.
+        Bulk RA, in degrees.
     d0 : float
-        Bulk Dec.
+        Bulk Dec, in degrees.
     pma0 : float
         Bulk PMRA.
     pmd0 : float
@@ -175,7 +183,16 @@ def v_sky_to_cart(
     return pmx, pmy
 
 
-def v_sky_to_polar(a, d, pma, pmd, a0, d0, pma0, pmd0):
+def v_sky_to_polar(
+    a,
+    d,
+    pma,
+    pmd,
+    a0,
+    d0,
+    pma0,
+    pmd0,
+):
     """
     Transforms proper motions in RA Dec into polar coordinates
     (radial and tangential).
@@ -183,17 +200,17 @@ def v_sky_to_polar(a, d, pma, pmd, a0, d0, pma0, pmd0):
     Parameters
     ----------
     a : array_like
-        RA of the source.
+        RA of the source, in degrees.
     d : array_like
-        Dec of the source.
+        Dec of the source, in degrees.
     pma : array_like
         PMRA of the source.
     pmd : array_like
         PMDec of the source.
     a0 : float
-        Bulk RA.
+        Bulk RA, in degrees.
     d0 : float
-        Bulk Dec.
+        Bulk Dec, in degrees.
     pma0 : float
         Bulk PMRA.
     pmd0 : float
@@ -222,16 +239,12 @@ def v_sky_to_polar(a, d, pma, pmd, a0, d0, pma0, pmd0):
 def unc_sky_to_cart(
     a,
     d,
-    mua,
-    mud,
-    emua,
-    emud,
+    epma,
+    epmd,
     a0,
     d0,
-    mua0,
-    mud0,
-    emua0,
-    emud0,
+    epma0,
+    epmd0,
 ):
     """
     Transforms proper motions uncertainties in RA Dec into projected
@@ -240,9 +253,9 @@ def unc_sky_to_cart(
     Parameters
     ----------
     a : array_like
-        RA of the source.
+        RA of the source, in degrees.
     d : array_like
-        Dec of the source.
+        Dec of the source, in degrees.
     epma : array_like
         Uncertainty in PMRA of the source.
     epmd : array_like
@@ -250,9 +263,9 @@ def unc_sky_to_cart(
     epmad : array_like
         Correlation between epma and epmd.
     a0 : float
-        Bulk RA.
+        Bulk RA, in degrees.
     d0 : float
-        Bulk Dec.
+        Bulk Dec, in degrees.
     epma0 : float
         Uncertainty in Bulk PMRA.
     epmd0 : float
@@ -285,10 +298,10 @@ def unc_sky_to_cart(
     dvdpmd0 = 0
 
     uncpmx = np.sqrt(
-        (dvdpma * emua) ** 2
-        + (dvdpmd * emud) ** 2
-        + (dvdpma0 * emua0) ** 2
-        + (dvdpmd0 * emud0) ** 2
+        (dvdpma * epma) ** 2
+        + (dvdpmd * epmd) ** 2
+        + (dvdpma0 * epma0) ** 2
+        + (dvdpmd0 * epmd0) ** 2
     )
 
     dvdpma = sinda * sind0
@@ -296,16 +309,26 @@ def unc_sky_to_cart(
     dvdpma0 = -cosd * sinda * sind0 / cosd0
     dvdpmd0 = -cosda * cosd * cosd0 - sind * sind0
     uncpmy = np.sqrt(
-        (dvdpma * emua) ** 2
-        + (dvdpmd * emud) ** 2
-        + (dvdpma0 * emua0) ** 2
-        + (dvdpmd0 * emud0) ** 2
+        (dvdpma * epma) ** 2
+        + (dvdpmd * epmd) ** 2
+        + (dvdpma0 * epma0) ** 2
+        + (dvdpmd0 * epmd0) ** 2
     )
 
     return uncpmx, uncpmy
 
 
-def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
+def unc_sky_to_polar(
+    a,
+    d,
+    epma,
+    epmd,
+    epmad,
+    a0,
+    d0,
+    epma0,
+    epmd0,
+):
     """
     Transforms proper motions uncertainties in RA Dec into polar coordinates
     uncertainties (radial and tangential).
@@ -313,9 +336,9 @@ def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
     Parameters
     ----------
     a : array_like
-        RA of the source.
+        RA of the source, in degrees.
     d : array_like
-        Dec of the source.
+        Dec of the source, in degrees.
     epma : array_like
         Uncertainty in PMRA of the source.
     epmd : array_like
@@ -323,9 +346,9 @@ def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
     epmad : array_like
         Correlation between epma and epmd.
     a0 : float
-        Bulk RA.
+        Bulk RA, in degrees.
     d0 : float
-        Bulk Dec.
+        Bulk Dec, in degrees.
     epma0 : float
         Uncertainty in Bulk PMRA.
     epmd0 : float
@@ -400,10 +423,12 @@ def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
     return uncpmr, uncpmt
 
 
-def pmr_corr(vlos, r, d):
+def pmr_corr(vlos, r, dist):
     """
     Correction on radial proper motion due to apparent contraction/expansion
     of the cluster.
+
+    One should perform pmr_new = pmr_old - pmr_corr.
 
     Parameters
     ----------
@@ -411,7 +436,7 @@ def pmr_corr(vlos, r, d):
         Line of sight velocity, in km/s.
     r : array_like, float
         Projected radius, in degrees.
-    d : float
+    dist: float
         Cluster distance from the Sun, in kpc.
 
     Returns
@@ -422,9 +447,96 @@ def pmr_corr(vlos, r, d):
     """
     r = r * 60
     # Equation 4 from Bianchini et al. 2018.
-    pmr = -6.1363 * 1e-5 * vlos * r / d
+    pmr = -6.1363 * 1e-5 * vlos * r / dist
 
     return pmr
+
+
+def vlos_corr(
+    v0,
+    ev0,
+    a,
+    d,
+    a0,
+    d0,
+    pma0,
+    pmd0,
+    epma0,
+    epmd0,
+    dist,
+):
+    """
+    Correction on line-of-sight velocity due to apparent
+    contraction/expansion of the cluster.
+
+    One should perform vlos_new = vlos_old - vlos_corr.
+    Uncertainties should be added quadratically.
+
+    Reference:
+    van der Marel, R. P., Alves, D. R., Hardy, E., & Suntzeff, N. B.
+    2002, AJ, 124, 2639
+    - Equation (13).
+
+    Parameters
+    ----------
+    v0: array-like
+        Bulk line-of-sight velocity, in km/s
+    ev0: array-like
+        Uncertainty in Bulk line-of-sight velocity, in km/s
+    a : array_like
+        RA of the source, in degrees.
+    d : array_like
+        Dec of the source, in degrees.
+    a0 : float
+        Bulk RA, in degrees.
+    d0 : float
+        Bulk Dec, in degrees.
+    pma0 : float
+        Bulk PMRA, in mas/yr.
+    pmd0 : float
+        Bulk PMDec, in mas/yr.
+    epma0 : float
+        Uncertainty in Bulk PMRA, , in mas/yr.
+    epmd0 : float
+        Uncertainty in Bulk PMDec, , in mas/yr.
+    dist: float
+        Cluster distance from the Sun, in kpc.
+
+    Returns
+    -------
+    vlos : array_like, float
+        Correction in the vlos, in km/s.
+
+    """
+
+    conv = 4.7405 * dist
+
+    dx, dy = pos_sky_to_cart(a, d, a0, d0)
+
+    a0 = np.copy(a0) * (np.pi / 180)
+    d0 = np.copy(d0) * (np.pi / 180)
+
+    at = mas_to_rad * pma0 / np.cos(d0) + a0
+    dt = mas_to_rad * pmd0 + d0
+
+    dxt = np.sin(at - a0) * np.cos(dt)
+    dyt = np.cos(d0) * np.sin(dt) - np.sin(d0) * np.cos(dt) * np.cos(at - a0)
+
+    rho = np.sqrt(dx * dx + dy * dy)
+    phi = np.arctan2(dy, dx)
+    thetat = np.arctan2(dyt, dxt)
+
+    vt = np.sqrt(pma0**2 + pmd0**2) * conv
+    evt = np.sqrt((pma0 * epma0 / vt) ** 2 + (pmd0 * epmd0 / vt) ** 2) * conv**2
+
+    vcorr = vt * np.sin(rho) * np.cos(phi - thetat) + v0 * (np.cos(rho) - 1)
+
+    evcorr = np.sqrt(
+        evt**2 * (np.sin(rho) * np.cos(phi - thetat)) ** 2
+        + ev0**2 * (np.cos(rho) - 1) ** 2
+    )
+
+    return vcorr, evcorr
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
