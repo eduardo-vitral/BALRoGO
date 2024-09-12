@@ -556,7 +556,9 @@ def rotate_axis(x, y, theta, mu_x=0, mu_y=0):
     y : float or array_like
         Data in y-direction.
     theta : float
-        Rotation angle in radians.
+        Rotation angle in radians (clock-wise).
+        ATTENTION: Typical conventions usually assume
+        counter clock-wise rotations.
     mu_x : float, optional
         Center of new x axis in the old frame. The default is 0.
     mu_y : float, optional
@@ -732,6 +734,8 @@ def radec_to_lb(a, d, dadt=None, dddt=None):
     dadt : array_like, float, optional
         Right ascention velocity (PMRA), in mas/yr.
         The default is None
+        ATTENTION: Although the variable is called dadt,
+        it actually relates to da/dt x cos(d)
     dddt : array_like, float, optional
         Declination velocity (PMDec), in mas/yr.
         The default is None
@@ -744,6 +748,8 @@ def radec_to_lb(a, d, dadt=None, dddt=None):
         Galactic latitude, in degrees.
     dldt : array_like, float, optional
         Galactic longitude velocity, in mas/yr
+        ATTENTION: Although the variable is called dldt,
+        it actually relates to dl/dt x cos(b)
     dbdt : array_like, float, optional
         Galactic latitude velocity, in mas/yr. The default is None
 
@@ -822,6 +828,8 @@ def lb_to_radec(lon, b, dldt=None, dbdt=None):
         Galactic latitude, in degrees.
     dldt : array_like, float, optional
         Galactic longitude velocity, in mas/yr. The default is None
+        ATTENTION: Although the variable is called dldt,
+        it actually relates to dl/dt x cos(b)
     dbdt : array_like, float, optional
         Galactic latitude velocity, in mas/yr. The default is None
 
@@ -833,6 +841,8 @@ def lb_to_radec(lon, b, dldt=None, dbdt=None):
         Declination in degrees.
     dadt : array_like, float, optional
         Right ascention velocity (PMRA), in mas/yr.
+        ATTENTION: Although the variable is called dadt,
+        it actually relates to da/dt x cos(d)
     dddt : array_like, float, optional
         Declination velocity (PMDec), in mas/yr.
 
@@ -937,6 +947,8 @@ def cart_to_radec(x, y, z, vx=None, vy=None, vz=None):
         Distance of the source, in kpc.
     dadt : array_like, float, optional
         Right ascention velocity (PMRA), in mas/yr.
+        ATTENTION: Although the variable is called dadt,
+        it actually relates to da/dt x cos(d)
     dddt : array_like, float, optional
         Declination velocity (PMDec), in mas/yr.
     vr : array_like, float
@@ -988,6 +1000,7 @@ def radec_to_cart(a, d, r, mua=None, mud=None, vr=None):
     mua : array_like, float, optional
         Right ascention velocity (PMRA), in mas/yr.
         The default is None.
+        ATTENTION: It relates to da/dt x cos(d)
     mud : array_like, float, optional
         Declination velocity (PMDec), in mas/yr.
         The default is None.
@@ -1100,6 +1113,8 @@ def cart_to_lb(x, y, z, vx=None, vy=None, vz=None):
         Distance of the source, in kpc.
     dldt : array_like, float, optional
         Galactic longitude velocity, in mas/yr.
+        ATTENTION: Although the variable is called dldt,
+        it actually relates to dl/dt x cos(b)
     dbdt : array_like, float, optional
         Galactic latitude velocity, in mas/yr.
     vr : array_like, float
@@ -1163,6 +1178,8 @@ def lb_to_cart(lon, b, r, dldt=None, dbdt=None, vr=None):
             Distance of the source, in kpc.
     dldt : array_like, float, optional
         Galactic longitude velocity, in mas/yr. The default is None
+        ATTENTION: Although the variable is called dldt,
+        it actually relates to dl/dt x cos(b)
     dbdt : array_like, float, optional
         Galactic latitude velocity, in mas/yr. The default is None
     vr : array_like, float, optional

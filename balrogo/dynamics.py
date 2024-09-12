@@ -53,11 +53,126 @@ msun_to_kg = 1.98847 * 1e30
 # Multuplying factor to pass from kpc to km
 kpc_to_km = 3.086 * 10**16
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ------------------------------------------------------------------------------
+"Generical statistics"
+# ------------------------------------------------------------------------------
+
+
+def weight_mean(x, dx, w):
+    """
+    x: Averaged quantity
+    dx: Uncertainty on x
+    w: weight
+    """
+    if np.isscalar(w):
+        w = np.ones_like(x) * w
+
+    wmean = np.nansum(x * w) / np.nansum(w)
+
+    dmudx = w / np.nansum(w)
+    dmu2 = (dmudx * dx) ** 2
+    dwmean = np.sqrt(np.nansum(dmu2))
+
+    return wmean, dwmean
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
 "Proper motions and conversions"
 # ------------------------------------------------------------------------------
+
+
+def pos_sky_to_cart(a, d, a0, d0):
+    """
+    Transforms sky positions in cartesian projected ones.
+
+    Parameters
+    ----------
+    a : array_like
+        RA of the source, in degrees.
+    d : array_like
+        Dec of the source, in degrees.
+    a0 : float
+        Bulk RA, in degrees.
+    d0 : float
+        Bulk Dec, in degrees.
+    """
+
+    a = np.copy(a) * (np.pi / 180)
+    d = np.copy(d) * (np.pi / 180)
+    a0 = np.copy(a0) * (np.pi / 180)
+    d0 = np.copy(d0) * (np.pi / 180)
+
+    sinda = np.sin(a - a0)
+    cosda = np.cos(a - a0)
+    sind = np.sin(d)
+    sind0 = np.sin(d0)
+    cosd = np.cos(d)
+    cosd0 = np.cos(d0)
+
+    dx = sinda * cosd
+    dy = cosd0 * sind - sind0 * cosd * cosda
+
+    return dx, dy
+
+
+def v_sky_to_cart(
+    a,
+    d,
+    pma,
+    pmd,
+    a0,
+    d0,
+    pma0,
+    pmd0,
+):
+    """
+    Transforms proper motions in RA Dec into projected cartesian.
+
+    Parameters
+    ----------
+    a : array_like
+        RA of the source.
+    d : array_like
+        Dec of the source.
+    pma : array_like
+        PMRA of the source.
+    pmd : array_like
+        PMDec of the source.
+    a0 : float
+        Bulk RA.
+    d0 : float
+        Bulk Dec.
+    pma0 : float
+        Bulk PMRA.
+    pmd0 : float
+        Bulk PMDec.
+    """
+
+    a = np.copy(a) * (np.pi / 180)
+    d = np.copy(d) * (np.pi / 180)
+    a0 = np.copy(a0) * (np.pi / 180)
+    d0 = np.copy(d0) * (np.pi / 180)
+
+    sinda = np.sin(a - a0)
+    cosda = np.cos(a - a0)
+    sind = np.sin(d)
+    sind0 = np.sin(d0)
+    cosd = np.cos(d)
+    cosd0 = np.cos(d0)
+
+    theta = np.arccos(sind0 * sind + cosd0 * cosd * cosda)
+    cost = np.cos(theta)
+
+    pmx = cosda * (pma - pma0 * cosd / cosd0) - sind * sinda * pmd
+    pmy = (
+        (cosd * cosd0 + sind * sind0 * cosda) * pmd
+        - cost * pmd0
+        + (pma - pma0 * cosd / cosd0) * sind0 * sinda
+    )
+
+    return pmx, pmy
 
 
 def v_sky_to_polar(a, d, pma, pmd, a0, d0, pma0, pmd0):
@@ -93,10 +208,69 @@ def v_sky_to_polar(a, d, pma, pmd, a0, d0, pma0, pmd0):
 
     """
 
-    a = a * np.pi / 180
-    d = d * np.pi / 180
-    a0 = a0 * np.pi / 180
-    d0 = d0 * np.pi / 180
+    dx, dy = pos_sky_to_cart(a, d, a0, d0)
+    pmx, pmy = v_sky_to_cart(a, d, pma, pmd, a0, d0, pma0, pmd0)
+
+    rho = np.sqrt(dx * dx + dy * dy)
+
+    pmr = (dx * pmx + dy * pmy) / rho
+    pmt = (-dx * pmy + dy * pmx) / rho
+
+    return pmr, pmt
+
+
+def unc_sky_to_cart(
+    a,
+    d,
+    mua,
+    mud,
+    emua,
+    emud,
+    a0,
+    d0,
+    mua0,
+    mud0,
+    emua0,
+    emud0,
+):
+    """
+    Transforms proper motions uncertainties in RA Dec into projected
+    cartesian uncertainties.
+
+    Parameters
+    ----------
+    a : array_like
+        RA of the source.
+    d : array_like
+        Dec of the source.
+    epma : array_like
+        Uncertainty in PMRA of the source.
+    epmd : array_like
+        Uncertainty in PMDec of the source.
+    epmad : array_like
+        Correlation between epma and epmd.
+    a0 : float
+        Bulk RA.
+    d0 : float
+        Bulk Dec.
+    epma0 : float
+        Uncertainty in Bulk PMRA.
+    epmd0 : float
+        Uncertainty in Bulk PMDec.
+
+    Returns
+    -------
+    uncpmx : array_like
+        Uncertainty in PM in radial direction.
+    uncpmy : array_like
+        Uncertainty in PM in tangential direction.
+
+    """
+
+    a = np.copy(a) * (np.pi / 180)
+    d = np.copy(d) * (np.pi / 180)
+    a0 = np.copy(a0) * (np.pi / 180)
+    d0 = np.copy(d0) * (np.pi / 180)
 
     sinda = np.sin(a - a0)
     cosda = np.cos(a - a0)
@@ -105,24 +279,30 @@ def v_sky_to_polar(a, d, pma, pmd, a0, d0, pma0, pmd0):
     cosd = np.cos(d)
     cosd0 = np.cos(d0)
 
-    dx = sinda * cosd
-    dy = cosd0 * sind - sind0 * cosd * cosda
-    rho = np.sqrt(dx * dx + dy * dy)
-    theta = np.arccos(sind0 * sind + cosd0 * cosd * cosda)
+    dvdpma = cosda
+    dvdpmd = -sinda * sind
+    dvdpma0 = -cosda * cosd / cosd0
+    dvdpmd0 = 0
 
-    cost = np.cos(theta)
-
-    dmux = cosda * (pma - pma0 * cosd / cosd0) - sind * sinda * pmd
-    dmuy = (
-        (cosd * cosd0 + sind * sind0 * cosda) * pmd
-        - cost * pmd0
-        + (pma - pma0 * cosd / cosd0) * sind0 * sinda
+    uncpmx = np.sqrt(
+        (dvdpma * emua) ** 2
+        + (dvdpmd * emud) ** 2
+        + (dvdpma0 * emua0) ** 2
+        + (dvdpmd0 * emud0) ** 2
     )
 
-    pmr = (dx * dmux + dy * dmuy) / rho
-    pmt = (-dx * dmuy + dy * dmux) / rho
+    dvdpma = sinda * sind0
+    dvdpmd = cosd * cosd0 + cosda * sind * sind0
+    dvdpma0 = -cosd * sinda * sind0 / cosd0
+    dvdpmd0 = -cosda * cosd * cosd0 - sind * sind0
+    uncpmy = np.sqrt(
+        (dvdpma * emua) ** 2
+        + (dvdpmd * emud) ** 2
+        + (dvdpma0 * emua0) ** 2
+        + (dvdpmd0 * emud0) ** 2
+    )
 
-    return pmr, pmt
+    return uncpmx, uncpmy
 
 
 def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
@@ -160,10 +340,10 @@ def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
 
     """
 
-    a = a * np.pi / 180
-    d = d * np.pi / 180
-    a0 = a0 * np.pi / 180
-    d0 = d0 * np.pi / 180
+    a = np.copy(a) * (np.pi / 180)
+    d = np.copy(d) * (np.pi / 180)
+    a0 = np.copy(a0) * (np.pi / 180)
+    d0 = np.copy(d0) * (np.pi / 180)
 
     sina = np.sin(a)
     cosa = np.cos(a)
@@ -176,9 +356,7 @@ def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
     sinda = np.sin(a - a0)
     cosda = np.cos(a - a0)
 
-    dentheta = np.sqrt(
-        cosd**2 * sinda**2 + (cosd0 * sind - cosda * cosd * sind0) ** 2
-    )
+    dentheta = np.sqrt(cosd**2 * sinda**2 + (cosd0 * sind - cosda * cosd * sind0) ** 2)
 
     dvdpma = (cosd0 * sinda * (cosda * cosd * cosd0 + sind * sind0)) / dentheta
     dvdpmd = (
