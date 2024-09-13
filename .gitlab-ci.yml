@@ -45,9 +45,11 @@ lint:
   <<: *install-deps
   stage: lint
   script:
-    - echo "Running lint checks"
-    - poetry run flake8
+    - time poetry run flake8
   image: python:3.10
+  cache:
+    paths:
+      - .venv
 
 # Tests
 python3.10:
