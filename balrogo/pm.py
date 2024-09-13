@@ -230,11 +230,9 @@ def lngauss_1d(Ux, mu_pmx, sig_pm, mirror=False):
     pdf = np.zeros(len(Ux))
 
     if mirror is True:
-
         Ux = -Ux + np.nanmax(Ux)
 
     else:
-
         Ux = Ux - np.nanmin(Ux)
 
     dx = np.log(Ux) - mu_pmx
@@ -325,7 +323,6 @@ def gauss_2d(Ux, Uy, mu_pmx, mu_pmy, sig_pmx, sig_pmy, rho):
 
 
 def gaussh_1d(Ux, ex, mu, sig, h3, h4):
-
     hi = np.asarray([1, 0, 0, h3, h4])
 
     expterm = np.exp(-0.5 * ((Ux - mu) / np.sqrt(sig * sig + ex * ex)) ** 2)
@@ -1540,7 +1537,6 @@ def maximum_likelihood(
             results = mle_model.x
 
         else:
-
             ini = np.asarray(
                 [
                     ini[0],
@@ -1715,7 +1711,6 @@ def gauss_likelihood(
         index_mw = np.argmax(sigs)
 
         if lngauss is True:
-
             mu_mw = np.log(sigs[index_mw])
             std_mw = 0.5
 
@@ -1742,7 +1737,6 @@ def gauss_likelihood(
         )
 
         if lngauss is True:
-
             bounds = [
                 (ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]),
                 (0.1 * ini[1], 10 * ini[1]),
@@ -1751,7 +1745,6 @@ def gauss_likelihood(
                 (0.01, 1),
             ]
         elif dgauss is True:
-
             bounds = [
                 (ini[0] - 5 * ini[1], ini[0] + 5 * ini[1]),
                 (0.1 * ini[1], 10 * ini[1]),
@@ -1763,7 +1756,6 @@ def gauss_likelihood(
                 (0.01, 1),
             ]
         else:
-
             bounds = [
                 (ini[0] - 3 * ini[1], ini[0] + 3 * ini[1]),
                 (0.1 * ini[1], 10 * ini[1]),
@@ -1820,7 +1812,6 @@ def gauss_likelihood(
             eX = eX[idx_x]
 
     if hybrid is True:
-
         if lngauss is True:
             mle_model = differential_evolution(
                 lambda c: likelihood_1gauss1d_1lngauss1d(c, X, eX, mirror=mirror),
@@ -1964,7 +1955,6 @@ def mcmc(
         )
 
     if bounds is None:
-
         bounds = [
             (ini[0] - 3 * ini[2], ini[0] + 3 * ini[2]),
             (ini[1] - 3 * ini[2], ini[1] + 3 * ini[2]),
@@ -1999,7 +1989,6 @@ def mcmc(
             eXY = np.zeros(len(X))
 
     if use_pool:
-
         with Pool() as pool:
             sampler = emcee.EnsembleSampler(
                 nwalkers,
@@ -2010,7 +1999,6 @@ def mcmc(
             )
             sampler.run_mcmc(pos, steps)
     else:
-
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, likelihood_prob, args=(X, Y, eX, eY, eXY, ini, bounds, circ)
         )

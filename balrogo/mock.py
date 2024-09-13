@@ -229,7 +229,6 @@ def sphcap_generator(a0, d0, rmax, n):
     d = np.zeros(n)
 
     for i in range(n):
-
         a[i], d[i] = angle.polar_to_sky(
             r[i], phi[i], a0 * np.pi / 180, d0 * np.pi / 180
         )

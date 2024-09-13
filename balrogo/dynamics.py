@@ -47,11 +47,37 @@ ncpu = cpu_count()
 # Gravitational constant, in N m^2 kg^-2
 G = 6.67430 * 1e-11
 
-# Multuplying factor to pass from solar mass to kg
+# Multiplying factor to pass from solar mass to kg
 msun_to_kg = 1.98847 * 1e30
 
-# Multuplying factor to pass from kpc to km
+# Multiplying factor to pass from kpc to km
 kpc_to_km = 3.086 * 10**16
+
+# Multiplying factor to pass from mas to radians
+mas_to_rad = 1e-3 * (1 / 3600) * (np.pi / 180)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ------------------------------------------------------------------------------
+"Generical statistics"
+# ------------------------------------------------------------------------------
+
+
+def weight_mean(x, dx, w):
+    """
+    x: Averaged quantity
+    dx: Uncertainty on x
+    w: weight
+    """
+    if np.isscalar(w):
+        w = np.ones_like(x) * w
+
+    wmean = np.nansum(x * w) / np.nansum(w)
+
+    dmudx = w / np.nansum(w)
+    dmu2 = (dmudx * dx) ** 2
+    dwmean = np.sqrt(np.nansum(dmu2))
+
+    return wmean, dwmean
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -60,7 +86,113 @@ kpc_to_km = 3.086 * 10**16
 # ------------------------------------------------------------------------------
 
 
-def v_sky_to_polar(a, d, pma, pmd, a0, d0, pma0, pmd0):
+def pos_sky_to_cart(
+    a,
+    d,
+    a0,
+    d0,
+):
+    """
+    Transforms sky positions in cartesian projected ones.
+
+    Parameters
+    ----------
+    a : array_like
+        RA of the source, in degrees.
+    d : array_like
+        Dec of the source, in degrees.
+    a0 : float
+        Bulk RA, in degrees.
+    d0 : float
+        Bulk Dec, in degrees.
+    """
+
+    a = np.copy(a) * (np.pi / 180)
+    d = np.copy(d) * (np.pi / 180)
+    a0 = np.copy(a0) * (np.pi / 180)
+    d0 = np.copy(d0) * (np.pi / 180)
+
+    sinda = np.sin(a - a0)
+    cosda = np.cos(a - a0)
+    sind = np.sin(d)
+    sind0 = np.sin(d0)
+    cosd = np.cos(d)
+    cosd0 = np.cos(d0)
+
+    dx = sinda * cosd
+    dy = cosd0 * sind - sind0 * cosd * cosda
+
+    return dx, dy
+
+
+def v_sky_to_cart(
+    a,
+    d,
+    pma,
+    pmd,
+    a0,
+    d0,
+    pma0,
+    pmd0,
+):
+    """
+    Transforms proper motions in RA Dec into projected cartesian.
+
+    Parameters
+    ----------
+    a : array_like
+        RA of the source, in degrees.
+    d : array_like
+        Dec of the source, in degrees.
+    pma : array_like
+        PMRA of the source.
+    pmd : array_like
+        PMDec of the source.
+    a0 : float
+        Bulk RA, in degrees.
+    d0 : float
+        Bulk Dec, in degrees.
+    pma0 : float
+        Bulk PMRA.
+    pmd0 : float
+        Bulk PMDec.
+    """
+
+    a = np.copy(a) * (np.pi / 180)
+    d = np.copy(d) * (np.pi / 180)
+    a0 = np.copy(a0) * (np.pi / 180)
+    d0 = np.copy(d0) * (np.pi / 180)
+
+    sinda = np.sin(a - a0)
+    cosda = np.cos(a - a0)
+    sind = np.sin(d)
+    sind0 = np.sin(d0)
+    cosd = np.cos(d)
+    cosd0 = np.cos(d0)
+
+    theta = np.arccos(sind0 * sind + cosd0 * cosd * cosda)
+    cost = np.cos(theta)
+
+    pmx = cosda * (pma - pma0 * cosd / cosd0) - sind * sinda * pmd
+    pmy = (
+        (cosd * cosd0 + sind * sind0 * cosda) * pmd
+        - cost * pmd0
+        + (pma - pma0 * cosd / cosd0) * sind0 * sinda
+    )
+
+    return pmx, pmy
+
+
+def v_sky_to_polar(
+    a,
+    d,
+    pma,
+    pmd,
+    a0,
+    d0,
+    pma0,
+    pmd0,
+):
     """
     Transforms proper motions in RA Dec into polar coordinates
     (radial and tangential).
@@ -68,17 +200,17 @@ def v_sky_to_polar(a, d, pma, pmd, a0, d0, pma0, pmd0):
     Parameters
     ----------
     a : array_like
-        RA of the source.
+        RA of the source, in degrees.
     d : array_like
-        Dec of the source.
+        Dec of the source, in degrees.
     pma : array_like
         PMRA of the source.
     pmd : array_like
         PMDec of the source.
     a0 : float
-        Bulk RA.
+        Bulk RA, in degrees.
     d0 : float
-        Bulk Dec.
+        Bulk Dec, in degrees.
     pma0 : float
         Bulk PMRA.
     pmd0 : float
@@ -93,10 +225,65 @@ def v_sky_to_polar(a, d, pma, pmd, a0, d0, pma0, pmd0):
 
     """
 
-    a = a * np.pi / 180
-    d = d * np.pi / 180
-    a0 = a0 * np.pi / 180
-    d0 = d0 * np.pi / 180
+    dx, dy = pos_sky_to_cart(a, d, a0, d0)
+    pmx, pmy = v_sky_to_cart(a, d, pma, pmd, a0, d0, pma0, pmd0)
+
+    rho = np.sqrt(dx * dx + dy * dy)
+
+    pmr = (dx * pmx + dy * pmy) / rho
+    pmt = (-dx * pmy + dy * pmx) / rho
+
+    return pmr, pmt
+
+
+def unc_sky_to_cart(
+    a,
+    d,
+    epma,
+    epmd,
+    a0,
+    d0,
+    epma0,
+    epmd0,
+):
+    """
+    Transforms proper motions uncertainties in RA Dec into projected
+    cartesian uncertainties.
+
+    Parameters
+    ----------
+    a : array_like
+        RA of the source, in degrees.
+    d : array_like
+        Dec of the source, in degrees.
+    epma : array_like
+        Uncertainty in PMRA of the source.
+    epmd : array_like
+        Uncertainty in PMDec of the source.
+    epmad : array_like
+        Correlation between epma and epmd.
+    a0 : float
+        Bulk RA, in degrees.
+    d0 : float
+        Bulk Dec, in degrees.
+    epma0 : float
+        Uncertainty in Bulk PMRA.
+    epmd0 : float
+        Uncertainty in Bulk PMDec.
+
+    Returns
+    -------
+    uncpmx : array_like
+        Uncertainty in PM in radial direction.
+    uncpmy : array_like
+        Uncertainty in PM in tangential direction.
+
+    """
+
+    a = np.copy(a) * (np.pi / 180)
+    d = np.copy(d) * (np.pi / 180)
+    a0 = np.copy(a0) * (np.pi / 180)
+    d0 = np.copy(d0) * (np.pi / 180)
 
     sinda = np.sin(a - a0)
     cosda = np.cos(a - a0)
@@ -105,27 +292,43 @@ def v_sky_to_polar(a, d, pma, pmd, a0, d0, pma0, pmd0):
     cosd = np.cos(d)
     cosd0 = np.cos(d0)
 
-    dx = sinda * cosd
-    dy = cosd0 * sind - sind0 * cosd * cosda
-    rho = np.sqrt(dx * dx + dy * dy)
-    theta = np.arccos(sind0 * sind + cosd0 * cosd * cosda)
+    dvdpma = cosda
+    dvdpmd = -sinda * sind
+    dvdpma0 = -cosda * cosd / cosd0
+    dvdpmd0 = 0
 
-    cost = np.cos(theta)
-
-    dmux = cosda * (pma - pma0 * cosd / cosd0) - sind * sinda * pmd
-    dmuy = (
-        (cosd * cosd0 + sind * sind0 * cosda) * pmd
-        - cost * pmd0
-        + (pma - pma0 * cosd / cosd0) * sind0 * sinda
+    uncpmx = np.sqrt(
+        (dvdpma * epma) ** 2
+        + (dvdpmd * epmd) ** 2
+        + (dvdpma0 * epma0) ** 2
+        + (dvdpmd0 * epmd0) ** 2
     )
 
-    pmr = (dx * dmux + dy * dmuy) / rho
-    pmt = (-dx * dmuy + dy * dmux) / rho
+    dvdpma = sinda * sind0
+    dvdpmd = cosd * cosd0 + cosda * sind * sind0
+    dvdpma0 = -cosd * sinda * sind0 / cosd0
+    dvdpmd0 = -cosda * cosd * cosd0 - sind * sind0
+    uncpmy = np.sqrt(
+        (dvdpma * epma) ** 2
+        + (dvdpmd * epmd) ** 2
+        + (dvdpma0 * epma0) ** 2
+        + (dvdpmd0 * epmd0) ** 2
+    )
 
-    return pmr, pmt
+    return uncpmx, uncpmy
 
 
-def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
+def unc_sky_to_polar(
+    a,
+    d,
+    epma,
+    epmd,
+    epmad,
+    a0,
+    d0,
+    epma0,
+    epmd0,
+):
     """
     Transforms proper motions uncertainties in RA Dec into polar coordinates
     uncertainties (radial and tangential).
@@ -133,9 +336,9 @@ def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
     Parameters
     ----------
     a : array_like
-        RA of the source.
+        RA of the source, in degrees.
     d : array_like
-        Dec of the source.
+        Dec of the source, in degrees.
     epma : array_like
         Uncertainty in PMRA of the source.
     epmd : array_like
@@ -143,9 +346,9 @@ def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
     epmad : array_like
         Correlation between epma and epmd.
     a0 : float
-        Bulk RA.
+        Bulk RA, in degrees.
     d0 : float
-        Bulk Dec.
+        Bulk Dec, in degrees.
     epma0 : float
         Uncertainty in Bulk PMRA.
     epmd0 : float
@@ -160,10 +363,10 @@ def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
 
     """
 
-    a = a * np.pi / 180
-    d = d * np.pi / 180
-    a0 = a0 * np.pi / 180
-    d0 = d0 * np.pi / 180
+    a = np.copy(a) * (np.pi / 180)
+    d = np.copy(d) * (np.pi / 180)
+    a0 = np.copy(a0) * (np.pi / 180)
+    d0 = np.copy(d0) * (np.pi / 180)
 
     sina = np.sin(a)
     cosa = np.cos(a)
@@ -222,31 +425,148 @@ def unc_sky_to_polar(a, d, epma, epmd, epmad, a0, d0, epma0, epmd0):
     return uncpmr, uncpmt
 
 
-def pmr_corr(vlos, r, d):
+def pmr_corr(v0, ev0, a, d, a0, d0, dist):
     """
     Correction on radial proper motion due to apparent contraction/expansion
     of the cluster.
 
+    One should perform pmr_new = pmr_old - pmr_corr.
+    Uncertainties should be added quadratically.
+
+    Reference:
+    van der Marel, R. P., Alves, D. R., Hardy, E., & Suntzeff, N. B.
+    2002, AJ, 124, 2639
+    - Equation (13).
+
     Parameters
     ----------
-    vlos : float
-        Line of sight velocity, in km/s.
-    r : array_like, float
-        Projected radius, in degrees.
-    d : float
+    v0: array-like
+        Bulk line-of-sight velocity, in km/s
+    ev0: array-like
+        Uncertainty in Bulk line-of-sight velocity, in km/s
+    a : array_like
+        RA of the source, in degrees.
+    d : array_like
+        Dec of the source, in degrees.
+    a0 : float
+        Bulk RA, in degrees.
+    d0 : float
+        Bulk Dec, in degrees.
+    dist: float
         Cluster distance from the Sun, in kpc.
 
     Returns
     -------
-    pmr : array_like, float
+    pmrcorr : array_like, float
         Correction in the radial component of the proper motion, in mas/yr.
+    epmrcorr : array_like, float
+        Uncertainty in the Correction in the radial component of the
+        proper motion, in mas/yr.
 
     """
-    r = r * 60
-    # Equation 4 from Bianchini et al. 2018.
-    pmr = -6.1363 * 1e-5 * vlos * r / d
 
-    return pmr
+    conv = 4.7405 * dist
+
+    dx, dy = pos_sky_to_cart(a, d, a0, d0)
+    rho = np.sqrt(dx * dx + dy * dy)
+
+    pmrcorr = -conv * v0 * np.sin(rho)
+    epmrcorr = conv * ev0 * np.sin(rho)
+
+    return pmrcorr, epmrcorr
+
+
+def vlos_corr(
+    v0,
+    ev0,
+    a,
+    d,
+    a0,
+    d0,
+    pma0,
+    pmd0,
+    epma0,
+    epmd0,
+    dist,
+):
+    """
+    Correction on line-of-sight velocity due to apparent
+    contraction/expansion of the cluster.
+
+    One should perform vlos_new = vlos_old - vlos_corr.
+    Uncertainties should be added quadratically.
+
+    Reference:
+    van der Marel, R. P., Alves, D. R., Hardy, E., & Suntzeff, N. B.
+    2002, AJ, 124, 2639
+    - Equation (13).
+
+    Parameters
+    ----------
+    v0: array-like
+        Bulk line-of-sight velocity, in km/s
+    ev0: array-like
+        Uncertainty in Bulk line-of-sight velocity, in km/s
+    a : array_like
+        RA of the source, in degrees.
+    d : array_like
+        Dec of the source, in degrees.
+    a0 : float
+        Bulk RA, in degrees.
+    d0 : float
+        Bulk Dec, in degrees.
+    pma0 : float
+        Bulk PMRA, in mas/yr.
+    pmd0 : float
+        Bulk PMDec, in mas/yr.
+    epma0 : float
+        Uncertainty in Bulk PMRA, , in mas/yr.
+    epmd0 : float
+        Uncertainty in Bulk PMDec, , in mas/yr.
+    dist: float
+        Cluster distance from the Sun, in kpc.
+
+    Returns
+    -------
+    vcorr : array_like, float
+        Correction in the vlos, in km/s.
+    evcorr : array_like, float
+        Uncertainty in the Correction in the vlos, in km/s.
+
+    """
+
+    conv = 4.7405 * dist
+
+    dx, dy = pos_sky_to_cart(a, d, a0, d0)
+
+    a0 = np.copy(a0) * (np.pi / 180)
+    d0 = np.copy(d0) * (np.pi / 180)
+
+    at = mas_to_rad * pma0 / np.cos(d0) + a0
+    dt = mas_to_rad * pmd0 + d0
+
+    dxt, dyt = pos_sky_to_cart(
+        at * (180 / np.pi),
+        dt * (180 / np.pi),
+        a0 * (180 / np.pi),
+        d0 * (180 / np.pi),
+    )
+
+    rho = np.sqrt(dx * dx + dy * dy)
+    phi = np.arctan2(dy, dx)
+    thetat = np.arctan2(dyt, dxt)
+
+    vt = np.sqrt(pma0**2 + pmd0**2) * conv
+    evt = np.sqrt((pma0 * epma0 / vt) ** 2 + (pmd0 * epmd0 / vt) ** 2) * conv**2
+
+    vcorr = vt * np.sin(rho) * np.cos(phi - thetat) + v0 * (np.cos(rho) - 1)
+
+    evcorr = np.sqrt(
+        evt**2 * (np.sin(rho) * np.cos(phi - thetat)) ** 2
+        + ev0**2 * (np.cos(rho) - 1) ** 2
+    )
+
+    return vcorr, evcorr
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -437,7 +757,6 @@ def mean1d(
     idxrange = np.intersect1d(np.where(x > rmin), np.where(x < rmax))
 
     if smooth is True:
-
         mean = mean[nonan]
         err = err[nonan]
         r = r[nonan]
@@ -448,7 +767,6 @@ def mean1d(
             pold = polorder
 
         if logx is False:
-
             poly_mean, cov_mean = np.polyfit(r, mean, pold, w=1 / err, cov=True)
 
             # Do the interpolation for plotting:
@@ -654,16 +972,12 @@ def aux_disp(idx, y, ey, dimy, robust_sig, method=None, nsamples=100):
     disp = np.zeros((dimy, 1))
 
     if robust_sig is True:
-
         for i in range(0, dimy):
-
             disp[i, 0] = np.median(np.abs(y[i][idx] - np.median(y[i][idx]))) / 0.6745
             disp[i, 0] = np.sqrt(disp[i, 0] ** 2 - np.nanmean(ey[i][idx] ** 2))
 
     else:
-
         for i in range(0, dimy):
-
             if method is None:
                 disp[i, 0] = np.sqrt(
                     np.nanstd(y[i][idx]) ** 2 - np.nanmean(ey[i][idx] ** 2)
@@ -717,9 +1031,7 @@ def aux_err(idx, y, ey, dimy, robust_sig, bootp, method=None, nsamples=100):
     err = np.zeros((dimy, 1))
 
     if robust_sig is True:
-
         for i in range(0, dimy):
-
             disp[i, 0] = np.median(np.abs(y[i][idx] - np.median(y[i][idx]))) / 0.6745
             disp[i, 0] = np.sqrt(disp[i, 0] ** 2 - np.nanmean(ey[i][idx] ** 2))
 
@@ -729,9 +1041,7 @@ def aux_err(idx, y, ey, dimy, robust_sig, bootp, method=None, nsamples=100):
                 err[i, 0] = disp[i, 0] / np.sqrt(2 * (len(y[i][idx]) - 1))
 
     else:
-
         for i in range(0, dimy):
-
             if method is None:
                 disp[i, 0] = np.sqrt(
                     np.nanstd(y[i][idx]) ** 2 - np.nanmean(ey[i][idx] ** 2)
@@ -968,7 +1278,6 @@ def moving_grid1d(
         rbin = np.linspace(np.nanmin(x), np.nanmax(x), bins + 1)
 
     for i in range(1, ngrid):
-
         add_x = (rbin[1] - rbin[0]) * i / (1 + ngrid)
 
         if logx is True:
@@ -1082,7 +1391,6 @@ def equal_size(
             r[i] = (x[nbin * (1 + i) - 1] + x[nbin * i]) * 0.5
 
         for j in range(0, dimy):
-
             if method is None:
                 disp[j, i] = np.sqrt(
                     np.nanstd(y[j][nbin * i : nbin * (i + 1) - 1]) ** 2
@@ -1172,7 +1480,6 @@ def perc_bins(
     r = np.zeros(size)
 
     for i in range(0, nnodes):
-
         z = 100 ** (1 / nnodes)
         qi = max(0, 0.01 * z**i)
         qf = min(0.01 * z ** (i + 1), 1)
@@ -1188,7 +1495,6 @@ def perc_bins(
             r[i] = (np.nanmin(x[idxr]) + np.nanmax(x[idxr])) * 0.5
 
         for j in range(0, dimy):
-
             if method is None:
                 disp[j, i] = np.sqrt(
                     np.nanstd(y[j][idxr]) ** 2 - np.nanmean(ey[j][idxr] ** 2)
@@ -1263,14 +1569,12 @@ def closest_points(
     r = np.zeros(size)
 
     for i in range(0, size):
-
         dist_r = np.abs(x[i] - x)
         idxr = (np.argpartition(dist_r, nbin)[:nbin]).astype(int)
 
         r[i] = x[i]
 
         for j in range(0, dimy):
-
             if method is None:
                 disp[j, i] = np.sqrt(
                     np.nanstd(y[j][idxr]) ** 2 - np.nanmean(ey[j][idxr] ** 2)
@@ -1465,7 +1769,6 @@ def disp1d(
     idxrange = np.intersect1d(np.where(x > rmin), np.where(x < rmax))
 
     if smooth is True:
-
         disp = disp[nonan]
         err = err[nonan]
         r = r[nonan]
@@ -1476,7 +1779,6 @@ def disp1d(
             pold = polorder
 
         if logx is False:
-
             poly_disp, cov_disp = np.polyfit(r, disp, pold, w=1 / err, cov=True)
 
             # Do the interpolation for plotting:
@@ -1612,7 +1914,6 @@ def disp2d(
 
     for i in range(0, nmov):
         for j in range(0, nmov):
-
             alim1, dlim1 = angle.get_circle_sph_trig(rm, a0 + i * shift, d0 + j * shift)
 
             amin.append(np.amin(alim1))
@@ -1635,7 +1936,6 @@ def disp2d(
     )
 
     for i in range(0, len(amin)):
-
         index = np.arange(len(x[0]))
 
         hex_disp = plt.hexbin(
@@ -2148,7 +2448,6 @@ def monte_carlo_bias(x, ex, sig_mle, esig_mle, nsamples):
 
     # draw Monte Carlo samples and get maximum likelihood parameter estimates
     for k in range(nsamples):
-
         # draw sample from Gaussian, broadened with uncertainties
         sample = np.random.normal(mu, sig)
 
@@ -2490,7 +2789,6 @@ def get_beta(
         # https://stackoverflow.com/questions/24633664/confidence-interval-for-exponential-curve-fit/26042460#26042460
 
         if model == "gOM":
-
             popt, pcov = curve_fit(
                 bgOM,
                 rr,
@@ -2507,7 +2805,6 @@ def get_beta(
             py = bgOM(px, *b_params)
 
         if model == "gTiret":
-
             popt, pcov = curve_fit(
                 bgTiret,
                 rr,
@@ -2524,7 +2821,6 @@ def get_beta(
             py = bgTiret(px, *b_params)
 
         if model == "gCOM":
-
             popt, pcov = curve_fit(
                 bCOM,
                 rr,
@@ -2949,7 +3245,6 @@ def mcmc_anisotropy(
     pos = [ini + 1e-3 * ini * np.random.randn(ndim) for i in range(nwalkers)]
 
     if use_pool:
-
         with Pool() as pool:
             sampler = emcee.EnsembleSampler(
                 nwalkers,
@@ -2960,7 +3255,6 @@ def mcmc_anisotropy(
             )
             sampler.run_mcmc(pos, steps)
     else:
-
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, likelihood_prob_beta, args=(wi, bounds, gaussp)
         )

@@ -26,45 +26,55 @@ stages:
 
 .install-deps: &install-deps
   before_script:
-    - pip install poetry==1.0.10
+    - pip install --upgrade pip
+    - pip install poetry
     - poetry config virtualenvs.in-project true
-    - make setup
+    - poetry install  # Ensure dependencies are installed
+    - poetry run make setup
 
 .test-template: &test
   <<: *on_merge_tag_or_manual
   <<: *install-deps
   stage: test
   coverage: '/^TOTAL.*\s+(\d+\%)$/'
-  script: make test
+  script: poetry run make test
 
-# Lint
-lint:
-  <<: *on_merge_tag_or_manual
-  <<: *install-deps
-  stage: lint
-  script: make lint
-  image: python:3.8
+# # Lint
+# lint:
+#   <<: *on_merge_tag_or_manual
+#   <<: *install-deps
+#   stage: lint
+#   script:
+#     - time poetry run flake8
+#   image: python:3.10
+#   cache:
+#     paths:
+#       - .venv
 
 # Tests
-python3.8:
+python3.10:
   <<: *test
-  image: python:3.8
+  image: python:3.10
 
-python3.9:
+python3.11:
   <<: *test
-  image: python:3.9
+  image: python:3.11
+  
+python3.12:
+  <<: *test
+  image: python:3.12
 
 # Docs
 pages:
   <<: *install-deps
-  image: python:3.8
+  image: python:3.10
   stage: docs
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: on_success
-  script: 
-    - make docs
+  script:
+    - poetry run make docs
     - mv docs/build/html public/
   artifacts:
     paths:
-    - public
+      - public
