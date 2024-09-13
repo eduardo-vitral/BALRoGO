@@ -39,17 +39,13 @@ stages:
   coverage: '/^TOTAL.*\s+(\d+\%)$/'
   script: poetry run make test
 
-# # Lint
-# lint:
-#   <<: *on_merge_tag_or_manual
-#   <<: *install-deps
-#   stage: lint
-#   script:
-#     - time poetry run flake8
-#   image: python:3.10
-#   cache:
-#     paths:
-#       - .venv
+# Lint
+lint:
+  <<: *on_merge_tag_or_manual
+  <<: *install-deps
+  stage: lint
+  script: make lint
+  image: python:3.10
 
 # Tests
 python3.10:
@@ -59,7 +55,7 @@ python3.10:
 python3.11:
   <<: *test
   image: python:3.11
-  
+
 python3.12:
   <<: *test
   image: python:3.12
