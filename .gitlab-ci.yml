@@ -26,8 +26,10 @@ stages:
 
 .install-deps: &install-deps
   before_script:
-    - pip install poetry==1.0.10
+    - pip install --upgrade pip
+    - pip install poetry
     - poetry config virtualenvs.in-project true
+    - poetry install  # Ensure dependencies are installed
     - make setup
 
 .test-template: &test
