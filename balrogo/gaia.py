@@ -50,7 +50,6 @@ def polyRiello20(x):
     f = np.zeros(len(x))
 
     for i in range(len(x)):
-
         if np.isnan(x[i]):
             f[i] = np.nan
 
@@ -204,7 +203,6 @@ def clean_gaia(
             err_lim = err_lim * ini[2]
 
     if cleaning == "v21":
-
         u = np.sqrt(chi2 / (nu - 5))
 
         c33 = epmra * epmra
@@ -231,7 +229,6 @@ def clean_gaia(
         idx = np.intersect1d(idx, idx_noise)
 
     elif cleaning == "vm21":
-
         u = np.sqrt(chi2 / (nu - 5))
 
         c33 = epmra * epmra
@@ -285,7 +282,6 @@ def find_object(
     cleaning="v21",
     conv=True,
 ):
-
     """
     Finds galactic object by employing the analysis proposed in
     Vitral 2021.
@@ -746,7 +742,6 @@ def find_object(
         ranges = [[qx_i, qx_f], [qy_i, qy_f]]
 
         if check_fit is True:
-
             fig, ax = plt.subplots(figsize=(7, 6))
             plt.title(r"Isochrone", fontsize=16)
             plt.xlabel(r"color", fontsize=15)
@@ -774,7 +769,6 @@ def find_object(
             plt.show()
 
         else:
-
             contours = plt.contour(
                 z,
                 origin="lower",
@@ -786,7 +780,6 @@ def find_object(
         idx_final = hrd.inside_contour(br_mag, g_mag, contours, idx[idx_p])
 
     else:
-
         idx_final = idx_p
 
     if return_center is False:

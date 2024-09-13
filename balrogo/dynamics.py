@@ -379,7 +379,9 @@ def unc_sky_to_polar(
     sinda = np.sin(a - a0)
     cosda = np.cos(a - a0)
 
-    dentheta = np.sqrt(cosd**2 * sinda**2 + (cosd0 * sind - cosda * cosd * sind0) ** 2)
+    dentheta = np.sqrt(
+        cosd**2 * sinda**2 + (cosd0 * sind - cosda * cosd * sind0) ** 2
+    )
 
     dvdpma = (cosd0 * sinda * (cosda * cosd * cosd0 + sind * sind0)) / dentheta
     dvdpmd = (
@@ -755,7 +757,6 @@ def mean1d(
     idxrange = np.intersect1d(np.where(x > rmin), np.where(x < rmax))
 
     if smooth is True:
-
         mean = mean[nonan]
         err = err[nonan]
         r = r[nonan]
@@ -766,7 +767,6 @@ def mean1d(
             pold = polorder
 
         if logx is False:
-
             poly_mean, cov_mean = np.polyfit(r, mean, pold, w=1 / err, cov=True)
 
             # Do the interpolation for plotting:
@@ -972,16 +972,12 @@ def aux_disp(idx, y, ey, dimy, robust_sig, method=None, nsamples=100):
     disp = np.zeros((dimy, 1))
 
     if robust_sig is True:
-
         for i in range(0, dimy):
-
             disp[i, 0] = np.median(np.abs(y[i][idx] - np.median(y[i][idx]))) / 0.6745
             disp[i, 0] = np.sqrt(disp[i, 0] ** 2 - np.nanmean(ey[i][idx] ** 2))
 
     else:
-
         for i in range(0, dimy):
-
             if method is None:
                 disp[i, 0] = np.sqrt(
                     np.nanstd(y[i][idx]) ** 2 - np.nanmean(ey[i][idx] ** 2)
@@ -1035,9 +1031,7 @@ def aux_err(idx, y, ey, dimy, robust_sig, bootp, method=None, nsamples=100):
     err = np.zeros((dimy, 1))
 
     if robust_sig is True:
-
         for i in range(0, dimy):
-
             disp[i, 0] = np.median(np.abs(y[i][idx] - np.median(y[i][idx]))) / 0.6745
             disp[i, 0] = np.sqrt(disp[i, 0] ** 2 - np.nanmean(ey[i][idx] ** 2))
 
@@ -1047,9 +1041,7 @@ def aux_err(idx, y, ey, dimy, robust_sig, bootp, method=None, nsamples=100):
                 err[i, 0] = disp[i, 0] / np.sqrt(2 * (len(y[i][idx]) - 1))
 
     else:
-
         for i in range(0, dimy):
-
             if method is None:
                 disp[i, 0] = np.sqrt(
                     np.nanstd(y[i][idx]) ** 2 - np.nanmean(ey[i][idx] ** 2)
@@ -1286,7 +1278,6 @@ def moving_grid1d(
         rbin = np.linspace(np.nanmin(x), np.nanmax(x), bins + 1)
 
     for i in range(1, ngrid):
-
         add_x = (rbin[1] - rbin[0]) * i / (1 + ngrid)
 
         if logx is True:
@@ -1400,7 +1391,6 @@ def equal_size(
             r[i] = (x[nbin * (1 + i) - 1] + x[nbin * i]) * 0.5
 
         for j in range(0, dimy):
-
             if method is None:
                 disp[j, i] = np.sqrt(
                     np.nanstd(y[j][nbin * i : nbin * (i + 1) - 1]) ** 2
@@ -1490,7 +1480,6 @@ def perc_bins(
     r = np.zeros(size)
 
     for i in range(0, nnodes):
-
         z = 100 ** (1 / nnodes)
         qi = max(0, 0.01 * z**i)
         qf = min(0.01 * z ** (i + 1), 1)
@@ -1506,7 +1495,6 @@ def perc_bins(
             r[i] = (np.nanmin(x[idxr]) + np.nanmax(x[idxr])) * 0.5
 
         for j in range(0, dimy):
-
             if method is None:
                 disp[j, i] = np.sqrt(
                     np.nanstd(y[j][idxr]) ** 2 - np.nanmean(ey[j][idxr] ** 2)
@@ -1581,14 +1569,12 @@ def closest_points(
     r = np.zeros(size)
 
     for i in range(0, size):
-
         dist_r = np.abs(x[i] - x)
         idxr = (np.argpartition(dist_r, nbin)[:nbin]).astype(int)
 
         r[i] = x[i]
 
         for j in range(0, dimy):
-
             if method is None:
                 disp[j, i] = np.sqrt(
                     np.nanstd(y[j][idxr]) ** 2 - np.nanmean(ey[j][idxr] ** 2)
@@ -1783,7 +1769,6 @@ def disp1d(
     idxrange = np.intersect1d(np.where(x > rmin), np.where(x < rmax))
 
     if smooth is True:
-
         disp = disp[nonan]
         err = err[nonan]
         r = r[nonan]
@@ -1794,7 +1779,6 @@ def disp1d(
             pold = polorder
 
         if logx is False:
-
             poly_disp, cov_disp = np.polyfit(r, disp, pold, w=1 / err, cov=True)
 
             # Do the interpolation for plotting:
@@ -1930,7 +1914,6 @@ def disp2d(
 
     for i in range(0, nmov):
         for j in range(0, nmov):
-
             alim1, dlim1 = angle.get_circle_sph_trig(rm, a0 + i * shift, d0 + j * shift)
 
             amin.append(np.amin(alim1))
@@ -1953,7 +1936,6 @@ def disp2d(
     )
 
     for i in range(0, len(amin)):
-
         index = np.arange(len(x[0]))
 
         hex_disp = plt.hexbin(
@@ -2466,7 +2448,6 @@ def monte_carlo_bias(x, ex, sig_mle, esig_mle, nsamples):
 
     # draw Monte Carlo samples and get maximum likelihood parameter estimates
     for k in range(nsamples):
-
         # draw sample from Gaussian, broadened with uncertainties
         sample = np.random.normal(mu, sig)
 
@@ -2808,7 +2789,6 @@ def get_beta(
         # https://stackoverflow.com/questions/24633664/confidence-interval-for-exponential-curve-fit/26042460#26042460
 
         if model == "gOM":
-
             popt, pcov = curve_fit(
                 bgOM,
                 rr,
@@ -2825,7 +2805,6 @@ def get_beta(
             py = bgOM(px, *b_params)
 
         if model == "gTiret":
-
             popt, pcov = curve_fit(
                 bgTiret,
                 rr,
@@ -2842,7 +2821,6 @@ def get_beta(
             py = bgTiret(px, *b_params)
 
         if model == "gCOM":
-
             popt, pcov = curve_fit(
                 bCOM,
                 rr,
@@ -3267,7 +3245,6 @@ def mcmc_anisotropy(
     pos = [ini + 1e-3 * ini * np.random.randn(ndim) for i in range(nwalkers)]
 
     if use_pool:
-
         with Pool() as pool:
             sampler = emcee.EnsembleSampler(
                 nwalkers,
@@ -3278,7 +3255,6 @@ def mcmc_anisotropy(
             )
             sampler.run_mcmc(pos, steps)
     else:
-
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, likelihood_prob_beta, args=(wi, bounds, gaussp)
         )

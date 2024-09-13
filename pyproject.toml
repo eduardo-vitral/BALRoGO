@@ -19,7 +19,7 @@ numdifftools = "^0.9.39"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0"
-black = "^22.0"
+black = "^23.1.0"
 flake8-black = "^0.3.0"
 pytest-cov = "^3.0.0"
 toml = "^0.10.2"

@@ -357,7 +357,6 @@ def rodrigues_formula(k, v, theta, debug=False):
     elif len(np.shape(v)) == 2 and np.shape(v)[0] == 3:
         v_rot = np.zeros((np.shape(v)[1], 3))
         for i in range(0, len(v_rot)):
-
             v0 = np.asarray([v[0][i], v[1][i], v[2][i]])
             v_rot[i] = (
                 v0 * np.cos(theta)
@@ -809,7 +808,6 @@ def radec_to_lb(a, d, dadt=None, dddt=None):
         return lon, b, dldt, dbdt
 
     else:
-
         lon = lon * (180 / np.pi)
         b = b * (180 / np.pi)
 
@@ -905,7 +903,6 @@ def lb_to_radec(lon, b, dldt=None, dbdt=None):
         return a, d, dadt, dddt
 
     else:
-
         a = a * (180 / np.pi)
         d = d * (180 / np.pi)
 
@@ -956,7 +953,6 @@ def cart_to_radec(x, y, z, vx=None, vy=None, vz=None):
 
     """
     if vx is None or vy is None or vz is None:
-
         onlypos = True
 
         if vx is not None:
@@ -971,7 +967,6 @@ def cart_to_radec(x, y, z, vx=None, vy=None, vz=None):
         vz = 0
 
     else:
-
         onlypos = False
 
     lon, b, r, dldt, dbdt, vr = cart_to_lb(x, y, z, vx=vx, vy=vy, vz=vz)
@@ -1035,7 +1030,6 @@ def radec_to_cart(a, d, r, mua=None, mud=None, vr=None):
     masyr_to_kms = 4.7405 * r
 
     if mua is None or mud is None or vr is None:
-
         onlypos = True
 
         if mua is not None:
@@ -1050,7 +1044,6 @@ def radec_to_cart(a, d, r, mua=None, mud=None, vr=None):
         vr = 0
 
     else:
-
         onlypos = False
 
     lon, b, dldt, dbdt = radec_to_lb(a, d, dadt=mua, dddt=mud)
@@ -1127,7 +1120,6 @@ def cart_to_lb(x, y, z, vx=None, vy=None, vz=None):
     z = (z + z_sun) * kpc_to_km
 
     if vx is None or vy is None or vz is None:
-
         onlypos = True
 
         if vx is not None:
@@ -1142,7 +1134,6 @@ def cart_to_lb(x, y, z, vx=None, vy=None, vz=None):
         vz = 0
 
     else:
-
         onlypos = False
 
     vx = -vx + vx_sun
@@ -1211,7 +1202,6 @@ def lb_to_cart(lon, b, r, dldt=None, dbdt=None, vr=None):
     masyr_to_kms = 4.7405 * r
 
     if dldt is None or dbdt is None or vr is None:
-
         onlypos = True
 
         if dldt is not None:
@@ -1226,7 +1216,6 @@ def lb_to_cart(lon, b, r, dldt=None, dbdt=None, vr=None):
         vr = 0
 
     else:
-
         onlypos = False
 
     r = r * kpc_to_km

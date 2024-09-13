@@ -30,21 +30,23 @@ stages:
     - pip install poetry
     - poetry config virtualenvs.in-project true
     - poetry install  # Ensure dependencies are installed
-    - make setup
+    - poetry run make setup
 
 .test-template: &test
   <<: *on_merge_tag_or_manual
   <<: *install-deps
   stage: test
   coverage: '/^TOTAL.*\s+(\d+\%)$/'
-  script: make test
+  script: poetry run make test
 
 # Lint
 lint:
   <<: *on_merge_tag_or_manual
   <<: *install-deps
   stage: lint
-  script: make lint
+  script:
+    - poetry run black --check .  # Check if code needs formatting
+    - poetry run flake8
   image: python:3.10
 
 # Tests
@@ -68,8 +70,8 @@ pages:
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: on_success
-  script: 
-    - make docs
+  script:
+    - poetry run make docs
     - mv docs/build/html public/
   artifacts:
     paths:
