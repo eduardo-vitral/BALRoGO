@@ -45,15 +45,20 @@ lint:
   <<: *install-deps
   stage: lint
   script:
+    - echo "Git commit SHAs:"
+    - echo "HEAD: $(git rev-parse HEAD)"
+    - echo "Last commit diff:"
+    - git diff --name-only HEAD~1 HEAD
     - |
-      changed_files=$(git diff --name-only $CI_MERGE_REQUEST_TARGET_BRANCH_SHA $CI_MERGE_REQUEST_SOURCE_BRANCH_SHA | grep '\.py$')
+      changed_files=$(git diff --name-only HEAD~1 HEAD | grep '\.py$')
+      echo "Changed files: $changed_files"
       if [ -n "$changed_files" ]; then
-        echo "Changed files: $changed_files"
         poetry run flake8 $changed_files
       else
         echo "No Python files changed."
       fi
   image: python:3.10
+
 
 # Tests
 python3.10:
