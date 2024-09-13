@@ -423,33 +423,55 @@ def unc_sky_to_polar(
     return uncpmr, uncpmt
 
 
-def pmr_corr(vlos, r, dist):
+def pmr_corr(v0, ev0, a, d, a0, d0, dist):
     """
     Correction on radial proper motion due to apparent contraction/expansion
     of the cluster.
 
     One should perform pmr_new = pmr_old - pmr_corr.
+    Uncertainties should be added quadratically.
+
+    Reference:
+    van der Marel, R. P., Alves, D. R., Hardy, E., & Suntzeff, N. B.
+    2002, AJ, 124, 2639
+    - Equation (13).
 
     Parameters
     ----------
-    vlos : float
-        Line of sight velocity, in km/s.
-    r : array_like, float
-        Projected radius, in degrees.
+    v0: array-like
+        Bulk line-of-sight velocity, in km/s
+    ev0: array-like
+        Uncertainty in Bulk line-of-sight velocity, in km/s
+    a : array_like
+        RA of the source, in degrees.
+    d : array_like
+        Dec of the source, in degrees.
+    a0 : float
+        Bulk RA, in degrees.
+    d0 : float
+        Bulk Dec, in degrees.
     dist: float
         Cluster distance from the Sun, in kpc.
 
     Returns
     -------
-    pmr : array_like, float
+    pmrcorr : array_like, float
         Correction in the radial component of the proper motion, in mas/yr.
+    epmrcorr : array_like, float
+        Uncertainty in the Correction in the radial component of the
+        proper motion, in mas/yr.
 
     """
-    r = r * 60
-    # Equation 4 from Bianchini et al. 2018.
-    pmr = -6.1363 * 1e-5 * vlos * r / dist
 
-    return pmr
+    conv = 4.7405 * dist
+
+    dx, dy = pos_sky_to_cart(a, d, a0, d0)
+    rho = np.sqrt(dx * dx + dy * dy)
+
+    pmrcorr = -conv * v0 * np.sin(rho)
+    epmrcorr = conv * ev0 * np.sin(rho)
+
+    return pmrcorr, epmrcorr
 
 
 def vlos_corr(
@@ -504,8 +526,10 @@ def vlos_corr(
 
     Returns
     -------
-    vlos : array_like, float
+    vcorr : array_like, float
         Correction in the vlos, in km/s.
+    evcorr : array_like, float
+        Uncertainty in the Correction in the vlos, in km/s.
 
     """
 
@@ -519,8 +543,12 @@ def vlos_corr(
     at = mas_to_rad * pma0 / np.cos(d0) + a0
     dt = mas_to_rad * pmd0 + d0
 
-    dxt = np.sin(at - a0) * np.cos(dt)
-    dyt = np.cos(d0) * np.sin(dt) - np.sin(d0) * np.cos(dt) * np.cos(at - a0)
+    dxt, dyt = pos_sky_to_cart(
+        at * (180 / np.pi),
+        dt * (180 / np.pi),
+        a0 * (180 / np.pi),
+        d0 * (180 / np.pi),
+    )
 
     rho = np.sqrt(dx * dx + dy * dy)
     phi = np.arctan2(dy, dx)
