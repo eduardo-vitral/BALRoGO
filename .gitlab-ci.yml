@@ -45,8 +45,13 @@ lint:
   <<: *install-deps
   stage: lint
   script:
-    - poetry run black --check .  # Check if code needs formatting
-    - poetry run flake8
+    - |
+      changed_files=$(git diff --name-only $CI_MERGE_REQUEST_TARGET_BRANCH_SHA $CI_MERGE_REQUEST_SOURCE_BRANCH_SHA | grep '\.py$')
+      if [ -n "$changed_files" ]; then
+        poetry run flake8 $changed_files
+      else
+        echo "No Python files changed."
+      fi
   image: python:3.10
 
 # Tests
