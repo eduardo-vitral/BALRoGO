@@ -54,6 +54,10 @@ python3.11:
   <<: *test
   image: python:3.11
 
+python3.11.9:
+  <<: *test
+  image: python:3.11.9
+
 # Docs
 pages:
   <<: *install-deps
