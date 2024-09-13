@@ -48,6 +48,7 @@ lint:
     - |
       changed_files=$(git diff --name-only $CI_MERGE_REQUEST_TARGET_BRANCH_SHA $CI_MERGE_REQUEST_SOURCE_BRANCH_SHA | grep '\.py$')
       if [ -n "$changed_files" ]; then
+        echo "Changed files: $changed_files"
         poetry run flake8 $changed_files
       else
         echo "No Python files changed."
