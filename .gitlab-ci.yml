@@ -56,13 +56,9 @@ python3.10:
   <<: *test
   image: python:3.10
 
-python3.11:
+python3.12:
   <<: *test
-  image: python:3.11
-
-python3.11.9:
-  <<: *test
-  image: python:3.11.9
+  image: python:3.12
 
 # Docs
 pages:
