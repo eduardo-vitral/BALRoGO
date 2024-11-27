@@ -465,7 +465,7 @@ def pmr_corr(v0, ev0, a, d, a0, d0, dist):
 
     """
 
-    conv = 4.7405 * dist
+    conv = 1 / (4.7405 * dist)
 
     dx, dy = pos_sky_to_cart(a, d, a0, d0)
     rho = np.sqrt(dx * dx + dy * dy)
