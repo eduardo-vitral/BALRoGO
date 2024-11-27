@@ -379,9 +379,7 @@ def unc_sky_to_polar(
     sinda = np.sin(a - a0)
     cosda = np.cos(a - a0)
 
-    dentheta = np.sqrt(
-        cosd**2 * sinda**2 + (cosd0 * sind - cosda * cosd * sind0) ** 2
-    )
+    dentheta = np.sqrt(cosd**2 * sinda**2 + (cosd0 * sind - cosda * cosd * sind0) ** 2)
 
     dvdpma = (cosd0 * sinda * (cosda * cosd * cosd0 + sind * sind0)) / dentheta
     dvdpmd = (
@@ -465,7 +463,7 @@ def pmr_corr(v0, ev0, a, d, a0, d0, dist):
 
     """
 
-    conv = 4.7405 * dist
+    conv = 1 / (4.7405 * dist)
 
     dx, dy = pos_sky_to_cart(a, d, a0, d0)
     rho = np.sqrt(dx * dx + dy * dy)
