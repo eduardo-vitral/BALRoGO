@@ -379,7 +379,9 @@ def unc_sky_to_polar(
     sinda = np.sin(a - a0)
     cosda = np.cos(a - a0)
 
-    dentheta = np.sqrt(cosd**2 * sinda**2 + (cosd0 * sind - cosda * cosd * sind0) ** 2)
+    dentheta = np.sqrt(
+        cosd**2 * sinda**2 + (cosd0 * sind - cosda * cosd * sind0) ** 2
+    )
 
     dvdpma = (cosd0 * sinda * (cosda * cosd * cosd0 + sind * sind0)) / dentheta
     dvdpmd = (
