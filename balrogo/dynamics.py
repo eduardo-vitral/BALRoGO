@@ -80,6 +80,40 @@ def weight_mean(x, dx, w):
     return wmean, dwmean
 
 
+# Numpy implementation
+def weighted_median(x, w):
+    # Sort the values and weights by the values
+    sorted_indices = np.argsort(x)
+    sorted_values = x[sorted_indices]
+    sorted_weights = w[sorted_indices]
+
+    # Compute the cumulative sum of the weights
+    cumsum_weights = np.cumsum(sorted_weights)
+
+    # Find the cutoff for the median
+    cutoff = np.sum(sorted_weights) / 2.0
+
+    # Find the first value where the cumulative weight exceeds or equals the cutoff
+    median_index = np.searchsorted(cumsum_weights, cutoff)
+
+    return sorted_values[median_index]
+
+
+def weighted_std(x, w):
+    """
+    Return the weighted average and standard deviation.
+
+    They weights are in effect first normalized so that they
+    sum to 1 (and so they must not all be 0).
+
+    values, weights -- NumPy ndarrays with the same shape.
+    """
+    average = np.average(x, weights=w)
+    # Fast and numerically precise:
+    variance = np.average((x - average) ** 2, weights=w)
+    return np.sqrt(variance)
+
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # ------------------------------------------------------------------------------
 "Proper motions and conversions"
@@ -380,7 +414,7 @@ def unc_sky_to_polar(
     cosda = np.cos(a - a0)
 
     dentheta = np.sqrt(
-        cosd**2 * sinda**2 + (cosd0 * sind - cosda * cosd * sind0) ** 2
+        cosd**2 * sinda**2 + (cosd0 * sind - cosda * cosd * sind0) ** 2,
     )
 
     dvdpma = (cosd0 * sinda * (cosda * cosd * cosd0 + sind * sind0)) / dentheta
@@ -575,7 +609,7 @@ def vlos_corr(
 # ------------------------------------------------------------------------------
 
 
-def bin_mean1d(x, y, ey, dimy, bins, logx=True, method=None, nsamples=100):
+def bin_mean1d(x, y, ey, dimy, bins, ww=None, logx=True, method=None, nsamples=100):
     """
     Computes the dispersion of y (and its uncertainty) as a function of x.
 
@@ -591,6 +625,9 @@ def bin_mean1d(x, y, ey, dimy, bins, logx=True, method=None, nsamples=100):
         Dimension of y.
     bins : int
         Number of bins.
+    ww : array_like, float, optional.
+        Weights to be applied to data.
+        The default if None.
     logx : boolean, optional
         True if the dispersion is evaluated in a logarithm-spaced grid of x.
         The default is True.
@@ -637,28 +674,34 @@ def bin_mean1d(x, y, ey, dimy, bins, logx=True, method=None, nsamples=100):
                 disp[i, j] = np.sqrt(
                     np.nanstd(y[i][cond]) ** 2 - np.nanmean(ey[i][cond] ** 2)
                 )
-                mean[i, j], err[i, j] = mle_mean(y[i][cond], ey[i][cond], disp[i, j])
+                mean[i, j], err[i, j] = mle_mean(
+                    y[i][cond], ey[i][cond], disp[i, j], ww=ww[i][cond]
+                )
             elif method == "vdv+":
                 n = len(cond)
                 bn = np.sqrt(2 / n) * gamma(n / 2) / gamma((n - 1) / 2)
                 sig_mle = np.nanstd(y[i][cond])
                 esig2_mle = np.nanmean(ey[i][cond] ** 2)
                 disp[i, j] = (1 / bn) * np.sqrt(sig_mle**2 - bn * bn * esig2_mle)
-                mean[i, j], err[i, j] = mle_mean(y[i][cond], ey[i][cond], disp[i, j])
+                mean[i, j], err[i, j] = mle_mean(
+                    y[i][cond], ey[i][cond], disp[i, j], ww=ww[i][cond]
+                )
             elif method == "vdma":
                 samples_disp = np.zeros(nsamples)
                 for k in range(nsamples):
-                    samples_disp[k] = mle_disp(y[i][cond], ey[i][cond])
+                    samples_disp[k] = mle_disp(y[i][cond], ey[i][cond], ww=ww[i][cond])
                 disp[i, j] = np.nanmean(samples_disp)
                 err[i, j] = np.nanstd(samples_disp)
                 disp[i, j], err[i, j] = monte_carlo_bias(
                     y[i][cond],
                     ey[i][cond],
                     disp[i, j],
-                    err[i, j],
                     nsamples,
+                    ww=ww[i][cond],
                 )
-                mean[i, j], err[i, j] = mle_mean(y[i][cond], ey[i][cond], disp[i, j])
+                mean[i, j], err[i, j] = mle_mean(
+                    y[i][cond], ey[i][cond], disp[i, j], ww=ww[i][cond]
+                )
 
     if dimy > 1:
         mean = np.sqrt(np.sum(mean * mean, axis=0)) / np.sqrt(dimy)
@@ -674,6 +717,7 @@ def mean1d(
     y,
     ey,
     dimy,
+    ww=None,
     bins=2,
     smooth=True,
     bootp=True,
@@ -697,6 +741,9 @@ def mean1d(
         Uncertainty on the quantity from which the dispersion is calculated.
     dimy : int
         Dimension of y.
+    ww : array_like, float, optional.
+        Weights to be applied to data.
+        The default if None.
     bins : int
         Number of bins used to bin the data.
         The default is 2.
@@ -742,6 +789,7 @@ def mean1d(
             y,
             ey,
             dimy,
+            ww=ww,
             bins=bins,
             logx=logx,
             method=method,
@@ -811,6 +859,7 @@ def mean(
     x,
     y,
     ey=None,
+    ww=None,
     bins=None,
     smooth=True,
     bootp=False,
@@ -837,6 +886,9 @@ def mean(
     ey : array_like, optional
         Uncertainty on the quantity from which the dispersion is calculated.
         Default is None.
+    ww : array_like, float, optional.
+        Weights to be applied to data.
+        The default if None.
     bins : int, string, optional
         Number of bins or method used to bin the data.
         "moving" stands for a moving grid, later interpolated with a
@@ -901,6 +953,10 @@ def mean(
             ey = np.asarray([np.zeros(len(y))])
         else:
             ey = np.asarray([ey])
+        if ww is None:
+            ww = np.asarray([np.zeros(len(y))])
+        else:
+            ww = np.asarray([ww])
         y = np.asarray([y])
     else:
         y = np.asarray(y)
@@ -908,6 +964,10 @@ def mean(
             ey = np.zeros(np.shape(y))
         else:
             ey = np.asarray(ey)
+        if ww is None:
+            ww = np.zeros(np.shape(y))
+        else:
+            ww = np.asarray(ww)
         dimy = np.shape(y)[0]
 
     if dimx == 1:
@@ -916,6 +976,7 @@ def mean(
             y,
             ey,
             dimy,
+            ww=ww,
             bins=bins,
             smooth=smooth,
             bootp=bootp,
@@ -1065,7 +1126,7 @@ def aux_err(idx, y, ey, dimy, robust_sig, bootp, method=None, nsamples=100):
     return err
 
 
-def bin_montecarlo_1d(x, y, ey, dimy, bins, logx=True, nsamples=100):
+def bin_montecarlo_1d(x, y, ey, dimy, bins, ww=None, logx=True, nsamples=100):
     """
     Computes the dispersion of y (and its uncertainty) as a function of x.
 
@@ -1081,6 +1142,9 @@ def bin_montecarlo_1d(x, y, ey, dimy, bins, logx=True, nsamples=100):
         Dimension of y.
     bins : int
         Number of bins.
+    ww : array_like, float, optional.
+        Weights to be applied to data.
+        The default if None.
     logx : boolean, optional
         True if the dispersion is evaluated in a logarithm-spaced grid of x.
         The default is True.
@@ -1121,15 +1185,15 @@ def bin_montecarlo_1d(x, y, ey, dimy, bins, logx=True, nsamples=100):
 
             samples_disp = np.zeros(nsamples)
             for k in range(nsamples):
-                samples_disp[k] = mle_disp(y[i][cond], ey[i][cond])
+                samples_disp[k] = mle_disp(y[i][cond], ey[i][cond], ww=ww[i][cond])
             disp[i, j] = np.nanmean(samples_disp)
             err[i, j] = np.nanstd(samples_disp)
             disp[i, j], err[i, j] = monte_carlo_bias(
                 y[i][cond],
                 ey[i][cond],
                 disp[i, j],
-                err[i, j],
                 nsamples,
+                ww=ww[i][cond],
             )
 
     disp = np.sqrt(np.sum(disp * disp, axis=0)) / np.sqrt(dimy)
@@ -1606,6 +1670,7 @@ def disp1d(
     y,
     ey,
     dimy,
+    ww=None,
     bins="percentile",
     smooth=True,
     bootp=True,
@@ -1629,6 +1694,9 @@ def disp1d(
         Uncertainty on the quantity from which the dispersion is calculated.
     dimy : int
         Dimension of y.
+    ww : array_like, float, optional.
+        Weights to be applied to data.
+        The default if None.
     bins : int, string, optional
         Number of bins or method used to bin the data.
         "moving" stands for a moving grid, later interpolated with a
@@ -1673,7 +1741,14 @@ def disp1d(
     if isinstance(bins, int) is True:
         if method == "vdma":
             r, disp, err = bin_montecarlo_1d(
-                x, y, ey, dimy, bins=bins, logx=logx, nsamples=nsamples
+                x,
+                y,
+                ey,
+                dimy,
+                bins=bins,
+                logx=logx,
+                nsamples=nsamples,
+                ww=ww,
             )
         else:
             r, disp, err = bin_disp1d(
@@ -2025,6 +2100,7 @@ def dispersion(
     x,
     y,
     ey=None,
+    ww=None,
     bins=None,
     smooth=True,
     bootp=False,
@@ -2051,6 +2127,9 @@ def dispersion(
     ey : array_like, optional
         Uncertainty on the quantity from which the dispersion is calculated.
         Default is None.
+    ww : array_like, float, optional.
+        Weights to be applied to data.
+        The default if None.
     bins : int, string, optional
         Number of bins or method used to bin the data.
         "moving" stands for a moving grid, later interpolated with a
@@ -2121,6 +2200,10 @@ def dispersion(
             ey = np.asarray([np.zeros(len(y))])
         else:
             ey = np.asarray([ey])
+        if ww is None:
+            ww = np.asarray([np.ones(len(y))])
+        else:
+            ww = np.asarray([ww])
         y = np.asarray([y])
     else:
         y = np.asarray(y)
@@ -2128,6 +2211,10 @@ def dispersion(
             ey = np.zeros(np.shape(y))
         else:
             ey = np.asarray(ey)
+        if ww is None:
+            ww = np.zeros(np.shape(y))
+        else:
+            ww = np.asarray(ww)
         dimy = np.shape(y)[0]
 
     if dimx == 1:
@@ -2136,6 +2223,7 @@ def dispersion(
             y,
             ey,
             dimy,
+            ww=ww,
             bins=bins,
             smooth=smooth,
             bootp=bootp,
@@ -2304,7 +2392,7 @@ def lgaussian(x, mu, sig):
     return lg
 
 
-def likelihood_1gauss1d(params, Ux, ex):
+def likelihood_1gauss1d(params, Ux, ex, ww=None):
     """
     Computes minus the likelihood of one Gaussian.
     Follows the recipe from van der Marel & Anderson, 2010.
@@ -2317,6 +2405,9 @@ def likelihood_1gauss1d(params, Ux, ex):
         Array containting the data to be fitted, in x-direction.
     ex : array_like
         Data uncertainty in x-direction.
+    ww : array_like, float
+        Weights to be applied to data, optional.
+        Default if None.
 
     Returns
     -------
@@ -2324,12 +2415,15 @@ def likelihood_1gauss1d(params, Ux, ex):
         minus the logarithm of the likelihood function.
     """
 
+    if ww is None:
+        ww = np.ones_like(Ux)
+
     sig = params[0]  # dispersion from galactic object
 
     sig = np.sqrt(sig * sig + ex * ex)
 
-    s1 = np.sum(1 / (sig * sig))
-    s2 = np.sum(Ux / (sig * sig))
+    s1 = np.sum(ww / (sig * sig))
+    s2 = np.sum(Ux * ww / (sig * sig))
 
     mu = s2 / s1
 
@@ -2338,12 +2432,12 @@ def likelihood_1gauss1d(params, Ux, ex):
 
     # Calculates the likelihood, taking out NaN's
     f_i = f_i[np.logical_not(np.isnan(f_i))]
-    L = -np.sum(f_i)
+    L = -np.sum(f_i * ww)
 
     return L
 
 
-def mle_mean(x, ex, sig):
+def mle_mean(x, ex, sig, ww=None):
     """
     Performs a Gaussian maximum likelihood estimation of the mean.
     Follows the recipe from van der Marel & Anderson, 2010.
@@ -2354,6 +2448,9 @@ def mle_mean(x, ex, sig):
         Random variable.
     ex : array_like, float
         Random variable errors.
+    ww : array_like, float
+        Weights to be applied to data, optional.
+        Default if None.
 
     Returns
     -------
@@ -2363,10 +2460,13 @@ def mle_mean(x, ex, sig):
         Error on the mean.
     """
 
+    if ww is None:
+        ww = np.ones_like(x)
+
     sig = np.sqrt(sig * sig + ex * ex)
 
-    s1 = np.sum(1 / (sig * sig))
-    s2 = np.sum(x / (sig * sig))
+    s1 = np.sum(ww / (sig * sig))
+    s2 = np.sum(x * ww / (sig * sig))
 
     mu = s2 / s1
     emu = 1 / np.sqrt(s1)
@@ -2374,7 +2474,7 @@ def mle_mean(x, ex, sig):
     return mu, emu
 
 
-def mle_disp(x, ex):
+def mle_disp(x, ex, ww=None):
     """
     Performs a Gaussian maximum likelihood estimation of the dispersion.
     Follows the recipe from van der Marel & Anderson, 2010.
@@ -2385,6 +2485,9 @@ def mle_disp(x, ex):
         Random variable.
     ex : array_like, float
         Random variable errors.
+    ww : array_like, float
+        Weights to be applied to data, optional.
+        Default if None.
 
     Returns
     -------
@@ -2392,8 +2495,11 @@ def mle_disp(x, ex):
         Dispersion.
     """
 
+    if ww is None:
+        ww = np.ones_like(x)
+
     # Gets the initial guess of the parameters
-    ini = np.asarray([np.nanmedian(x), np.nanstd(x)])
+    ini = np.asarray([weighted_median(x, ww), weighted_std(x, ww)])
 
     bounds = [
         (0.5 * ini[1], 2 * ini[1]),
@@ -2405,14 +2511,17 @@ def mle_disp(x, ex):
 
     x = x[idx_x]
     ex = ex[idx_x]
+    ww = ww[idx_x]
 
-    mle_model = differential_evolution(lambda c: likelihood_1gauss1d(c, x, ex), bounds)
+    mle_model = differential_evolution(
+        lambda c: likelihood_1gauss1d(c, x, ex, ww=ww), bounds
+    )
     results = mle_model.x[0]
 
     return results
 
 
-def monte_carlo_bias(x, ex, sig_mle, esig_mle, nsamples):
+def monte_carlo_bias(x, ex, sig_mle, nsamples, ww=None):
     """
     Performs a Monte Carlo correction of the velocity dispersion.
     Follows the recipe from van der Marel & Anderson, 2010.
@@ -2425,10 +2534,11 @@ def monte_carlo_bias(x, ex, sig_mle, esig_mle, nsamples):
         Random variable errors.
     sig_mle : float
         Dispersion obtained from the MLE.
-    esig_mle : float
-        Dispersion error obtained from the MLE.
     nsamples : int
         Number of samples in the Monte Carlo routine.
+    ww : array_like, float, optional.
+        Weights to be applied to data.
+        The default if None.
 
     Returns
     -------
@@ -2436,10 +2546,13 @@ def monte_carlo_bias(x, ex, sig_mle, esig_mle, nsamples):
         Corrected dispersion and respective error.
     """
 
+    if ww is None:
+        ww = np.ones_like(x)
+
     sig = np.sqrt(sig_mle * sig_mle + ex * ex)
 
-    s1 = np.sum(1 / (sig * sig))
-    s2 = np.sum(x / (sig * sig))
+    s1 = np.sum(ww / (sig * sig))
+    s2 = np.sum(x * ww / (sig * sig))
 
     mu = s2 / s1
 
@@ -2452,7 +2565,7 @@ def monte_carlo_bias(x, ex, sig_mle, esig_mle, nsamples):
         sample = np.random.normal(mu, sig)
 
         # get mean and dispersion of Monte Carlo samples
-        sample_sig[k] = mle_disp(sample, ex)
+        sample_sig[k] = mle_disp(sample, ex, ww=ww)
 
     # ratio of average dispersion in Monte Carlo samples to input dispersion
     ratio = np.nanmean(sample_sig) / sig_mle
