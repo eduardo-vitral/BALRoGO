@@ -184,7 +184,7 @@ def inside_contour(x, y, contours, idx=None, idx_level=0):
     lcontours = list()
     inside = list()
 
-    p = contours.collections[0].get_paths()
+    p = contours.get_paths()
     npoly = len(p)
     for i in range(0, npoly):
         v = p[i].vertices
