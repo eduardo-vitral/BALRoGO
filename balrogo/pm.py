@@ -1197,16 +1197,18 @@ def clump_fraction(mean, sigma, x_axis, y_axis):
     index_right = np.argmin(np.abs(-x_axis + mean[0] + 3 * sigma[0]))
 
     # Flux of stars belonging to the clump 0
-    flux1 = integrate.simps(
-        y_axis[index_left:index_right], x_axis[index_left:index_right]
+    flux1 = integrate.simpson(
+        y_axis[index_left:index_right],
+        x=x_axis[index_left:index_right],
     )
 
     index_left = np.argmin(np.abs(-x_axis + mean[1] - 3 * sigma[1]))
     index_right = np.argmin(np.abs(-x_axis + mean[1] + 3 * sigma[1]))
 
     # Flux of stars belonging to the clump 1
-    flux2 = integrate.simps(
-        y_axis[index_left:index_right], x_axis[index_left:index_right]
+    flux2 = integrate.simpson(
+        y_axis[index_left:index_right],
+        x=x_axis[index_left:index_right],
     )
 
     return np.asarray([flux1 / (flux1 + flux2), flux2 / (flux1 + flux2)])
