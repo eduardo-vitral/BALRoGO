@@ -88,7 +88,7 @@ def corner(
 
     range : float(ndim,2)
         Array containing the ranges to be used in the plots.
-        
+
     bins_number : float(ndim)
         Array containing the number of bins to be used in the plots.
 
