@@ -42,6 +42,7 @@ def dgauss(x, mu, sig, A):
 def corner(
     xs,
     range=None,
+    bins_number=None,
     weights=None,
     colormain="tab:blue",
     colorbackgd=(250 / 255, 245 / 255, 228 / 255),
@@ -87,6 +88,9 @@ def corner(
 
     range : float(ndim,2)
         Array containing the ranges to be used in the plots.
+        
+    bins_number : float(ndim)
+        Array containing the number of bins to be used in the plots.
 
     weights : array_like[nsamples,]
         The weight of each sample. If `None` (default), samples are given
@@ -249,7 +253,10 @@ def corner(
         raise ValueError("Dimension mismatch between samples and range")
 
     # Parse the bin specifications.
-    bins = np.zeros(len(range)).astype(int)
+    if bins_number is None:
+        bins = np.zeros(len(range)).astype(int)
+    else:
+        bins = np.copy(bins_number).astype(int)
 
     # Define labels size
     n_params = len(range)
@@ -315,10 +322,11 @@ def corner(
             ax = axes[i, i]
         # Plot the histograms.
 
-        # Define the bin quantity for each histogram
-        q_16, q_50, q_84 = quantile(x, [0.16, 0.5, 0.84], weights=weights)
-        q_m, q_p = q_50 - q_16, q_84 - q_50
-        bins[i] = int((np.amax(range[i]) - np.amin(range[i])) / (min(q_m, q_p) / 4))
+        if bins_number is None:
+            # Define the bin quantity for each histogram
+            q_16, q_50, q_84 = quantile(x, [0.16, 0.5, 0.84], weights=weights)
+            q_m, q_p = q_50 - q_16, q_84 - q_50
+            bins[i] = int((np.amax(range[i]) - np.amin(range[i])) / (min(q_m, q_p) / 4))
 
         if smooth1d is False:
             n, b, p = ax.hist(
