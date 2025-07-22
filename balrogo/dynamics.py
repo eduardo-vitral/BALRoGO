@@ -159,6 +159,50 @@ def pos_sky_to_cart(
     return dx, dy
 
 
+def pos_cart_to_sky(
+    dx,
+    dy,
+    a0,
+    d0,
+):
+    """
+    Transforms cartesian projected positions in sky ones.
+
+    Parameters
+    ----------
+    dx : array_like
+        x coordinate of the source, in radians.
+    dy : array_like
+        y coordinate of the source, in radians.
+    a0 : float
+        Bulk RA, in radians.
+    d0 : float
+        Bulk Dec, in radians.
+
+    Returns
+    -------
+    a : array_like
+        Right ascention in degrees.
+    d : array_like
+        Declination in degrees.
+    """
+
+    dr = np.arcsin(np.sqrt(dx**2 + dy**2))
+    dp = np.arctan2(dx, dy)
+
+    a, d = angle.polar_to_sky(
+        dr,
+        dp,
+        a0,
+        d0,
+    )
+
+    a = np.copy(a) * 180 / np.pi
+    d = np.copy(d) * 180 / np.pi
+
+    return a, d
+
+
 def v_sky_to_cart(
     a,
     d,
