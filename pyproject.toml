@@ -13,7 +13,7 @@ numpy = "^1.21"
 matplotlib = "^3.5.0"
 astropy = "^5.0"
 scipy = "^1.8.0"
-shapely = "^1.8.0"
+shapely = "^2"
 emcee = "^3.1.1"
 numdifftools = "^0.9.39"
 
