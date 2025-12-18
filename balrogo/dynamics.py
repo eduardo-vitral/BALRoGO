@@ -21,20 +21,22 @@ from . import position
 from . import angle
 
 import numpy as np
-import operator
 from scipy.spatial import ConvexHull
 from scipy.interpolate import griddata
-from scipy.special import gamma
+from scipy.special import gamma, erf, erfc, erfcx, log_ndtr
+from scipy.optimize import differential_evolution, curve_fit
+from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 from functools import partial
-from scipy.optimize import curve_fit
 import uncertainties.unumpy as unp
 import uncertainties as unc
 import numdifftools as ndt
-from scipy.optimize import differential_evolution
 import emcee
 from multiprocessing import Pool
 from multiprocessing import cpu_count
+import warnings
+import operator
+import time
 
 ncpu = cpu_count()
 
@@ -642,6 +644,1141 @@ def vlos_corr(
     )
 
     return vcorr, evcorr
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ------------------------------------------------------------------------------
+"Higher order moment functions"
+# ------------------------------------------------------------------------------
+
+
+def log1mexp(x):
+    """log(1 - exp(-x)).
+
+    Taken from pymc3.math
+
+    This function is numerically more stable than the naive approach.
+    For details, see
+    https://cran.r-project.org/web/packages/Rmpfr/vignettes/log1mexp-note.pdf
+    """
+    with np.errstate(divide="ignore"):
+        return np.where(
+            x < 0.683,
+            np.log(-np.expm1(-x)),
+            np.log1p(-np.exp(-x)),
+        )
+
+
+def logdiffexp(a, b):
+    """log(exp(a) - exp(b))"""
+    return a + log1mexp(a - b)
+
+
+def alpha(y):
+    return np.exp(-(y**2) / 2.0) / np.sqrt(2.0 * np.pi)
+
+
+def lnalpha(y):
+    return -(y**2) / 2.0 - 0.5 * np.log(2.0 * np.pi)
+
+
+def lnerfc(x):
+    """ln erfc(x) = ln (1-erf(x)) = ln sqrt{2/pi}int_x^infty e^{-t^2} dt
+
+    For positive arguments we use the identity
+    ln erfc(x) = ln erfcx(x)-x^2
+
+    """
+    return (x > 0.0) * (np.log(erfcx(np.abs(x))) - x**2) + (x <= 0.0) * np.log(
+        erfc(-np.abs(x))
+    )
+
+
+def lnerfcx(x, LOWERLIM=1e-300):
+    """ln erfcx(x) = ln (exp(x^2)erfc(x))
+
+    For negative arguments we use the identity
+    ln erfcx(x) = ln erfc(x)+x^2
+
+    """
+    return (x < 0.0) * (np.log(erfc(-np.abs(x)) + LOWERLIM) + x**2) + (
+        x >= 0.0
+    ) * np.log(erfcx(np.abs(x)))
+
+
+# ==============================================================================
+#
+# Negative kurtosis family of models
+# ----------------------------------
+# These models are formed from the convolution of a Gaussian with a uniform
+# kernel. To introduce skewness, the uniform kernel has a different
+# width/height on either side of the axis
+#
+# K(y) = 1/(2a_+) for 0<y<a_+; 1/(2a_-) for -a_-<y<=0
+#
+# See Section 4.1 of Sanders & Evans (2020) for more details
+#
+# ==============================================================================
+
+
+def _uniform_kernel_parameters(h3, h4):
+    """
+    Converts the Gauss-Hermite coefficients (h3, h4) for uniform kernel model
+    into the corresponding (a,Delta,b,w_0) as outlined in Table 1 of
+    Sanders & Evans (2020)
+
+    Parameters
+    ----------
+    h3 : array_like
+        3rd GH coefficient
+    h4 : array_like
+        4th GH coefficient
+
+    Returns
+    -------
+    (a, delta, b, w0) : tuple of array_like
+        Parameters of pdf, width a, skewness Delta (note here capital Delta),
+        variance scale b, mean scale w_0.
+    """
+
+    if np.any(h4 > 0):
+        warnings.warn(
+            "h4<0 passed to _uniform_kernel_parameters "
+            "-- implicitly converting to -|h4|"
+        )
+
+    h40 = -0.187777
+    if np.any(h4 < h40):
+        warnings.warn(
+            "h4<-0.187777 passed to _uniform_kernel_parameters "
+            "-- limiting value of h4 is -0.187777, will return nan"
+        )
+
+    delta_h3 = 0.82
+    delta_h4 = 4.3
+    kinf = 1.3999852768764105
+    k0 = np.sqrt(3.0)
+    scl_a = 2.0
+    scl = 3.3
+
+    h4_3 = np.abs(h4 / (h3 + 1e-20)) / (-h40)
+    delta = (
+        np.sign(h3)
+        * (-delta_h3 * h4_3 + np.sqrt((delta_h3 * h4_3) ** 2 + 4 * delta_h4))
+        / (2 * delta_h4)
+    )
+
+    # The following assumes the index i = 4 in Table 1 from Sanders & Evans 20
+    a = scl_a / np.sqrt(
+        np.sqrt((1 - delta_h4 * delta**2) * np.abs(h40 / (h4 + 1e-20))) - 1
+    )
+    kinf = kinf * np.sqrt(1 + delta**2 + 3 * delta**4)
+    delta *= a
+    b = np.sqrt(1.0 + a**2 / (k0 - (k0 - kinf) * np.tanh(a / scl)) ** 2)
+    w0 = (-(delta / 2.0) + (delta / 3.0) * np.tanh(a / scl)) / b
+
+    return a, delta, b, w0
+
+
+def uniform_kernel_pdf(x, err, mean, sigma, h3, h4):
+    """
+
+    Probability density function for the uniform kernel
+    model from Sanders & Evans (2020)
+
+    f_{sigma_e}(x) = f_s(w)/sigma
+
+    where w = (x-mean)/sigma, s = sigma_e/sigma
+
+    f_s(w) = b/(2a_+a_-)(
+        a_+ Phi((bw'+a_-)/t) - a_- Phi((bw'-a_+)/t)
+        -2 Delta Phi(bw'/t))
+
+    see equation (38) of Sanders & Evans (2020)
+
+    Phi(x) is the cumulative of the unit normal.
+
+    The parameters of the model (a, delta, b, w_0) are
+    chosen such that h_1~h_2~0 and reproduce the required
+    h_3, h_4. See Table 1 of Sanders & Evans (2020). The
+    transformations are computed by
+    _uniform_kernel_parameters. These models are only valid
+    if h4<0. If h4>0 is passed, the code will use -h4 and give
+    a warning.
+
+    w' = w-w_0
+    t = 1 + b^2 s^2
+    a_pm = a pm delta
+
+    Parameters
+    ----------
+    x : array_like
+        input coordinate (velocity)
+    err : array_like
+        input coordinate uncertainties
+    mean : array_like
+        mean velocity
+    sigma : array_like
+        dispersion parameter (not standard deviation)
+    h3 : array_like
+        3rd Gauss-Hermite coefficient
+    h4 : array_like
+        4th Gauss-Hermite coefficient
+
+    Returns
+    -------
+    pdf: array_like
+        probability density function
+
+    """
+    w = (x - mean) / sigma
+    werr = err / sigma
+
+    a, delta, b, w0 = _uniform_kernel_parameters(h3, h4)
+    t = np.sqrt(1.0 + b * b * werr * werr)
+
+    am, ap = a - delta, a + delta
+    it = 1.0 / (np.sqrt(2.0) * t)
+    bw = b * (w - w0)
+    if type(delta) is not np.ndarray:
+        if delta == 0:
+            pdf = (
+                0.25
+                * b
+                / a
+                * (
+                    erf(
+                        (a - bw) * it,
+                    )
+                    + erf(
+                        (a + bw) * it,
+                    )
+                )
+                / sigma
+            )
+            return pdf
+    pdf = (
+        0.25
+        * b
+        * (
+            am * erf((ap - bw) * it)
+            + ap * erf((am + bw) * it)
+            - 2 * delta * erf(bw * it)
+        )
+        / (ap * am)
+        / sigma
+    )
+
+    return pdf
+
+
+def ln_uniform_kernel_pdf(x, err, mean, sigma, h3, h4):
+    """
+
+    Natural logarithm of the probability density function
+    for the uniform kernel model from Sanders &
+    Evans (2020). Full details are given in
+    uniform_kernel_pdf. This function is optimized for
+    numerical stability to avoid under/overflow (see
+    Appendix E of Sanders & Evans, 2020)
+
+    Parameters
+    ----------
+    x : array_like
+        input coordinate (velocity)
+    err : array_like
+        input coordinate uncertainties
+    mean : array_like
+        mean velocity
+    sigma : array_like
+        dispersion parameter (not standard deviation)
+    h3 : array_like
+        3rd Gauss-Hermite coefficient
+    h4 : array_like
+        4th Gauss-Hermite coefficient
+
+    Returns
+    -------
+    ln_pdf: array_like
+        probability density function
+
+    """
+
+    w = (x - mean) / sigma
+    werr = err / sigma
+
+    a, delta, b, w0 = _uniform_kernel_parameters(h3, h4)
+    t = np.sqrt(1.0 + b * b * werr * werr)
+
+    am, ap = a - delta, a + delta
+    it = 1.0 / t
+    bw = b * (w - w0)
+
+    if type(delta) is not np.ndarray:
+        if delta == 0.0:
+            ln_pdf = np.log(0.5 * b / a) + np.where(
+                (b * w + a) * it < 0.0,
+                logdiffexp(log_ndtr((bw + a) * it), log_ndtr((bw - a) * it)),
+                logdiffexp(log_ndtr(-(bw - a) * it), log_ndtr(-(bw + a) * it)),
+            )
+            ln_pdf -= np.log(sigma)
+
+            return ln_pdf
+
+    ln_pdf = np.log(0.5 * b / (ap * am)) + np.logaddexp(
+        np.log(am)
+        + np.where(
+            (ap - bw) * it < 0.0,
+            logdiffexp(log_ndtr((ap - bw) * it), log_ndtr(-bw * it)),
+            logdiffexp(log_ndtr(bw * it), log_ndtr(-(ap - bw) * it)),
+        ),
+        np.log(ap)
+        + np.where(
+            (bw + am) * it < 0.0,
+            logdiffexp(log_ndtr((am + bw) * it), log_ndtr(bw * it)),
+            logdiffexp(log_ndtr(-bw * it), log_ndtr(-(am + bw) * it)),
+        ),
+    )
+    ln_pdf -= np.log(sigma)
+
+    return ln_pdf
+
+
+def uniform_kernel_variance_kurtosis(sigma, h3, h4):
+    """
+    Evaluate the variance and excess kurtosis of the
+    uniform kernel model from Sanders & Evans (2020).
+    See Table D2 of Sanders & Evans (2020) for more
+    information.
+
+    Parameters
+    ----------
+    sigma : array_like
+        Dispersion parameter.
+    h3 : array_like
+        3rd Gauss-Hermite coefficient.
+    h4 : array_like
+        4th Gauss-Hermite coefficient.
+
+    Returns
+    -------
+     res : tuple of array_like
+         (variance, excess kurtosis) of uniform kernel
+         model.
+
+    """
+
+    a, delta, b, w0 = _uniform_kernel_parameters(h3, h4)
+    variance = (1.0 + a * a / 3.0 + delta**2 / 12.0) / b / b * sigma**2
+    kurtosis = (
+        -1.0
+        / 120.0
+        * (16.0 * a**4 - 4 * a**2 * delta**2 + delta**4)
+        / (1.0 + a * a / 3.0 + delta**2 / 12.0) ** 2
+    )
+
+    return variance, kurtosis
+
+
+# ==============================================================================
+#
+# Positive kurtosis family of models
+# ----------------------------------
+# These models are formed from the convolution of a Gaussian with a Laplace
+# kernel. To introduce skewness, the Laplace kernel has a different width
+# on either side of the axis.
+#
+# K(y) = exp(-y/a_+)/(2a_+) for y>=0; exp(y/a_-) for y<0
+#
+# See Section 4.2 of Sanders & Evans (2020) for more details
+#
+# ==============================================================================
+
+
+def _laplace_kernel_parameters(h3, h4):
+    """
+    Converts the Gauss-Hermite coefficients (h3, h4) into the corresponding
+    (a,Delta,b,w_0) for Laplace kernel model as outlined in Table 1 of
+    Sanders & Evans (2020)
+
+    Parameters
+    ----------
+    h3 : array_like
+        3rd GH coefficient
+    h4 : array_like
+        4th GH coefficient
+
+    Returns
+    -------
+    (a, delta, b, w0) : tuple of array_like
+        Parameters of pdf, width a, skewness Delta (note here capital Delta),
+        variance scale b, mean scale w_0.
+    """
+
+    if np.any(h4 < 0):
+        warnings.warn(
+            "h4>0 passed to _laplace_kernel_parameters "
+            "-- implicitly converting to -|h4|"
+        )
+
+    h40 = 0.145461
+    if np.any(h4 > h40):
+        warnings.warn(
+            "h4>0.145461 passed to _laplace_kernel_parameters "
+            "-- limiting value of h4 is 0.145461, will return nan"
+        )
+
+    delta_h4 = 2.0
+    delta_h3 = 0.37
+    scl = 2.25
+    scl_a = 1.6
+    scl_a3 = 1.1
+    k0 = 1.0 / np.sqrt(2.0)
+    kinf = 1.0806510105505178
+
+    acoeff = delta_h4 * h40 / (np.abs(h4 + 1e-10))
+    bcoeff = -delta_h3 / np.abs(h3 + 1e-10) * (scl_a / scl_a3) ** 2
+    ccoeff = h40 / np.abs(h4 + 1e-10) - 1 + (scl_a / scl_a3) ** 2
+    delta = (
+        np.sign(h3)
+        * (-bcoeff - np.sqrt(bcoeff**2 - 4 * acoeff * ccoeff))
+        / (2 * acoeff)
+    )
+    a = scl_a / np.sqrt(
+        h40 * (1 + delta_h4 * delta**2) / np.abs(h4 + 1e-10) - 1,
+    )
+
+    kinf = kinf * np.sqrt(1 + 3 * delta**2)
+    b = np.sqrt(1.0 + a**2 / (k0 - (k0 - kinf) * np.tanh(a / scl)) ** 2)
+    delta *= a
+    w0 = (-delta + (8.0 * delta / 7.0) * np.tanh(5.0 * a / scl / 4.0)) / b
+
+    return a, delta, b, w0
+
+
+def laplace_kernel_pdf(x, err, mean, sigma, h3, h4):
+    """
+    Probability density function for the Laplace kernel
+    model from Sanders & Evans (2020).
+
+    This implementation follows Eq. (41) of Sanders & Evans (2020)
+    and supports vectorized evaluation on 1D or broadcasted 2D grids.
+
+    Parameters
+    ----------
+    x : array_like
+        Input coordinate (velocity).
+    err : array_like
+        Input coordinate uncertainties.
+    mean : float
+        Mean velocity.
+    sigma : float
+        Dispersion parameter (not standard deviation).
+    h3 : float
+        3rd Gauss–Hermite coefficient.
+    h4 : float
+        4th Gauss–Hermite coefficient.
+
+    Returns
+    -------
+    pdf : array_like
+        Probability density function evaluated at `x`.
+    """
+
+    # ------------------------------------------------------------------
+    # Dimensionless variables
+    # ------------------------------------------------------------------
+    w = (x - mean) / sigma
+    werr = err / sigma
+
+    # Kernel parameters from Sanders & Evans (2020)
+    a, delta, b, mean_w = _laplace_kernel_parameters(h3, h4)
+    t = np.sqrt(1.0 + b * b * werr * werr)
+    ap = a + delta
+    am = a - delta
+
+    # ==================================================================
+    # Positive branch: a_+
+    # ==================================================================
+    argU = t * t - 2.0 * ap * b * (w - mean_w)
+
+    # IMPORTANT FIX:
+    # Allocate arrays with the same shape as argU (not x),
+    # because argU is what defines the boolean masks.
+    positive_term = np.zeros_like(argU)
+
+    # ---- argU < 0 -----------------------------------------------------
+    prefactor = b / (4.0 * ap)
+    mask = argU < 0.0
+    positive_term[mask] = (
+        prefactor
+        * np.exp((argU / (2.0 * ap**2))[mask])
+        * erfc(((t * t - ap * b * (w - mean_w)) / (np.sqrt(2.0) * t * ap))[mask])
+    )
+
+    # ---- argU > 0 -----------------------------------------------------
+    prefactor = b / ap
+    mask = argU > 0.0
+    positive_term[mask] = (
+        np.sqrt(np.pi / 8.0)
+        * prefactor
+        * alpha((b * (w - mean_w) / t)[mask])
+        * erfcx(((t * t - ap * b * (w - mean_w)) / (np.sqrt(2.0) * t * ap))[mask])
+    )
+
+    # ==================================================================
+    # Negative branch: a_-
+    # ==================================================================
+    argU = t * t + 2.0 * am * b * (w - mean_w)
+
+    # IMPORTANT FIX:
+    # Same shape discipline as for positive_term.
+    negative_term = np.zeros_like(argU)
+
+    # ---- argU < 0 -----------------------------------------------------
+    prefactor = b / (4.0 * am)
+    mask = argU < 0.0
+    negative_term[mask] = (
+        prefactor
+        * np.exp((argU / (2.0 * am**2))[mask])
+        * erfc(((t * t + am * b * (w - mean_w)) / (np.sqrt(2.0) * t * am))[mask])
+    )
+
+    # ---- argU > 0 -----------------------------------------------------
+    prefactor = b / am
+    mask = argU > 0.0
+    negative_term[mask] = (
+        np.sqrt(np.pi / 8.0)
+        * prefactor
+        * alpha((b * (w - mean_w) / t)[mask])
+        * erfcx(((t * t + am * b * (w - mean_w)) / (np.sqrt(2.0) * t * am))[mask])
+    )
+
+    # ------------------------------------------------------------------
+    # Final PDF (Eq. 41, divided by sigma)
+    # ------------------------------------------------------------------
+    pdf = (positive_term + negative_term) / sigma
+
+    return pdf
+
+
+def ln_laplace_kernel_pdf(x, err, mean, sigma, h3, h4):
+    """
+
+    Natural logarithm of the probability density function
+    for the Laplace kernel model from Sanders &
+    Evans (2020). Full details are given in
+    laplace_kernel_pdf. This function is optimized for
+    numerical stability to avoid under/overflow (see
+    Appendix E of Sanders & Evans, 2020)
+
+    Parameters
+    ----------
+    x : array_like
+        input coordinate (velocity)
+    err : array_like
+        input coordinate uncertainties
+    mean : array_like
+        mean velocity
+    sigma : array_like
+        dispersion parameter (not standard deviation)
+    h3 : array_like
+        3rd Gauss-Hermite coefficient
+    h4 : array_like
+        4th Gauss-Hermite coefficient
+
+    Returns
+    -------
+    ln_pdf: array_like
+        probability density function
+
+    """
+    w = (x - mean) / sigma
+    werr = err / sigma
+    a, delta, b, mean_w = _laplace_kernel_parameters(h3, h4)
+    t = np.sqrt(1.0 + b * b * werr * werr)
+
+    ap = a + delta
+    am = a - delta
+
+    argU = t * t - 2 * ap * b * (w - mean_w)
+    positive_term = np.zeros_like(x)
+
+    prefactor = np.log(b / (4.0 * ap))
+    if type(h4) is np.ndarray:
+        prefactor = prefactor[argU < 0.0]
+    positive_term[argU < 0.0] = (
+        prefactor
+        + (argU / 2.0 / ap**2)[argU < 0.0]
+        + lnerfc(
+            (
+                (t * t - ap * b * (w - mean_w))
+                / np.sqrt(
+                    2,
+                )
+                / t
+                / ap
+            )[argU < 0.0]
+        )
+    )
+
+    prefactor = np.log(b / ap)
+    if type(h4) is np.ndarray:
+        prefactor = prefactor[argU > 0.0]
+    positive_term[argU > 0.0] = (
+        0.5 * np.log(np.pi / 8.0)
+        + prefactor
+        + lnalpha((b * (w - mean_w) / t)[argU > 0.0])
+        + lnerfcx(
+            (
+                (t * t - ap * b * (w - mean_w))
+                / np.sqrt(
+                    2,
+                )
+                / t
+                / ap
+            )[argU > 0.0]
+        )
+    )
+
+    argU = t * t + 2 * am * b * (w - mean_w)
+    negative_term = np.zeros_like(x)
+
+    prefactor = np.log(b / (4.0 * am))
+    if type(h4) is np.ndarray:
+        prefactor = prefactor[argU < 0.0]
+    negative_term[argU < 0.0] = (
+        prefactor
+        + (argU / 2.0 / am**2)[argU < 0.0]
+        + lnerfc(
+            (
+                (t * t + am * b * (w - mean_w))
+                / np.sqrt(
+                    2,
+                )
+                / t
+                / am
+            )[argU < 0.0]
+        )
+    )
+    prefactor = np.log(b / am)
+    if type(h4) is np.ndarray:
+        prefactor = prefactor[argU > 0.0]
+    negative_term[argU > 0.0] = (
+        0.5 * np.log(np.pi / 8.0)
+        + prefactor
+        + lnalpha((b * (w - mean_w) / t)[argU > 0.0])
+        + lnerfcx(
+            (
+                (t * t + am * b * (w - mean_w))
+                / np.sqrt(
+                    2,
+                )
+                / t
+                / am
+            )[argU > 0.0]
+        )
+    )
+
+    ln_pdf = np.logaddexp(positive_term, negative_term) - np.log(sigma)
+
+    return ln_pdf
+
+
+def laplace_kernel_variance_kurtosis(sigma, h3, h4):
+    """
+    Evaluate the variance and excess kurtosis of the
+    Laplace kernel model from Sanders & Evans (2020).
+    See Table D2 of Sanders & Evans (2020) for more
+    information.
+
+    Parameters
+    ----------
+    sigma : array_like
+        Dispersion parameter.
+    h3 : array_like
+        3rd Gauss-Hermite coefficient.
+    h4 : array_like
+        4th Gauss-Hermite coefficient.
+
+    Returns
+    -------
+     res : tuple of array_like
+         (variance, excess kurtosis) of Laplace kernel
+         model.
+
+    """
+
+    a, delta, b, w0 = _laplace_kernel_parameters(h3, h4)
+    variance = (1.0 + a * a * 2 + delta**2) / b / b * sigma**2
+    kurtosis = (
+        6
+        * (2 * a**4 + 12 * a**2 * delta**2 + delta**4)
+        / (1.0 + a * a * 2 + delta**2) ** 2
+    )
+    res = variance, kurtosis
+
+    return res
+
+
+def mom_likelihood_func(params, x, ex, ww=None, mode="lnlik"):
+    """
+    Compute the negative log-likelihood for a Gauss–Hermite–based
+    moment model with noise convolution.
+
+    The model describes the intrinsic distribution using a
+    Gauss–Hermite expansion parameterized by (mean, sigma, h3, h4),
+    convolved with observational uncertainties. The likelihood is
+    evaluated using either a Laplace or uniform kernel, depending on
+    the sign of h4.
+
+    Parameters
+    ----------
+    params : array_like, shape (4,)
+        Model parameters:
+        - params[0] : mean of the intrinsic distribution
+        - params[1] : intrinsic dispersion (sigma)
+        - params[2] : third Gauss–Hermite moment (h3; skewness)
+        - params[3] : fourth Gauss–Hermite moment (h4; kurtosis)
+    x : array_like
+        Observed data values.
+    ex : array_like
+        Measurement uncertainties associated with `x`.
+    ww : array_like
+        Weights applied to each data point in the likelihood.
+
+    Returns
+    -------
+    lnlik : float
+        Negative log-likelihood value. Returns `np.inf` if the model
+        produces non-physical moments (e.g., negative variance or
+        invalid kurtosis).
+
+    Notes
+    -----
+    - For h4 >= 0, a Laplace kernel is used.
+    - For h4 < 0, a uniform kernel is used.
+    - Models yielding non-positive variance or kurtosis outside the
+      interval [1.8, 6] are rejected.
+    - NaN contributions to the likelihood are removed before summation.
+    """
+
+    if ww is None:
+        ww = np.ones_like(x)
+
+    mean, sigma, h3, h4 = params
+
+    if h4 >= 0:
+        variance, kurtosis = laplace_kernel_variance_kurtosis(sigma, h3, h4)
+    else:
+        variance, kurtosis = uniform_kernel_variance_kurtosis(sigma, h3, h4)
+
+    if variance <= 0 or np.isnan(variance) or np.isnan(kurtosis):
+        return np.inf
+
+    if mode == "lnlik":
+        if h4 >= 0:
+            lnlik_i = ln_laplace_kernel_pdf(x, ex, mean, sigma, h3, h4)
+        else:
+            lnlik_i = ln_uniform_kernel_pdf(x, ex, mean, sigma, h3, h4)
+    else:
+        if h4 >= 0:
+            curve = laplace_kernel_pdf(x, ex, mean, sigma, h3, h4)
+        else:
+            curve = uniform_kernel_pdf(x, ex, mean, sigma, h3, h4)
+        return curve
+
+    mask = ~np.isnan(lnlik_i)
+
+    if not np.any(mask):
+        return np.inf
+
+    lnlik = -np.sum(lnlik_i[mask] * ww[mask])
+    return lnlik
+
+
+def mom_likelihood_call(x, ex, ww):
+    """
+    Perform maximum-likelihood estimation of Gauss–Hermite moments
+    (mean, sigma, h3, h4) using global optimization.
+
+    This function initializes reasonable starting values and bounds,
+    then minimizes the negative log-likelihood defined in
+    `mom_likelihood_func` using differential evolution.
+
+    Parameters
+    ----------
+    x : array_like
+        Observed data values.
+    ex : array_like
+        Measurement uncertainties associated with `x`.
+    ww : array_like
+        Weights applied to each data point in the likelihood.
+
+    Returns
+    -------
+    results : ndarray, shape (4,)
+        Maximum-likelihood estimates of:
+        - mean
+        - intrinsic dispersion (sigma)
+        - h3 (skewness)
+        - h4 (kurtosis)
+
+    Notes
+    -----
+    - Initial guesses for mean and dispersion are computed using
+      weighted statistics.
+    - Parameter bounds are scaled relative to the initial dispersion
+      estimate to ensure numerical stability.
+    - Optimization is performed using `scipy.optimize.differential_evolution`.
+    """
+
+    # Initial parameter guess: mean, sigma, h3, h4
+    ini = np.asarray(
+        [
+            weighted_median(x, ww),
+            weighted_std(x, ww),
+            0.0,
+            0.0,
+        ]
+    )
+
+    # Parameter bounds for optimization
+    bounds = [
+        (ini[0] - 3.0 * ini[1], ini[0] + 3.0 * ini[1]),
+        (0.2 * ini[1], 5.0 * ini[1]),
+        (-0.2, 0.2),
+        (-0.187, 0.145),
+    ]
+
+    mle_model = differential_evolution(
+        lambda c: mom_likelihood_func(c, x, ex, ww, mode="lnlik"),
+        bounds,
+    )
+
+    return mle_model.x
+
+
+def mom_sample_generator(mom_stats, eps=None, nsig=10, debug=False):
+    """
+    Generate random samples from a Gauss–Hermite–based PDF
+    via inverse-CDF sampling.
+
+    The intrinsic distribution is defined by Gauss–Hermite moments
+    (mean, sigma, h3, h4). Depending on the sign of h4, either a Laplace
+    or uniform kernel is used to construct the PDF. Sampling is performed
+    numerically using inverse transform sampling.
+
+    Parameters
+    ----------
+    mom_stats : array_like, shape (4, 2)
+        Moment estimates and uncertainties. Only the first column
+        (moment values) is used, ordered as:
+        - mean
+        - sigma
+        - h3
+        - h4
+    eps : array_like or None, optional
+        Measurement uncertainties associated with each sample.
+        If None, an informational message is printed and no sampling
+        is performed.
+    nsig : int, optional
+        Extent of the sampling grid in units of sigma around the mean.
+        Default is 10.
+    debug : boolean, optional
+        Whether to print debugging statements.
+        Default is False.
+
+    Returns
+    -------
+    samples : ndarray or None
+        Random samples drawn from the specified PDF. Returns None if
+        input parameters are invalid or incomplete.
+
+    Notes
+    -----
+    - Sampling is performed on a fixed grid spanning
+      [mean − nsig·sigma, mean + nsig·sigma].
+    - The PDF is normalized numerically before constructing the CDF.
+    - Physical validity of the moments is enforced via variance and
+      kurtosis constraints.
+    """
+
+    if eps is None:
+        print(
+            "mom_sample_generator: Measurement uncertainties `eps` were not "
+            "provided. Please supply an array of uncertainties matching the "
+            "desired sample size."
+        )
+        return None
+
+    mean, sigma, h3, h4 = mom_stats[:, 0]
+
+    # ---------------------------------------------------------
+    # 1. Compute variance and kurtosis from kernel moments
+    # ---------------------------------------------------------
+    if h4 >= 0:
+        variance, kurtosis = laplace_kernel_variance_kurtosis(sigma, h3, h4)
+    else:
+        variance, kurtosis = uniform_kernel_variance_kurtosis(sigma, h3, h4)
+
+    # ---------------------------------------------------------
+    # 2. Reject non-physical parameter combinations
+    # ---------------------------------------------------------
+
+    if debug:
+        print(
+            "mom_sample_generator: ",
+            f"(variance={variance:.3g}, kurtosis={kurtosis:.3g}).",
+        )
+    if variance <= 0 or np.isnan(variance) or np.isnan(kurtosis):
+        print(
+            "mom_sample_generator: Provided parameters yield ",
+            "non-physical moments ",
+            f"(variance={variance:.3g}, kurtosis={kurtosis:.3g}).",
+        )
+        return None
+
+    # ---------------------------------------------------------
+    # 3. Construct sampling grid
+    # ---------------------------------------------------------
+    xgrid = np.linspace(
+        mean - nsig * sigma,
+        mean + nsig * sigma,
+        2 * nsig * 100 + 1,
+    )
+    # ---------------------------------------------------------
+    # 4. Evaluate PDF on grid (with uncertainty marginalization)
+    # ---------------------------------------------------------
+    x2d = xgrid[:, None]
+    e2d = eps[None, :]
+
+    if h4 >= 0:
+        pdf_2d = laplace_kernel_pdf(x2d, e2d, mean, sigma, h3, h4)
+    else:
+        pdf_2d = uniform_kernel_pdf(x2d, e2d, mean, sigma, h3, h4)
+
+    # Marginalize over uncertainties
+    pdf_vals = np.nanmean(pdf_2d, axis=1)
+
+    # ---------------------------------------------------------
+    # 5. Inverse CDF sampling
+    # ---------------------------------------------------------
+    cdf = np.cumsum(pdf_vals)
+    cdf /= cdf[-1]
+
+    inv_cdf = interp1d(
+        cdf,
+        xgrid,
+        bounds_error=False,
+        fill_value="extrapolate",
+    )
+
+    uni = np.random.rand(len(eps))
+    samples = inv_cdf(uni)
+
+    return samples
+
+
+def mom_monte_carlo(ex, ww, mom_stats, nsamples):
+    """
+    Perform Monte Carlo bias estimation and correction for
+    Gauss–Hermite moments.
+
+    This function repeatedly draws synthetic samples based on an input set
+    of moment estimates, re-fits the moments via maximum likelihood, and
+    derives a multiplicative bias correction and uncertainty for each moment.
+
+    Parameters
+    ----------
+    ex : array_like
+        Measurement uncertainties associated with `x`.
+    ww : array_like
+        Weights applied to each data point in the likelihood.
+    mom_stats : array_like, shape (4, 2)
+        Initial moment estimates and uncertainties.
+        Expected ordering of moments:
+        - index 0 : mean
+        - index 1 : sigma
+        - index 2 : h3
+        - index 3 : h4
+
+        The first column is assumed to contain the estimated value.
+    nsamples : int
+        Number of Monte Carlo realisations.
+
+    Returns
+    -------
+    mom_corrected : ndarray, shape (4, 2)
+        Bias-corrected moment estimates and associated uncertainties.
+        - mom_corrected[:, 0] : corrected moment values
+        - mom_corrected[:, 1] : corrected uncertainties
+
+    Notes
+    -----
+    - Each Monte Carlo iteration generates a synthetic sample using
+      `get_mom_samples`, then re-estimates the moments using
+      `mom_likelihood_call`.
+    - Bias correction is applied multiplicatively, based on the ratio
+      between the mean recovered value and the input moment.
+    - NaN values in Monte Carlo samples are ignored when computing
+      statistics.
+    """
+
+    # ---------------------------------------------------------
+    # 1. Monte Carlo resampling of moments
+    # ---------------------------------------------------------
+    mom_samples = np.zeros((4, nsamples))
+
+    for k in range(nsamples):
+        # Generate synthetic sample from input moments
+        # (error convolution to be handled internally if required)
+        sample = mom_sample_generator(mom_stats, eps=ex)
+
+        # Re-fit moments using maximum likelihood
+        mom_samples[:, k] = mom_likelihood_call(sample, ex, ww)
+
+    # ---------------------------------------------------------
+    # 2. Bias correction and uncertainty estimation
+    # ---------------------------------------------------------
+    mom_corrected = np.zeros((4, 2))
+
+    for k in range(4):
+        ratio = np.nanmean(mom_samples[k, :]) / mom_stats[k, 0]
+
+        mom_corrected[k, 0] = mom_stats[k, 0] / ratio
+        mom_corrected[k, 1] = mom_stats[k, 1] / ratio
+
+    return mom_corrected
+
+
+def fit_1d_moments(
+    x,
+    ex,
+    ww=None,
+    method="monte-carlo",
+    nsamples=100,
+    debug=False,
+):
+    """
+    Fit 1D Gauss–Hermite moments using Monte Carlo likelihood resampling.
+
+    This function estimates the first four Gauss–Hermite moments
+    (mean, sigma, h3, h4) by repeatedly maximizing the likelihood
+    and then applying a Monte Carlo bias correction.
+
+    Parameters
+    ----------
+    x : array_like
+        Observed data values.
+    ex : array_like
+        Measurement uncertainties associated with `x`.
+    ww : array_like or None, optional
+        Weights applied to each data point in the likelihood.
+        If None, uniform weights are used.
+    method : {"monte-carlo"}, optional
+        Estimation method. Currently only Monte Carlo resampling
+        is supported.
+    nsamples : int, optional
+        Number of Monte Carlo realisations used to estimate
+        moment statistics and bias correction. Default is 100.
+    debug : boolean, optional
+        Whether to print debugging statements.
+        Default is False.
+
+    Returns
+    -------
+    mom_corrected : ndarray, shape (4, 2)
+        Bias-corrected Gauss–Hermite moment estimates and uncertainties.
+        Ordering of moments:
+        - index 0 : mean
+        - index 1 : sigma
+        - index 2 : h3
+        - index 3 : h4
+
+    Notes
+    -----
+    - Each Monte Carlo iteration performs a full maximum-likelihood
+      fit using `mom_likelihood_call`.
+    - The returned uncertainties reflect the scatter across
+      Monte Carlo realisations after bias correction.
+    - Additional fitting methods may be incorporated via the
+      `method` keyword.
+    """
+
+    # ---------------------------------------------------------
+    # 0. Default weights
+    # ---------------------------------------------------------
+    if ww is None:
+        ww = np.ones_like(x)
+
+    # ---------------------------------------------------------
+    # 1. Monte Carlo likelihood resampling
+    # ---------------------------------------------------------
+    if method == "monte-carlo":
+        mom_samples = np.zeros((4, nsamples))
+        mom_stats = np.zeros((4, 2))
+
+        if debug:
+            time_start = time.time()
+            labels = ["mean", "sigma", "h3", "h4"]
+        for k in range(nsamples):
+            mom_samples[:, k] = mom_likelihood_call(x, ex, ww)
+
+        # Compute mean and dispersion of recovered moments
+        for k in range(4):
+            mom_stats[k, 0] = np.nanmean(mom_samples[k, :])
+            mom_stats[k, 1] = np.nanstd(mom_samples[k, :])
+        if debug:
+            lapse = round((time.time() - time_start), 2)
+            print(
+                "fit_1d_moments:",
+                "Recovered necessary likelihood samples for initial fit.",
+                "\nTook",
+                lapse,
+                "seconds.",
+            )
+
+            print("Initial fit (value ± uncertainty):")
+            for name, val, err in zip(
+                labels,
+                mom_stats[:, 0],
+                mom_stats[:, 1],
+            ):
+                print(f"  {name:>5s} = {val: .3g} ± {err:.3g}")
+        if debug:
+            time_start = time.time()
+        # Apply Monte Carlo bias correction
+        mom_corrected = mom_monte_carlo(ex, ww, mom_stats, nsamples)
+        if debug:
+            lapse = round((time.time() - time_start), 2)
+            print(
+                "fit_1d_moments:",
+                "Applied monte carlo sampling correction.",
+                "\nTook",
+                lapse,
+                "seconds.",
+            )
+
+            print("Final fit (value ± uncertainty):")
+            for name, val, err in zip(
+                labels,
+                mom_corrected[:, 0],
+                mom_corrected[:, 1],
+            ):
+                print(f"  {name:>5s} = {val: .3g} ± {err:.3g}")
+    else:
+        mom_samples = np.zeros((4, nsamples))
+        mom_corrected = np.zeros((4, 2))
+        for k in range(nsamples):
+            mom_samples[:, k] = mom_likelihood_call(x, ex, ww)
+
+        # Compute mean and dispersion of recovered moments
+        for k in range(4):
+            mom_corrected[k, 0] = np.nanmean(mom_samples[k, :])
+            mom_corrected[k, 1] = np.nanstd(mom_samples[k, :])
+
+    return mom_corrected
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
