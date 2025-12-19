@@ -1113,7 +1113,18 @@ def laplace_kernel_pdf(x, err, mean, sigma, h3, h4):
     positive_term[mask] = (
         prefactor
         * np.exp((argU / (2.0 * ap**2))[mask])
-        * erfc(((t * t - ap * b * (w - mean_w)) / (np.sqrt(2.0) * t * ap))[mask])
+        * erfc(
+            (
+                (t * t - ap * b * (w - mean_w))
+                / (
+                    np.sqrt(
+                        2.0,
+                    )
+                    * t
+                    * ap
+                )
+            )[mask]
+        )
     )
 
     # ---- argU > 0 -----------------------------------------------------
@@ -1123,7 +1134,18 @@ def laplace_kernel_pdf(x, err, mean, sigma, h3, h4):
         np.sqrt(np.pi / 8.0)
         * prefactor
         * alpha((b * (w - mean_w) / t)[mask])
-        * erfcx(((t * t - ap * b * (w - mean_w)) / (np.sqrt(2.0) * t * ap))[mask])
+        * erfcx(
+            (
+                (t * t - ap * b * (w - mean_w))
+                / (
+                    np.sqrt(
+                        2.0,
+                    )
+                    * t
+                    * ap
+                )
+            )[mask]
+        )
     )
 
     # ==================================================================
@@ -1141,7 +1163,18 @@ def laplace_kernel_pdf(x, err, mean, sigma, h3, h4):
     negative_term[mask] = (
         prefactor
         * np.exp((argU / (2.0 * am**2))[mask])
-        * erfc(((t * t + am * b * (w - mean_w)) / (np.sqrt(2.0) * t * am))[mask])
+        * erfc(
+            (
+                (t * t + am * b * (w - mean_w))
+                / (
+                    np.sqrt(
+                        2.0,
+                    )
+                    * t
+                    * am
+                )
+            )[mask]
+        )
     )
 
     # ---- argU > 0 -----------------------------------------------------
@@ -1151,7 +1184,18 @@ def laplace_kernel_pdf(x, err, mean, sigma, h3, h4):
         np.sqrt(np.pi / 8.0)
         * prefactor
         * alpha((b * (w - mean_w) / t)[mask])
-        * erfcx(((t * t + am * b * (w - mean_w)) / (np.sqrt(2.0) * t * am))[mask])
+        * erfcx(
+            (
+                (t * t + am * b * (w - mean_w))
+                / (
+                    np.sqrt(
+                        2.0,
+                    )
+                    * t
+                    * am
+                )
+            )[mask]
+        )
     )
 
     # ------------------------------------------------------------------
@@ -1580,7 +1624,13 @@ def mom_sample_generator(mom_stats, eps=None, nsig=10, debug=False):
     return samples
 
 
-def mom_monte_carlo(ex, ww, mom_stats, nsamples):
+def mom_monte_carlo(
+    ex,
+    ww,
+    mom_stats,
+    nsamples,
+    output="full",
+):
     """
     Perform Monte Carlo bias estimation and correction for
     Gauss–Hermite moments.
@@ -1592,62 +1642,84 @@ def mom_monte_carlo(ex, ww, mom_stats, nsamples):
     Parameters
     ----------
     ex : array_like
-        Measurement uncertainties associated with `x`.
+        Measurement uncertainties associated with the data.
     ww : array_like
         Weights applied to each data point in the likelihood.
-    mom_stats : array_like, shape (4, 2)
+    mom_stats : array_like, shape (N, 2)
         Initial moment estimates and uncertainties.
-        Expected ordering of moments:
+
+        The first four rows are assumed to correspond to:
         - index 0 : mean
         - index 1 : sigma
         - index 2 : h3
         - index 3 : h4
 
-        The first column is assumed to contain the estimated value.
+        Additional rows (if present) correspond to derived quantities
+        and are propagated but NOT used to generate samples.
     nsamples : int
         Number of Monte Carlo realisations.
+    output : {"basic", "full"}, optional
+        Level of output detail. If "full", additional derived quantities
+        are recomputed and included in the returned array.
 
     Returns
     -------
-    mom_corrected : ndarray, shape (4, 2)
-        Bias-corrected moment estimates and associated uncertainties.
-        - mom_corrected[:, 0] : corrected moment values
-        - mom_corrected[:, 1] : corrected uncertainties
+    mom_corrected : ndarray, shape (N, 2)
+        Bias-corrected estimates and uncertainties for all quantities
+        present in `mom_stats`.
 
-    Notes
-    -----
-    - Each Monte Carlo iteration generates a synthetic sample using
-      `get_mom_samples`, then re-estimates the moments using
-      `mom_likelihood_call`.
-    - Bias correction is applied multiplicatively, based on the ratio
-      between the mean recovered value and the input moment.
-    - NaN values in Monte Carlo samples are ignored when computing
-      statistics.
+        Bias correction is applied multiplicatively using the ratio
+        between recovered and input values.
     """
 
     # ---------------------------------------------------------
-    # 1. Monte Carlo resampling of moments
+    # 1. Setup
     # ---------------------------------------------------------
-    mom_samples = np.zeros((4, nsamples))
+    nrows = mom_stats.shape[0]
+    mom_samples = np.full((nrows, nsamples), np.nan)
 
+    # Only the first four moments define the intrinsic distribution
+    mom_params = mom_stats[:4, :]
+
+    # ---------------------------------------------------------
+    # 2. Monte Carlo resampling loop
+    # ---------------------------------------------------------
     for k in range(nsamples):
-        # Generate synthetic sample from input moments
-        # (error convolution to be handled internally if required)
-        sample = mom_sample_generator(mom_stats, eps=ex)
+        # Generate synthetic sample from intrinsic moments
+        sample = mom_sample_generator(mom_params, eps=ex)
 
-        # Re-fit moments using maximum likelihood
-        mom_samples[:, k] = mom_likelihood_call(sample, ex, ww)
+        # Re-fit Gauss–Hermite moments
+        mom_samples[:4, k] = mom_likelihood_call(sample, ex, ww)
+
+        if output == "full":
+            # ---------------------------------------------
+            # Compute derived quantities for this iteration
+            # ---------------------------------------------
+            mean_k, sigma_k, h3_k, h4_k = mom_samples[:4, k]
+
+            if np.isnan(h4_k):
+                continue
+
+            if h4_k >= 0.0:
+                var_k, kurt_k = laplace_kernel_variance_kurtosis(sigma_k, h3_k, h4_k)
+            else:
+                var_k, kurt_k = uniform_kernel_variance_kurtosis(sigma_k, h3_k, h4_k)
+
+            mom_samples[4, k] = var_k
+            mom_samples[5, k] = kurt_k
+            mom_samples[6, k] = np.sqrt(var_k)
+            mom_samples[7, k] = np.sqrt(var_k + mean_k**2)
 
     # ---------------------------------------------------------
-    # 2. Bias correction and uncertainty estimation
+    # 3. Bias correction
     # ---------------------------------------------------------
-    mom_corrected = np.zeros((4, 2))
+    mom_corrected = np.zeros((nrows, 2))
 
-    for k in range(4):
-        ratio = np.nanmean(mom_samples[k, :]) / mom_stats[k, 0]
+    # Multiplicative bias ratio (safe against NaNs)
+    ratio = np.nanmean(mom_samples, axis=1) / mom_stats[:, 0]
 
-        mom_corrected[k, 0] = mom_stats[k, 0] / ratio
-        mom_corrected[k, 1] = mom_stats[k, 1] / ratio
+    mom_corrected[:, 0] = mom_stats[:, 0] / ratio
+    mom_corrected[:, 1] = mom_stats[:, 1] / ratio
 
     return mom_corrected
 
@@ -1657,15 +1729,16 @@ def fit_1d_moments(
     ex,
     ww=None,
     method="monte-carlo",
+    output="full",
     nsamples=100,
     debug=False,
 ):
     """
     Fit 1D Gauss–Hermite moments using Monte Carlo likelihood resampling.
 
-    This function estimates the first four Gauss–Hermite moments
-    (mean, sigma, h3, h4) by repeatedly maximizing the likelihood
-    and then applying a Monte Carlo bias correction.
+    Estimates the first four Gauss–Hermite moments (mean, sigma, h3, h4)
+    by repeatedly maximizing the likelihood and applying a Monte Carlo
+    bias correction.
 
     Parameters
     ----------
@@ -1676,34 +1749,30 @@ def fit_1d_moments(
     ww : array_like or None, optional
         Weights applied to each data point in the likelihood.
         If None, uniform weights are used.
-    method : {"monte-carlo"}, optional
-        Estimation method. Currently only Monte Carlo resampling
-        is supported.
+    method : str, optional
+        If method == "monte-carlo", apply Monte Carlo bias correction.
+        Otherwise, return uncorrected moment estimates from the Monte Carlo
+        sample distribution.
+    output : {"basic", "full"}, optional
+        Level of output detail. If "full", additional derived
+        quantities are computed and stored internally.
     nsamples : int, optional
-        Number of Monte Carlo realisations used to estimate
-        moment statistics and bias correction. Default is 100.
-    debug : boolean, optional
-        Whether to print debugging statements.
-        Default is False.
+        Number of Monte Carlo realisations. Default is 100.
+    debug : bool, optional
+        Whether to print diagnostic output. Default is False.
 
     Returns
     -------
-    mom_corrected : ndarray, shape (4, 2)
-        Bias-corrected Gauss–Hermite moment estimates and uncertainties.
-        Ordering of moments:
-        - index 0 : mean
-        - index 1 : sigma
-        - index 2 : h3
-        - index 3 : h4
+    mom_corrected : ndarray
+        Array of shape (N, 2), where N depends on `output` and `method`.
 
-    Notes
-    -----
-    - Each Monte Carlo iteration performs a full maximum-likelihood
-      fit using `mom_likelihood_call`.
-    - The returned uncertainties reflect the scatter across
-      Monte Carlo realisations after bias correction.
-    - Additional fitting methods may be incorporated via the
-      `method` keyword.
+        - For output == "basic": N = 4 (mean, sigma, h3, h4)
+        - For output == "full":  N > 4, including derived quantities:
+            variance, kurtosis, root mean square and standard deviation.
+
+        The first column contains mean estimates, the second column
+        contains uncertainties (standard deviations).
+
     """
 
     # ---------------------------------------------------------
@@ -1712,49 +1781,117 @@ def fit_1d_moments(
     if ww is None:
         ww = np.ones_like(x)
 
-    # ---------------------------------------------------------
-    # 1. Monte Carlo likelihood resampling
-    # ---------------------------------------------------------
-    if method == "monte-carlo":
-        mom_samples = np.zeros((4, nsamples))
-        mom_stats = np.zeros((4, 2))
+    if output == "full":
+        labels = [
+            "mean",
+            "sigma",
+            "h3",
+            "h4",
+            "variance",
+            "kurtosis",
+            "standard-deviation",
+            "root-mean-square",
+        ]
+    else:
+        labels = ["mean", "sigma", "h3", "h4"]
 
-        if debug:
-            time_start = time.time()
-            labels = ["mean", "sigma", "h3", "h4"]
-        for k in range(nsamples):
-            mom_samples[:, k] = mom_likelihood_call(x, ex, ww)
+    # ---------------------------------------------------------
+    # 1. Monte Carlo likelihood sampling
+    # ---------------------------------------------------------
+    mom_samples = np.zeros((4, nsamples))
 
-        # Compute mean and dispersion of recovered moments
-        for k in range(4):
-            mom_stats[k, 0] = np.nanmean(mom_samples[k, :])
-            mom_stats[k, 1] = np.nanstd(mom_samples[k, :])
-        if debug:
-            lapse = round((time.time() - time_start), 2)
-            print(
-                "fit_1d_moments:",
-                "Recovered necessary likelihood samples for initial fit.",
-                "\nTook",
-                lapse,
-                "seconds.",
+    if debug:
+        time_start = time.time()
+
+    for k in range(nsamples):
+        mom_samples[:, k] = mom_likelihood_call(x, ex, ww)
+
+    if debug:
+        lapse = round(time.time() - time_start, 2)
+        print(
+            "fit_1d_moments:",
+            "Recovered likelihood samples.",
+            "\nTook",
+            lapse,
+            "seconds.",
+        )
+
+    # ---------------------------------------------------------
+    # 2. Optional: compute derived physical quantities
+    # ---------------------------------------------------------
+    if output == "full":
+        variance = np.full(nsamples, np.nan)
+        kurtosis = np.full(nsamples, np.nan)
+
+        # Masks based on sign of h4
+        mask_pos = mom_samples[3, :] >= 0.0
+        mask_neg = ~mask_pos
+
+        # Positive h4 → Laplace kernel
+        if np.any(mask_pos):
+            variance[mask_pos], kurtosis[mask_pos] = laplace_kernel_variance_kurtosis(
+                mom_samples[1, mask_pos],  # sigma
+                mom_samples[2, mask_pos],  # h3
+                mom_samples[3, mask_pos],  # h4
             )
 
-            print("Initial fit (value ± uncertainty):")
-            for name, val, err in zip(
-                labels,
-                mom_stats[:, 0],
-                mom_stats[:, 1],
-            ):
-                print(f"  {name:>5s} = {val: .3g} ± {err:.3g}")
+        # Negative h4 → Uniform kernel
+        if np.any(mask_neg):
+            variance[mask_neg], kurtosis[mask_neg] = uniform_kernel_variance_kurtosis(
+                mom_samples[1, mask_neg],  # sigma
+                mom_samples[2, mask_neg],  # h3
+                mom_samples[3, mask_neg],  # h4
+            )
+
+        # Additional derived quantities
+        x_std = np.sqrt(variance)
+        x2_mom = np.sqrt(variance + mom_samples[0, :] ** 2)
+
+        # Append as extra rows (internal use only)
+        mom_samples = np.vstack(
+            (
+                mom_samples,
+                variance,
+                kurtosis,
+                x_std,
+                x2_mom,
+            )
+        )
+
+    # ---------------------------------------------------------
+    # 3. Compute raw moment statistics
+    # ---------------------------------------------------------
+    nrows = mom_samples.shape[0]
+    mom_stats = np.zeros((nrows, 2))
+
+    mom_stats[:, 0] = np.nanmean(mom_samples, axis=1)
+    mom_stats[:, 1] = np.nanstd(mom_samples, axis=1)
+
+    if debug:
+        print("Initial fit (value ± uncertainty):")
+        for name, val, err in zip(labels, mom_stats[:, 0], mom_stats[:, 1]):
+            print(f"  {name:>5s} = {val:.3g} ± {err:.3g}")
+
+    # ---------------------------------------------------------
+    # 4. Monte Carlo bias correction (if requested)
+    # ---------------------------------------------------------
+    if method == "monte-carlo":
         if debug:
             time_start = time.time()
-        # Apply Monte Carlo bias correction
-        mom_corrected = mom_monte_carlo(ex, ww, mom_stats, nsamples)
+
+        mom_corrected = mom_monte_carlo(
+            ex,
+            ww,
+            mom_stats,
+            nsamples,
+            output=output,
+        )
+
         if debug:
-            lapse = round((time.time() - time_start), 2)
+            lapse = round(time.time() - time_start, 2)
             print(
                 "fit_1d_moments:",
-                "Applied monte carlo sampling correction.",
+                "Applied Monte Carlo bias correction.",
                 "\nTook",
                 lapse,
                 "seconds.",
@@ -1766,17 +1903,10 @@ def fit_1d_moments(
                 mom_corrected[:, 0],
                 mom_corrected[:, 1],
             ):
-                print(f"  {name:>5s} = {val: .3g} ± {err:.3g}")
+                print(f"  {name:>5s} = {val:.3g} ± {err:.3g}")
     else:
-        mom_samples = np.zeros((4, nsamples))
-        mom_corrected = np.zeros((4, 2))
-        for k in range(nsamples):
-            mom_samples[:, k] = mom_likelihood_call(x, ex, ww)
-
-        # Compute mean and dispersion of recovered moments
-        for k in range(4):
-            mom_corrected[k, 0] = np.nanmean(mom_samples[k, :])
-            mom_corrected[k, 1] = np.nanstd(mom_samples[k, :])
+        # Fallback: no bias correction
+        mom_corrected = mom_stats.copy()
 
     return mom_corrected
 
