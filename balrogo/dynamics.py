@@ -944,7 +944,7 @@ def ln_uniform_kernel_pdf(x, err, mean, sigma, h3, h4):
     return ln_pdf
 
 
-def uniform_kernel_variance_kurtosis(sigma, h3, h4):
+def uniform_kernel_variance_kurtosis(sigma, h3, h4, mean=None):
     """
     Evaluate the variance and excess kurtosis of the
     uniform kernel model from Sanders & Evans (2020).
@@ -977,7 +977,14 @@ def uniform_kernel_variance_kurtosis(sigma, h3, h4):
         / (1.0 + a * a / 3.0 + delta**2 / 12.0) ** 2
     )
 
-    return variance, kurtosis
+    if mean is not None:
+        lam = 1 / (1 + np.sqrt(0.375) * h4)
+        stat_mean = mean + np.sqrt(3) * sigma * lam * h3
+        res = stat_mean, variance, kurtosis
+    else:
+        res = variance, kurtosis
+
+    return res
 
 
 # ==============================================================================
@@ -1329,7 +1336,7 @@ def ln_laplace_kernel_pdf(x, err, mean, sigma, h3, h4):
     return ln_pdf
 
 
-def laplace_kernel_variance_kurtosis(sigma, h3, h4):
+def laplace_kernel_variance_kurtosis(sigma, h3, h4, mean=None):
     """
     Evaluate the variance and excess kurtosis of the
     Laplace kernel model from Sanders & Evans (2020).
@@ -1360,7 +1367,12 @@ def laplace_kernel_variance_kurtosis(sigma, h3, h4):
         * (2 * a**4 + 12 * a**2 * delta**2 + delta**4)
         / (1.0 + a * a * 2 + delta**2) ** 2
     )
-    res = variance, kurtosis
+    if mean is not None:
+        lam = 1 / (1 + np.sqrt(0.375) * h4)
+        stat_mean = mean + np.sqrt(3) * sigma * lam * h3
+        res = stat_mean, variance, kurtosis
+    else:
+        res = variance, kurtosis
 
     return res
 
@@ -1701,14 +1713,25 @@ def mom_monte_carlo(
                 continue
 
             if h4_k >= 0.0:
-                var_k, kurt_k = laplace_kernel_variance_kurtosis(sigma_k, h3_k, h4_k)
+                stm_k, var_k, kurt_k = laplace_kernel_variance_kurtosis(
+                    sigma_k,
+                    h3_k,
+                    h4_k,
+                    mean=mean_k,
+                )
             else:
-                var_k, kurt_k = uniform_kernel_variance_kurtosis(sigma_k, h3_k, h4_k)
+                stm_k, var_k, kurt_k = uniform_kernel_variance_kurtosis(
+                    sigma_k,
+                    h3_k,
+                    h4_k,
+                    mean=mean_k,
+                )
 
-            mom_samples[4, k] = var_k
-            mom_samples[5, k] = kurt_k
-            mom_samples[6, k] = np.sqrt(var_k)
-            mom_samples[7, k] = np.sqrt(var_k + mean_k**2)
+            mom_samples[4, k] = stm_k
+            mom_samples[5, k] = var_k
+            mom_samples[6, k] = kurt_k
+            mom_samples[7, k] = np.sqrt(var_k)
+            mom_samples[8, k] = np.sqrt(var_k + stm_k**2)
 
     # ---------------------------------------------------------
     # 3. Bias correction
@@ -1722,6 +1745,55 @@ def mom_monte_carlo(
     mom_corrected[:, 1] = mom_stats[:, 1] / ratio
 
     return mom_corrected
+
+
+def print_vdm_franx_consistency(mom_stats):
+    """
+    Print consistency diagnostics between measured moments and
+    vdM & Franx (1993) approximations.
+
+    Parameters
+    ----------
+    mom_stats : ndarray, shape (N, 2)
+        Moment statistics array. The following rows are assumed:
+        - index 1 : sigma
+        - index 2 : h3
+        - index 3 : h4
+        - index 6 : kurtosis (SE)
+        - index 7 : sigma (SE)
+    """
+    sigma = mom_stats[1, 0]
+    h3 = mom_stats[2, 0]
+    h4 = mom_stats[3, 0]
+
+    # vdM & Franx lambda parameter
+    lam = 1.0 / (1.0 + np.sqrt(0.375) * h4)
+
+    # Second moment (variance proxy)
+    val2 = sigma**2 * (
+        1.0 + lam**2 * (h4 * (2.0 * np.sqrt(6.0) + 3.0 * h4) - 3.0 * h3**2)
+    )
+
+    # Fourth moment (kurtosis proxy)
+    val4 = (
+        0.5
+        * lam**4
+        * (
+            16.0 * np.sqrt(6.0) * h4
+            - 9.0 * h4**2 * (8.0 + 6.0 * np.sqrt(6.0) * h4 + 5.0 * h4**2)
+            + 12.0 * h3**2 * (15.0 * h4**2 + 8.0 * np.sqrt(6.0) * h4 - 8.0)
+            - 108.0 * h3**4
+        )
+    )
+
+    print("\nConsistency with vdM & Franx (1993) approximations:")
+    print(f"  lambda      = {lam:.3g}")
+    print(f"  kurt_vdm    = {val4:.3g}")
+    print(f"  kurt_se     = {mom_stats[6, 0]:.3g}")
+    print(f"  sigma_vdm   = {np.sqrt(val2):.3g}")
+    print(f"  sigma_se    = {mom_stats[7, 0]:.3g}")
+
+    return
 
 
 def fit_1d_moments(
@@ -1787,6 +1859,7 @@ def fit_1d_moments(
             "sigma",
             "h3",
             "h4",
+            "stat-mean",
             "variance",
             "kurtosis",
             "standard-deviation",
@@ -1820,6 +1893,7 @@ def fit_1d_moments(
     # 2. Optional: compute derived physical quantities
     # ---------------------------------------------------------
     if output == "full":
+        stat_mean = np.full(nsamples, np.nan)
         variance = np.full(nsamples, np.nan)
         kurtosis = np.full(nsamples, np.nan)
 
@@ -1829,28 +1903,37 @@ def fit_1d_moments(
 
         # Positive h4 → Laplace kernel
         if np.any(mask_pos):
-            variance[mask_pos], kurtosis[mask_pos] = laplace_kernel_variance_kurtosis(
+            stm, var, kurt = laplace_kernel_variance_kurtosis(
                 mom_samples[1, mask_pos],  # sigma
                 mom_samples[2, mask_pos],  # h3
                 mom_samples[3, mask_pos],  # h4
+                mean=mom_samples[0, mask_pos],  # mean
             )
+            stat_mean[mask_pos] = stm
+            variance[mask_pos] = var
+            kurtosis[mask_pos] = kurt
 
         # Negative h4 → Uniform kernel
         if np.any(mask_neg):
-            variance[mask_neg], kurtosis[mask_neg] = uniform_kernel_variance_kurtosis(
+            stm, var, kurt = uniform_kernel_variance_kurtosis(
                 mom_samples[1, mask_neg],  # sigma
                 mom_samples[2, mask_neg],  # h3
                 mom_samples[3, mask_neg],  # h4
+                mean=mom_samples[0, mask_neg],  # mean
             )
+            stat_mean[mask_neg] = stm
+            variance[mask_neg] = var
+            kurtosis[mask_neg] = kurt
 
         # Additional derived quantities
         x_std = np.sqrt(variance)
-        x2_mom = np.sqrt(variance + mom_samples[0, :] ** 2)
+        x2_mom = np.sqrt(variance + stat_mean**2)
 
         # Append as extra rows (internal use only)
         mom_samples = np.vstack(
             (
                 mom_samples,
+                stat_mean,
                 variance,
                 kurtosis,
                 x_std,
@@ -1871,6 +1954,9 @@ def fit_1d_moments(
         print("Initial fit (value ± uncertainty):")
         for name, val, err in zip(labels, mom_stats[:, 0], mom_stats[:, 1]):
             print(f"  {name:>5s} = {val:.3g} ± {err:.3g}")
+
+        if output == "full":
+            print_vdm_franx_consistency(mom_stats)
 
     # ---------------------------------------------------------
     # 4. Monte Carlo bias correction (if requested)
@@ -3757,7 +3843,12 @@ def disp2d(
 
     # Partial reduction functions for hexbin
     raux_disp = partial(
-        aux_disp, y=y, ey=ey, dimy=dimy, robust_sig=robust_sig, method=method
+        aux_disp,
+        y=y,
+        ey=ey,
+        dimy=dimy,
+        robust_sig=robust_sig,
+        method=method,
     )
 
     raux_err = partial(
