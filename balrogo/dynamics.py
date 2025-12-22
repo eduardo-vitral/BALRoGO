@@ -978,8 +978,7 @@ def uniform_kernel_variance_kurtosis(sigma, h3, h4, mean=None):
     )
 
     if mean is not None:
-        lam = 1 / (1 + np.sqrt(0.375) * h4)
-        stat_mean = mean + np.sqrt(3) * sigma * lam * h3
+        stat_mean = mean + 0.5 * delta * sigma
         res = stat_mean, variance, kurtosis
     else:
         res = variance, kurtosis
@@ -1368,8 +1367,7 @@ def laplace_kernel_variance_kurtosis(sigma, h3, h4, mean=None):
         / (1.0 + a * a * 2 + delta**2) ** 2
     )
     if mean is not None:
-        lam = 1 / (1 + np.sqrt(0.375) * h4)
-        stat_mean = mean + np.sqrt(3) * sigma * lam * h3
+        stat_mean = mean + delta * sigma
         res = stat_mean, variance, kurtosis
     else:
         res = variance, kurtosis
