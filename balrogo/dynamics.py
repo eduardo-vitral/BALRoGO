@@ -978,8 +978,11 @@ def uniform_kernel_variance_kurtosis(sigma, h3, h4, mean=None):
     )
 
     if mean is not None:
-        stat_mean = mean + 0.5 * delta * sigma
-        res = stat_mean, variance, kurtosis
+        stat_mean = mean + 0.5 * delta * sigma / b
+        skewness = (delta * a * a * 0.25) / (
+            1.0 + a * a / 3.0 + delta**2 / 12.0
+        ) ** 1.5
+        res = stat_mean, variance, skewness, kurtosis
     else:
         res = variance, kurtosis
 
@@ -1367,8 +1370,11 @@ def laplace_kernel_variance_kurtosis(sigma, h3, h4, mean=None):
         / (1.0 + a * a * 2 + delta**2) ** 2
     )
     if mean is not None:
-        stat_mean = mean + delta * sigma
-        res = stat_mean, variance, kurtosis
+        stat_mean = mean + delta * sigma / b
+        skewness = (
+            2 * delta * (6 * a * a + delta**2) / (1.0 + a * a * 2 + delta**2) ** 1.5
+        )
+        res = stat_mean, variance, skewness, kurtosis
     else:
         res = variance, kurtosis
 
@@ -1711,14 +1717,14 @@ def mom_monte_carlo(
                 continue
 
             if h4_k >= 0.0:
-                stm_k, var_k, kurt_k = laplace_kernel_variance_kurtosis(
+                stm_k, var_k, skew_k, kurt_k = laplace_kernel_variance_kurtosis(
                     sigma_k,
                     h3_k,
                     h4_k,
                     mean=mean_k,
                 )
             else:
-                stm_k, var_k, kurt_k = uniform_kernel_variance_kurtosis(
+                stm_k, var_k, skew_k, kurt_k = uniform_kernel_variance_kurtosis(
                     sigma_k,
                     h3_k,
                     h4_k,
@@ -1727,9 +1733,10 @@ def mom_monte_carlo(
 
             mom_samples[4, k] = stm_k
             mom_samples[5, k] = var_k
-            mom_samples[6, k] = kurt_k
-            mom_samples[7, k] = np.sqrt(var_k)
-            mom_samples[8, k] = np.sqrt(var_k + stm_k**2)
+            mom_samples[6, k] = skew_k
+            mom_samples[7, k] = kurt_k
+            mom_samples[8, k] = np.sqrt(var_k)
+            mom_samples[9, k] = np.sqrt(var_k + stm_k**2)
 
     # ---------------------------------------------------------
     # 3. Bias correction
@@ -1859,6 +1866,7 @@ def fit_1d_moments(
             "h4",
             "stat-mean",
             "variance",
+            "skewness",
             "kurtosis",
             "standard-deviation",
             "root-mean-square",
@@ -1893,6 +1901,7 @@ def fit_1d_moments(
     if output == "full":
         stat_mean = np.full(nsamples, np.nan)
         variance = np.full(nsamples, np.nan)
+        skewness = np.full(nsamples, np.nan)
         kurtosis = np.full(nsamples, np.nan)
 
         # Masks based on sign of h4
@@ -1901,7 +1910,7 @@ def fit_1d_moments(
 
         # Positive h4 → Laplace kernel
         if np.any(mask_pos):
-            stm, var, kurt = laplace_kernel_variance_kurtosis(
+            stm, var, skew, kurt = laplace_kernel_variance_kurtosis(
                 mom_samples[1, mask_pos],  # sigma
                 mom_samples[2, mask_pos],  # h3
                 mom_samples[3, mask_pos],  # h4
@@ -1909,11 +1918,12 @@ def fit_1d_moments(
             )
             stat_mean[mask_pos] = stm
             variance[mask_pos] = var
+            skewness[mask_pos] = skew
             kurtosis[mask_pos] = kurt
 
         # Negative h4 → Uniform kernel
         if np.any(mask_neg):
-            stm, var, kurt = uniform_kernel_variance_kurtosis(
+            stm, var, skew, kurt = uniform_kernel_variance_kurtosis(
                 mom_samples[1, mask_neg],  # sigma
                 mom_samples[2, mask_neg],  # h3
                 mom_samples[3, mask_neg],  # h4
@@ -1921,6 +1931,7 @@ def fit_1d_moments(
             )
             stat_mean[mask_neg] = stm
             variance[mask_neg] = var
+            skewness[mask_neg] = skew
             kurtosis[mask_neg] = kurt
 
         # Additional derived quantities
@@ -1933,6 +1944,7 @@ def fit_1d_moments(
                 mom_samples,
                 stat_mean,
                 variance,
+                skewness,
                 kurtosis,
                 x_std,
                 x2_mom,
