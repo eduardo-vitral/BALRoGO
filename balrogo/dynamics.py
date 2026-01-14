@@ -1749,6 +1749,34 @@ def mom_monte_carlo(
     mom_corrected[:, 0] = mom_stats[:, 0] / ratio
     mom_corrected[:, 1] = mom_stats[:, 1] / ratio
 
+    # ---------------------------------------------------------
+    # 4. Physicality check on corrected (mean, sigma, h3, h4)
+    # ---------------------------------------------------------
+    mean_c, sigma_c, h3_c, h4_c = mom_corrected[:4, 0]
+
+    # Compute variance and kurtosis from kernel moments, mirroring your logic
+    if h4_c >= 0:
+        # You indicated this returns (variance, kurtosis) in this usage
+        variance_c, kurtosis_c = laplace_kernel_variance_kurtosis(
+            sigma_c,
+            h3_c,
+            h4_c,
+        )
+    else:
+        variance_c, kurtosis_c = uniform_kernel_variance_kurtosis(
+            sigma_c,
+            h3_c,
+            h4_c,
+        )
+
+    if (variance_c <= 0) or np.isnan(variance_c) or np.isnan(kurtosis_c):
+        print(
+            "mom_monte_carlo: Corrected parameters yield non-physical moments "
+            f"(variance={variance_c:.3g}, kurtosis={kurtosis_c:.3g}). "
+            "Returning original mom_stats without correction."
+        )
+        return mom_stats
+
     return mom_corrected
 
 
