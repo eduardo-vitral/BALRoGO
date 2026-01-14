@@ -81,8 +81,29 @@ def weight_mean(x, dx, w):
     return wmean, dwmean
 
 
-# Numpy implementation
 def weighted_median(x, w):
+    """
+    Robust weighted median.
+    Returns np.nan if inputs are invalid, empty, mismatched,
+    or have non-positive total weight.
+    """
+    if x is None or w is None:
+        return np.nan
+
+    x = np.asarray(x).ravel()
+    w = np.asarray(w).ravel()
+
+    if x.size == 0 or w.size == 0 or x.size != w.size:
+        return np.nan
+
+    # Finite + non-negative weights only
+    mask = np.isfinite(x) & np.isfinite(w) & (w >= 0)
+    if not np.any(mask):
+        return np.nan
+
+    x = x[mask]
+    w = w[mask]
+
     # Sort the values and weights by the values
     sorted_indices = np.argsort(x)
     sorted_values = x[sorted_indices]
@@ -103,13 +124,25 @@ def weighted_median(x, w):
 
 def weighted_std(x, w):
     """
-    Return the weighted average and standard deviation.
-
-    They weights are in effect first normalized so that they
-    sum to 1 (and so they must not all be 0).
-
-    values, weights -- NumPy ndarrays with the same shape.
+    Robust weighted standard deviation.
+    Returns np.nan if inputs are invalid or total weight is non-positive.
     """
+    if x is None or w is None:
+        return np.nan
+
+    x = np.asarray(x).ravel()
+    w = np.asarray(w).ravel()
+
+    if x.size == 0 or w.size == 0 or x.size != w.size:
+        return np.nan
+
+    mask = np.isfinite(x) & np.isfinite(w) & (w >= 0)
+    if not np.any(mask):
+        return np.nan
+
+    x = x[mask]
+    w = w[mask]
+
     average = np.average(x, weights=w)
     # Fast and numerically precise:
     variance = np.average((x - average) ** 2, weights=w)
@@ -1492,16 +1525,44 @@ def mom_likelihood_call(x, ex, ww):
       estimate to ensure numerical stability.
     - Optimization is performed using `scipy.optimize.differential_evolution`.
     """
+    # Hard fail-safe: never let None propagate
+    if x is None or ex is None:
+        return np.full(4, np.nan, dtype=float)
+
+    x = np.asarray(x).ravel()
+    ex = np.asarray(ex).ravel()
+
+    if x.size == 0 or ex.size == 0 or x.size != ex.size:
+        return np.full(4, np.nan, dtype=float)
+
+    if ww is None:
+        ww = np.ones_like(x, dtype=float)
+    else:
+        ww = np.asarray(ww).ravel()
+        if ww.size != x.size:
+            return np.full(4, np.nan, dtype=float)
+
+    # Sanitize: finite x/ex/ww and non-negative weights
+    mask = np.isfinite(x) & np.isfinite(ex) & np.isfinite(ww) & (ww >= 0)
+    if np.count_nonzero(mask) < 5:
+        return np.full(4, np.nan, dtype=float)
+
+    x = x[mask]
+    ex = ex[mask]
+    ww = ww[mask]
+
+    if np.sum(ww) <= 0 or not np.isfinite(np.sum(ww)):
+        return np.full(4, np.nan, dtype=float)
+
+    # Initial guesses; can still be nan if something is off
+    m0 = weighted_median(x, ww)
+    s0 = weighted_std(x, ww)
+
+    if (not np.isfinite(m0)) or (not np.isfinite(s0)) or (s0 <= 0):
+        return np.full(4, np.nan, dtype=float)
 
     # Initial parameter guess: mean, sigma, h3, h4
-    ini = np.asarray(
-        [
-            weighted_median(x, ww),
-            weighted_std(x, ww),
-            0.0,
-            0.0,
-        ]
-    )
+    ini = np.asarray([m0, s0, 0.0, 0.0], dtype=float)
 
     # Parameter bounds for optimization
     bounds = [
@@ -1511,12 +1572,18 @@ def mom_likelihood_call(x, ex, ww):
         (-0.187, 0.145),
     ]
 
-    mle_model = differential_evolution(
-        lambda c: mom_likelihood_func(c, x, ex, ww, mode="lnlik"),
-        bounds,
-    )
-
-    return mle_model.x
+    # Differential evolution can occasionally throw if bounds are degenerate
+    try:
+        mle_model = differential_evolution(
+            lambda c: mom_likelihood_func(c, x, ex, ww, mode="lnlik"),
+            bounds,
+        )
+        out = np.asarray(mle_model.x, dtype=float)
+        if out.shape != (4,) or not np.all(np.isfinite(out)):
+            return np.full(4, np.nan, dtype=float)
+        return out
+    except Exception:
+        return np.full(4, np.nan, dtype=float)
 
 
 def mom_sample_generator(mom_stats, eps=None, nsig=10, debug=False):
@@ -1703,7 +1770,8 @@ def mom_monte_carlo(
     for k in range(nsamples):
         # Generate synthetic sample from intrinsic moments
         sample = mom_sample_generator(mom_params, eps=ex)
-
+        if sample is None:
+            continue  # non-physical draw; skip safely
         # Re-fit Gauss–Hermite moments
         mom_samples[:4, k] = mom_likelihood_call(sample, ex, ww)
 
