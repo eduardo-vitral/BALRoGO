@@ -1769,11 +1769,26 @@ def mom_monte_carlo(
             h4_c,
         )
 
+    # --- Guard 1: physicality of corrected first four moments
     if (variance_c <= 0) or np.isnan(variance_c) or np.isnan(kurtosis_c):
         print(
             "mom_monte_carlo: Corrected parameters yield non-physical moments "
             f"(variance={variance_c:.3g}, kurtosis={kurtosis_c:.3g}). "
             "Returning original mom_stats without correction."
+        )
+        return mom_stats
+
+    # --- Guard 2: all corrected uncertainties must be strictly positive and finite
+    unc = mom_corrected[:, 1]
+    bad_unc = (~np.isfinite(unc)) | (unc <= 0)
+
+    if np.any(bad_unc):
+        # Provide a concise but useful diagnostic
+        bad_idx = np.where(bad_unc)[0]
+        print(
+            "mom_monte_carlo: Corrected uncertainties are not strictly positive/finite "
+            f"at indices {bad_idx.tolist()}."
+            + " Returning original mom_stats without correction."
         )
         return mom_stats
 
