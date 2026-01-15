@@ -1527,39 +1527,39 @@ def mom_likelihood_call(x, ex, ww):
     """
     # Hard fail-safe: never let None propagate
     if x is None or ex is None:
-        return np.full(4, np.nan, dtype=float)
+        return np.full(4, np.nan, dtype=float), np.nan
 
     x = np.asarray(x).ravel()
     ex = np.asarray(ex).ravel()
 
     if x.size == 0 or ex.size == 0 or x.size != ex.size:
-        return np.full(4, np.nan, dtype=float)
+        return np.full(4, np.nan, dtype=float), np.nan
 
     if ww is None:
         ww = np.ones_like(x, dtype=float)
     else:
         ww = np.asarray(ww).ravel()
         if ww.size != x.size:
-            return np.full(4, np.nan, dtype=float)
+            return np.full(4, np.nan, dtype=float), np.nan
 
     # Sanitize: finite x/ex/ww and non-negative weights
     mask = np.isfinite(x) & np.isfinite(ex) & np.isfinite(ww) & (ww >= 0)
     if np.count_nonzero(mask) < 5:
-        return np.full(4, np.nan, dtype=float)
+        return np.full(4, np.nan, dtype=float), np.nan
 
     x = x[mask]
     ex = ex[mask]
     ww = ww[mask]
 
     if np.sum(ww) <= 0 or not np.isfinite(np.sum(ww)):
-        return np.full(4, np.nan, dtype=float)
+        return np.full(4, np.nan, dtype=float), np.nan
 
     # Initial guesses; can still be nan if something is off
     m0 = weighted_median(x, ww)
     s0 = weighted_std(x, ww)
 
     if (not np.isfinite(m0)) or (not np.isfinite(s0)) or (s0 <= 0):
-        return np.full(4, np.nan, dtype=float)
+        return np.full(4, np.nan, dtype=float), np.nan
 
     # Initial parameter guess: mean, sigma, h3, h4
     ini = np.asarray([m0, s0, 0.0, 0.0], dtype=float)
@@ -1578,12 +1578,18 @@ def mom_likelihood_call(x, ex, ww):
             lambda c: mom_likelihood_func(c, x, ex, ww, mode="lnlik"),
             bounds,
         )
-        out = np.asarray(mle_model.x, dtype=float)
-        if out.shape != (4,) or not np.all(np.isfinite(out)):
-            return np.full(4, np.nan, dtype=float)
-        return out
+        params = np.asarray(mle_model.x, dtype=float)
+        if params.shape != (4,) or not np.all(np.isfinite(params)):
+            return np.full(4, np.nan, dtype=float), np.nan
+        # Evaluate objective at returned params to confirm feasibility
+        nll = mom_likelihood_func(params, x, ex, ww, mode="lnlik")
+        if not np.isfinite(nll):
+            # Non-physical (np.inf) or invalid (nan)
+            return np.full(4, np.nan, dtype=float), np.nan
+        logL = -float(nll)
+        return params, logL
     except Exception:
-        return np.full(4, np.nan, dtype=float)
+        return np.full(4, np.nan, dtype=float), np.nan
 
 
 def mom_sample_generator(mom_stats, eps=None, nsig=10, debug=False):
@@ -1773,7 +1779,7 @@ def mom_monte_carlo(
         if sample is None:
             continue  # non-physical draw; skip safely
         # Re-fit Gauss–Hermite moments
-        mom_samples[:4, k] = mom_likelihood_call(sample, ex, ww)
+        mom_samples[:4, k], logL = mom_likelihood_call(sample, ex, ww)
 
         if output == "full":
             # ---------------------------------------------
@@ -1989,12 +1995,13 @@ def fit_1d_moments(
     # 1. Monte Carlo likelihood sampling
     # ---------------------------------------------------------
     mom_samples = np.zeros((4, nsamples))
+    mom_logl = np.zeros(nsamples)
 
     if debug:
         time_start = time.time()
 
     for k in range(nsamples):
-        mom_samples[:, k] = mom_likelihood_call(x, ex, ww)
+        mom_samples[:, k], mom_logl[k] = mom_likelihood_call(x, ex, ww)
 
     if debug:
         lapse = round(time.time() - time_start, 2)
@@ -2068,7 +2075,7 @@ def fit_1d_moments(
     nrows = mom_samples.shape[0]
     mom_stats = np.zeros((nrows, 2))
 
-    mom_stats[:, 0] = np.nanmean(mom_samples, axis=1)
+    mom_stats[:, 0] = mom_samples[:, np.nanargmax(mom_logl)]
     mom_stats[:, 1] = np.nanstd(mom_samples, axis=1)
 
     if debug:
