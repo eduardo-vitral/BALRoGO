@@ -45,13 +45,9 @@ lint:
   <<: *install-deps
   stage: lint
   script: make lint
-  image: python:3.10
+  image: python:3.11
 
 # Tests
-python3.10:
-  <<: *test
-  image: python:3.10
-
 python3.11:
   <<: *test
   image: python:3.11
@@ -63,7 +59,7 @@ python3.12:
 # Docs
 pages:
   <<: *install-deps
-  image: python:3.10
+  image: python:3.11
   stage: docs
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
