@@ -805,7 +805,7 @@ def radec_to_lb(a, d, dadt=None, dddt=None):
         lon = lon * (180 / np.pi)
         b = b * (180 / np.pi)
 
-        return lon, b, dldt, dbdt
+        return lon, b, dldt * cosb, dbdt
 
     else:
         lon = lon * (180 / np.pi)
@@ -881,6 +881,7 @@ def lb_to_radec(lon, b, dldt=None, dbdt=None):
             a[i] = a[i] % (2 * np.pi)
 
     if dbdt is not None and dldt is not None:
+        dldt = dldt / cosb
         sind = np.sin(d)
         cosda = np.cos(a - a_NGP)
 
@@ -1059,7 +1060,7 @@ def radec_to_cart(a, d, r, mua=None, mud=None, vr=None):
 
     x = -x / kpc_to_km + x_sun
     y = y / kpc_to_km - y_sun
-    z = z / kpc_to_km - z_sun
+    z = z / kpc_to_km + z_sun
 
     vx = -vx + vx_sun
     vy = vy + vy_sun
@@ -1117,7 +1118,7 @@ def cart_to_lb(x, y, z, vx=None, vy=None, vz=None):
 
     x = (-x + x_sun) * kpc_to_km
     y = (y + y_sun) * kpc_to_km
-    z = (z + z_sun) * kpc_to_km
+    z = (z - z_sun) * kpc_to_km
 
     if vx is None or vy is None or vz is None:
         onlypos = True
@@ -1229,7 +1230,7 @@ def lb_to_cart(lon, b, r, dldt=None, dbdt=None, vr=None):
 
     x = -x / kpc_to_km + x_sun
     y = y / kpc_to_km - y_sun
-    z = z / kpc_to_km - z_sun
+    z = z / kpc_to_km + z_sun
 
     vx = -vx + vx_sun
     vy = vy + vy_sun
